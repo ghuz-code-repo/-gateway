@@ -1,0 +1,44 @@
+{{ define "user_import.html" }}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ .title }} - шлюз авторизации</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        
+        <div class="card">
+            <form action="/admin/users/import" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="excelFile">Выберите файл Excel:</label>
+                    <input type="file" id="excelFile" name="excelFile" accept=".xlsx,.xls" required>
+                </div>
+                
+                <div class="form-info">
+                    <h3>Требования к формату файла:</h3>
+                    <p>Файл Excel должен содержать следующие столбцы:</p>
+                    <ul>
+                        <li><strong>username</strong> (обязательно) - Уникальное имя пользователя для каждого пользователя</li>
+                        <li><strong>email</strong> (обязательно) - Адрес электронной почты для уведомлений</li>
+                        <li><strong>password</strong> (обязательно) - Начальный пароль</li>
+                        <li><strong>roles</strong> (необязательно) - Список ролей через запятую (например, "admin, user")</li>
+                        <li><strong>full_name</strong> (необязательно) - Полное имя пользователя</li>
+                    </ul>
+                </div>
+                
+                <div class="form-buttons">
+                    <button type="submit" class="btn primary">Импортировать пользователей</button>
+                    <a href="/admin/users" class="btn">Отмена</a>
+                </div>
+            </form>
+        </div>
+        
+        <div class="back-link">
+            <a href="/admin/users">Назад к пользователям</a>
+        </div>
+    </div>
+</body>
+</html>
+{{ end }}

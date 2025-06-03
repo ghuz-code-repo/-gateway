@@ -1,0 +1,64 @@
+{{ define "users_list.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    {{ template "header" . }}
+    
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        
+        <!-- Add success message for imported users -->
+        {{ if .imported }}
+        <div class="flash-message success">
+            Успешно импортировано {{ .imported }} пользователей!
+        </div>
+        {{ end }}
+        
+        <div class="action-buttons">
+            <a href="/admin/users/new" class="btn primary">Добавить нового пользователя</a>
+            <a href="/admin/users/import" class="btn">Импорт пользователей из Excel</a>
+        </div>
+        
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Имя пользователя</th>
+                    <th>ФИО</th>
+                    <th>Email</th>
+                    <th>Роли</th>
+                    <th class="actions-column">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ range .users }}
+                <tr>
+                    <td>{{ .Username }}</td>
+                    <td>{{ .FullName }}</td>
+                    <td>{{ .Email }}</td>
+                    <td>{{ range $index, $role := .Roles }}{{ if $index }}, {{ end }}{{ $role }}{{ end }}</td>
+                    <td class="actions">
+                        <a href="/admin/users/{{ .ID.Hex }}" class="btn small">Изменить</a>
+                        {{ if ne .Username "admin" }}
+                        <form action="/admin/users/{{ .ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
+                            <button type="submit" class="btn small danger">Удалить</button>
+                        </form>
+                        {{ end }}
+                    </td>
+                </tr>
+                {{ end }}
+            </tbody>
+        </table>
+        
+        <div class="back-link">
+            <a href="/admin">Назад к панели управления</a>
+        </div>
+    </div>
+</body>
+</html>
+{{ end }}

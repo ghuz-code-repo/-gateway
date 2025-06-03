@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>{{.title}}</h1>
+        {{if .subtitle}}
+            <h2>{{.subtitle}}</h2>
+        {{end}}
+        {{if .error}}
+            <div class="error">{{.error}}</div>
+        {{end}}
+        
+        <form action="{{if .role}}/admin/roles/{{.role.ID.Hex}}{{else}}/admin/roles{{end}}" method="POST">
+            <div class="form-group">
+                <label for="name">Название роли</label>
+                <input type="text" id="name" name="name" value="{{if .role}}{{.role.Name}}{{end}}" required {{if and .role (eq .role.Name "admin")}}readonly{{end}}>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Описание</label>
+                <input type="text" id="description" name="description" value="{{if .role}}{{.role.Description}}{{end}}" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Разрешения</label>
+                <div class="checkbox-group">
+                    {{range .permissions}}
+                        <div>
+                            <input type="checkbox" id="perm-{{.Service}}" name="permissions" value="{{.Service}}" 
+                                {{if $.role}}
+                                    {{$service := .Service}}
+                                    {{range $.role.Permissions}}
+                                        {{if eq . $service}}checked{{end}}
+                                    {{end}}
+                                {{end}}>
+                            <label for="perm-{{.Service}}">{{.Service}}</label>
+                        </div>
+                    {{end}}
+                </div>
+            </div>
+            
+            <button type="submit" class="btn">
+                {{if .role}}Обновить роль{{else}}Создать роль{{end}}
+            </button>
+        </form>
+    </div>
+    <div class="back-link">
+        <a href="/admin/roles" class="btn">Назад к списку ролей</a>
+    </div>
+</body>
+</html>

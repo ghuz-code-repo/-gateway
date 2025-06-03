@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    {{ template "header" . }}
+    
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        
+        <div class="action-buttons">
+            <a href="/admin/permissions/new" class="btn primary">Добавить сервис</a>
+        </div>
+        
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Технический идентификатор</th>
+                    <th>Отображаемое имя</th>
+                    <th>Дата создания</th>
+                    <th class="actions-column">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ range .permissions }}
+                <tr>
+                    <td>{{ .Service }}</td>
+                    <td>{{ .DisplayName }}</td>
+                    <td>{{ .CreatedAt.Format "02.01.2006 15:04" }}</td>
+                    <td class="actions">
+                        <a href="/admin/permissions/{{ .ID.Hex }}" class="btn small">Изменить</a>
+                        <form action="/admin/permissions/{{ .ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этот сервис?');">
+                            <button type="submit" class="btn small danger">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+                {{ end }}
+            </tbody>
+        </table>
+        
+        <div class="back-link">
+            <a href="/admin">Назад к панели управления</a>
+        </div>
+    </div>
+</body>
+</html>

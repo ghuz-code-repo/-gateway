@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    {{ template "header" . }}
+    
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        
+        {{ if .error }}
+        <div class="flash-message danger">
+            {{ .error }}
+        </div>
+        {{ end }}
+        
+        <form action="{{ if .user }}/admin/users/{{ .user.ID.Hex }}{{ else }}/admin/users{{ end }}" method="post">
+            <div class="form-group">
+                <label for="username">Имя пользователя:</label>
+                <input type="text" id="username" name="username" value="{{ if .user }}{{ .user.Username }}{{ else }}{{ .username }}{{ end }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="full_name">ФИО:</label>
+                <input type="text" id="full_name" name="full_name" value="{{ if .user }}{{ .user.FullName }}{{ else }}{{ .full_name }}{{ end }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" value="{{ if .user }}{{ .user.Email }}{{ else }}{{ .email }}{{ end }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">
+                    {{ if .user }}
+                        Пароль (оставьте пустым, чтобы сохранить текущий пароль):
+                    {{ else }}
+                        Пароль:
+                    {{ end }}
+                </label>
+                <input type="password" id="password" name="password" {{ if not .user }}required{{ end }}>
+            </div>
+            
+            <div class="form-group">
+                <label>Роли:</label>
+                <div class="role-checkboxes">
+                    {{ range .roles }}
+                    <div class="role-checkbox">
+                        <input type="checkbox" id="role-{{ .Name }}" name="roles" value="{{ .Name }}"
+                        {{ if $.user }}
+                            {{ $roleName := .Name }}
+                            {{ range $.user.Roles }}
+                                {{ if eq . $roleName }}checked{{ end }}
+                            {{ end }}
+                        {{ end }}>
+                        <label for="role-{{ .Name }}">{{ .Name }}</label>
+                        <span class="role-description">{{ .Description }}</span>
+                    </div>
+                    {{ end }}
+                </div>
+            </div>
+            
+            <div class="form-buttons">
+                <button type="submit" class="btn primary">
+                    {{ if .user }}Обновить{{ else }}Создать{{ end }} пользователя
+                </button>
+                <a href="/admin/users" class="btn">Отмена</a>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

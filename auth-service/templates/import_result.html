@@ -1,0 +1,35 @@
+{{ define "import_result.html" }}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ .title }} - сервис аутентификации </title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        
+            <div class="success-message">
+                {{ .success }}
+            </div>
+            
+            {{ if .warnings }}
+            <div class="warning-section">
+                <h2>Warnings:</h2>
+                <ul class="warning-list">
+                    {{ range .warnings }}
+                    <li>{{ . }}</li>
+                    {{ end }}
+                </ul>
+                <p>Эти предупреждения не помешали завершению импорта.</p>
+            </div>
+            {{ end }}
+            
+            <div class="action-buttons">
+                <a href="/admin/users" class="btn primary">Назад к списку пользователей</a>
+                <a href="/admin/users/import" class="btn">Импортировать еще пользователей</a>
+            </div>
+    </div>
+</body>
+</html>
+{{ end }}

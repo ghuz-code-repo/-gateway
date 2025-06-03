@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Шлюз - Отладка</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Информация для отладки аутентификации</h1>
+
+        {{if .error}}
+            <div class="error">
+                <strong>Ошибка:</strong> {{.error}}
+            </div>
+        {{else}}
+            <div class="section">
+                <h2>Информация о пользователе</h2>
+                <table>
+                    <tr>
+                        <th>Имя пользователя</th>
+                        <td>{{.user.Username}}</td>
+                    </tr>
+                    <tr>
+                        <th>Почта</th>
+                        <td>{{.user.Email}}</td>
+                    </tr>
+                    <tr>
+                        <th>ID пользователя</th>
+                        <td>{{.user.ID.Hex}}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>Роли</h2>
+                {{if .roles}}
+                    <ul>
+                        {{range .roles}}
+                            <li>{{.}}</li>
+                        {{end}}
+                    </ul>
+                {{else}}
+                    <p>Нет ролей</p>
+                {{end}}
+            </div>
+            
+            <div class="section">
+                <h2>Разрешения</h2>
+                {{if .permissions}}
+                    <ul>
+                        {{range .permissions}}
+                            <li>{{.}}</li>
+                        {{end}}
+                    </ul>
+                {{else}}
+                    <p>Нет разрешений.</p>
+                {{end}}
+            </div>
+            
+            {{if .serviceName}}
+                <div class="section">
+                    <h2>Проверка доступа к сервису</h2>
+                    <table>
+                        <tr>
+                            <th>Сервис</th>
+                            <td>{{.serviceName}}</td>
+                        </tr>
+                        <tr>
+                            <th>Имеет разрешение</th>
+                            <td>
+                                {{if .hasPermission}}
+                                    <span class="status status-ok">Да</span>
+                                {{else}}
+                                    <span class="status status-fail">Нет</span>
+                                {{end}}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            {{end}}
+        {{end}}
+        
+        <div>
+            <a href="/auth/admin/permissions" class="btn">Настроить сервисы</a>
+            <a href="/auth/" class="btn">Назад в меню</a>
+
+            {{if .redirect}}
+                <a href="{{.redirect}}" class="btn">Попробовать снова</a>
+            {{end}}
+        </div>
+    </div>
+</body>
+</html>

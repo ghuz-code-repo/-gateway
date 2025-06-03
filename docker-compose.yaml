@@ -1,0 +1,57 @@
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - auth-service
+    # volumes:
+    #   - ./nginx/conf:/etc/nginx/conf.d
+    #   - ./nginx/certs:/etc/nginx/certs
+    networks:
+      - public_network
+      - auth_network
+      - service_network
+    restart: unless-stopped
+
+  auth-service:
+    build: ./auth-service
+    env_file:
+      - ./auth-service/.env
+    depends_on:
+      - mongo
+    networks:
+      - auth_network
+      - data_network
+      - public_network
+    volumes:
+      - auth-data:/data
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:6
+    restart: always
+    networks:
+      - data_network
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=authdb
+
+networks:
+  public_network:
+    name: public_network
+  auth_network:
+    name: auth_network
+    internal: true
+  service_network:
+    name: service_network
+    internal: true
+  data_network:
+    name: data_network
+    internal: true
+
+volumes:
+  auth-data:
+  mongo-data:

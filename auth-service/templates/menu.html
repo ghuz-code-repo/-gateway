@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Портал Golden House</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    {{ template "header" . }}
+    
+    <div class="container">
+        <h1>Сервис утилит отдела аналитики и развития Golden House</h1>
+        
+        <div class="user-info">
+            <p>Добро пожаловать, <strong>{{ .full_name }}</strong></p>
+        </div>
+        
+        <div class="services-list">
+            {{ range .serviceInfos }}
+            <div class="service-card">
+                <a href="/{{ .id }}/">
+                    <div class="service-icon">
+                        {{ if eq .id "calculators" }}
+                            <i class="fas fa-calculator"></i>
+                        {{ else if eq .id "referal" }}
+                            <i class="fas fa-users"></i>
+                        {{ else if eq .id "sample" }}
+                            <i class="fas fa-cube"></i>
+                        {{ else }}
+                            <i class="fas fa-{{ .icon }}"></i>
+                        {{ end }}
+                    </div>
+                    <h3>{{ .displayName }}</h3>
+                </a>
+            </div>
+            {{ end }}
+            
+            {{ if .isAdmin }}
+            <div class="service-card">
+                <a href="/admin">
+                    <div class="service-icon">
+                        <i class="fas fa-cogs"></i>
+                    </div>
+                    <h3>Админ-панель</h3>
+                </a>
+            </div>
+            {{ end }}
+        </div>
+    </div>
+</body>
+</html>

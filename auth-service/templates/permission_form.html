@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    {{ template "header" . }}
+    
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        
+        {{ if .error }}
+        <div class="flash-message danger">
+            {{ .error }}
+        </div>
+        {{ end }}
+        
+        <div class="card">
+            <form action="{{ if .permission }}/admin/permissions/{{ .permission.ID.Hex }}{{ else }}/admin/permissions{{ end }}" method="post">
+                <div class="form-group">
+                    <label for="service">Технический идентификатор сервиса:</label>
+                    <input type="text" id="service" name="service" value="{{ if .permission }}{{ .permission.Service }}{{ end }}" required {{ if .permission }}readonly{{ end }}>
+                    <small>Имя используется в URL и для внутренних целей</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="display_name">Отображаемое имя сервиса:</label>
+                    <input type="text" id="display_name" name="display_name" value="{{ if .permission }}{{ .permission.DisplayName }}{{ end }}" required>
+                    <small>Это имя будет отображаться в меню пользователям</small>
+                </div>
+                
+                <div class="form-buttons">
+                    <button type="submit" class="btn primary">
+                        {{ if .permission }}Обновить{{ else }}Создать{{ end }} сервис
+                    </button>
+                    <a href="/admin/permissions" class="btn">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

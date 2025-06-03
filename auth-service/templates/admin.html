@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    {{ template "header" . }}
+    
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        
+        <div class="admin-panel">
+            <div class="admin-section">
+                <h2>Управление пользователями</h2>
+                <p>Создание, редактирование и удаление пользователей системы.</p>
+                <a href="/admin/users" class="btn primary">Пользователи</a>
+            </div>
+            
+            <div class="admin-section">
+                <h2>Управление ролями</h2>
+                <p>Настройка ролей и их разрешений.</p>
+                <a href="/admin/roles" class="btn primary">Роли</a>
+            </div>
+            
+            <div class="admin-section">
+                <h2>Управление сервисами</h2>
+                <p>Добавление и удаление сервисов системы.</p>
+                <a href="/admin/permissions" class="btn primary">Сервисы</a>
+            </div>
+        </div>
+    </div>
+    <div class="back-link">
+        <a href="/auth/menu">Назад к меню</a>
+    </div>
+</body>
+</html>

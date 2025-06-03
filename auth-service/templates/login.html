@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - Портал Golden House</title>
+    <link rel="stylesheet" href="/auth/static/css/styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <img src="/auth/static/img/logo.png" alt="Golden House" class="login-logo">
+        <h1 class="login-title">Вход</h1>
+        
+        {{ if .error }}
+        <div class="flash-message danger">
+            {{ .error }}
+        </div>
+        {{ end }}
+        
+        <form action="/auth/login" method="post" class="login-form">
+            <div class="form-group">
+                <input type="text" id="username" name="username" placeholder="Имя пользователя" required autofocus>
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="password" name="password" placeholder="Пароль" required>
+            </div>
+            
+            {{ if .redirect }}
+            <input type="hidden" name="redirect" value="{{ .redirect }}">
+            {{ end }}
+            
+            <button type="submit" class="btn primary">Войти</button>
+        </form>
+    </div>
+</body>
+</html>
