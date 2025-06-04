@@ -47,6 +47,8 @@ func GetAccountCreatedEmail(fullName, username, password string, roles []string)
 Добро пожаловать в систему утилит отдела аналитики и развития компании Golden House! Ваша учетная запись была успешно создана.
 
 Данные учетной записи:
+- Ссылка для входа: https://analytics.gh.uz/
+- Дополнительня ссылка для входа (если ссылка сверху не работает): https://06sz6qcb-80.euw.devtunnels.ms/
 - Имя пользователя: %s
 - Пароль: %s
 - Полное имя: %s
@@ -82,7 +84,10 @@ func GetAccountUpdatedEmail(fullName, username, email, password string, roles []
 Здравствуйте %s,
 
 Ваша учетная запись в системе утилит отдела аналитики и развития Golden House была обновлена.
-	Ваши текущие роли: %s
+	- Ссылка для входа: https://analytics.gh.uz/
+	- Дополнительня ссылка для входа (если ссылка сверху не работает): https://06sz6qcb-80.euw.devtunnels.ms/
+	- Имя пользователя: %s
+	- Ваши текущие роли: %s
 	%s
 
 Если вы не запрашивали эти изменения, пожалуйста, немедленно свяжитесь по почте %s или напишите в телеграм %s.
@@ -91,7 +96,7 @@ func GetAccountUpdatedEmail(fullName, username, email, password string, roles []
 	Команда отдела аналитики и развития Golden House
 
 Это автоматическое сообщение, пожалуйста, не отвечайте на него.
-`, fullName, rolesStr, passwordMsg, os.Getenv("SUPPORT_EMAIL"), os.Getenv("SUPPORT_TELEGRAM"))
+`, fullName, username, rolesStr, passwordMsg, os.Getenv("SUPPORT_EMAIL"), os.Getenv("SUPPORT_TELEGRAM"))
 
 	return subject, content
 }
