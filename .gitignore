@@ -1,7 +1,5 @@
+/nginx/conf/*
 /nginx/certs/*
 /auth-service/.env
 /auth-service/go.sum
-
-nginx/conf/default.conf
-nginx/conf/nginx.conf
 
