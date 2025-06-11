@@ -6,9 +6,9 @@ services:
       - "443:443"
     depends_on:
       - auth-service
-    # volumes:
-    #   - ./nginx/conf:/etc/nginx/conf.d
-    #   - ./nginx/certs:/etc/nginx/certs
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/certs:/etc/nginx/certs
     networks:
       - public_network
       - auth_network
