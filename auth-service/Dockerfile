@@ -1,4 +1,5 @@
 FROM golang:1.24-alpine AS builder
+ENV TZ=Asia/Tashkent
 
 WORKDIR /app
 
