@@ -993,6 +993,18 @@ input[type="text"][name="password"] {
     display: block;
 }
 
+.back-link:after,
+.back-link:visited,
+.back-link:link
+{
+    text-decoration: none;
+    color: var(--primary-color);
+}
+
+.back-link:hover{
+    color: var(--primary-color-hover);
+    text-decoration: underline;
+}
 /* ---------- HEADER STYLES (Responsive part) ---------- */
 /* Ensure existing media queries correctly hide/show burger vs desktop controls */
 @media (max-width: 768px) {
