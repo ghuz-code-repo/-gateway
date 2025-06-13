@@ -1,17 +1,107 @@
 /* General styles */
+:root {
+    --background-color: #f5f5f5;
+    --text-color: #333;
+    --primary-color: #d4af37;
+    --primary-color-rgb: 212, 175, 55; /* Added for RGBA shadows */
+    --primary-color-hover: #b8860b;
+    --primary-text-color: white;
+    --card-background-color: #fff;
+    --table-header-background-color: #d4af37;
+    --table-header-text-color: white;
+    --table-row-even-background-color: #f8f9fa;
+    --table-row-hover-background-color: #ecf0f1;
+    --border-color: #ddd;
+    --input-background-color: #fff;
+    --input-text-color: #333;
+    --input-border-color: #ccc;
+    --link-color: #4285F4;
+    --link-hover-color: #2a75e6;
+    --danger-color: #DB4437;
+    --danger-hover-color: #B71C1C;
+    --flash-danger-background: #f8d7da;
+    --flash-danger-text: #721c24;
+    --flash-danger-border: #f5c6cb;
+    --flash-success-background: #d4edda;
+    --flash-success-text: #155724;
+    --flash-success-border: #c3e6cb;
+    /* --logo-filter: none; Removed as filter approach is replaced */
+    --header-background-color: #ffffff;
+    --header-shadow-color: rgba(0, 0, 0, 0.1);
+    --button-text-color: white;
+    --button-small-text-color: white;
+    --button-danger-text-color: white;
+    --particles-color: "#c4a668";
+    /* Gold color for particles */
+    --focus-ring-color: rgba(var(--primary-color-rgb), 0.25); /* Added for input focus */
+}
+
+.dark-theme {
+    --background-color: #121212;
+    --text-color: #e0e0e0;
+    --primary-color: #b8860b;
+    --primary-color-rgb: 184, 134, 11; /* Added for RGBA shadows */
+    --primary-color-hover: #a0740a;
+    --primary-text-color: #e0e0e0;
+    --card-background-color: #1e1e1e;
+    --table-header-background-color: #b8860b;
+    --table-header-text-color: #e0e0e0;
+    --table-row-even-background-color: #2c2c2c;
+    --table-row-hover-background-color: #383838;
+    --border-color: #444;
+    --input-background-color: #2c2c2c;
+    --input-text-color: #e0e0e0;
+    --input-border-color: #555;
+    --link-color: #8ab4f8;
+    --link-hover-color: #a8c7fa;
+    --danger-color: #e57373;
+    --danger-hover-color: #ef5350;
+    --flash-danger-background: #4a1c1f;
+    --flash-danger-text: #f8d7da;
+    --flash-danger-border: #a73c47;
+    --flash-success-background: #1c3a23;
+    --flash-success-text: #d4edda;
+    --flash-success-border: #3e764f;
+    /* --logo-filter: invert(1); Removed as filter approach is replaced */
+    --header-background-color: #1e1e1e;
+    --header-shadow-color: rgba(255, 255, 255, 0.1);
+    --button-text-color: #e0e0e0;
+    --button-small-text-color: #e0e0e0;
+    --button-danger-text-color: #121212;
+    /* For better contrast on dark red */
+    --particles-color: "#b39150";
+    /* Darker gold for dark theme particles */
+    --focus-ring-color: rgba(var(--primary-color-rgb), 0.35); /* Adjusted opacity for dark theme if needed */
+}
+
 body {
     width: 100vw;
     height: 100vh;
-    display: flex
-;
+    display: flex;
     flex-direction: column;
     font-family: Arial, sans-serif;
-    background-color: #f5f5f5;
-    color: #333;
+    background-color: var(--background-color);
+    color: var(--text-color);
     margin: 0;
     padding: 0;
     justify-content: center;
+    transition: background-color 0.3s, color 0.3s;
+    z-index: -2;
+    position: fixed;
+    /* Added transition */
 }
+
+/* Particles.js background container */
+#particles-js {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: -1; /* Corrected as per user feedback */
+    /* This places it above the body's direct background, but behind other z-indexed content */
+}
+
 
 .container {
     display: flex;
@@ -20,13 +110,20 @@ body {
     min-width: 50%;
     max-width: 1200px;
     margin: 0 auto;
-    margin-top: -100px;
     padding: 20px;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    margin-top: 100px;
+/* From https://css.glass */
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(4.7px);
+    -webkit-backdrop-filter: blur(4.7px);
+    border-radius: 20px;
+    position: relative;
+    /* Ensure container content is above particles */
+    z-index: 1;
+    transition: background-color 0.3s;
 }
+
 
 .centered-container {
     display: flex;
@@ -35,11 +132,18 @@ body {
     justify-content: center;
     text-align: center;
     padding: 20px;
+    position: relative;
+    /* Ensure container content is above particles */
+    z-index: 1;
 }
 
-h1, h2, h3 {
-    color: #d4af37; /* Golden House primary color */
+h1,
+h2,
+h3 {
+    color: var(--primary-color);
+    /* Golden House primary color */
     text-align: center;
+    transition: color 0.3s;
 }
 
 h1 {
@@ -58,13 +162,14 @@ h3 {
 
 /* Card component */
 .card {
-    background-color: white;
+    background-color: var(--card-background-color);
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     width: 100%;
     max-width: 800px;
     margin-bottom: 20px;
+    transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 /* Table styles */
@@ -73,10 +178,11 @@ h3 {
     width: 100%;
     border-collapse: collapse;
     margin: 20px 0;
-    background-color: white;
+    background-color: var(--card-background-color);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     border-radius: 8px;
     overflow: hidden;
+    transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 .data-table thead {
@@ -86,14 +192,15 @@ h3 {
 }
 
 .data-table thead th {
-    background-color: #d4af37;
-    color: white;
+    background-color: var(--table-header-background-color);
+    color: var(--table-header-text-color);
     font-weight: 500;
     padding: 12px 15px;
     text-align: left;
     position: sticky;
     top: 0;
     z-index: 10;
+    transition: background-color 0.3s, color 0.3s;
 }
 
 .data-table tbody {
@@ -110,33 +217,39 @@ h3 {
     table-layout: fixed;
 }
 
-th, td {
+th,
+td {
     padding: 12px 15px;
     text-align: left;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
+    transition: border-color 0.3s, color 0.3s;
+    /* Added color transition for td text */
 }
 
 th {
-    background-color: #d4af37;
-    color: white;
+    background-color: var(--table-header-background-color);
+    color: var(--table-header-text-color);
     font-weight: 500;
+    transition: background-color 0.3s, color 0.3s;
 }
 
 tbody tr:nth-child(even) {
-    background-color: #f8f9fa;
+    background-color: var(--table-row-even-background-color);
+    transition: background-color 0.3s;
 }
 
 tbody tr:hover {
-    background-color: #ecf0f1;
+    background-color: var(--table-row-hover-background-color);
+    transition: background-color 0.3s;
 }
 
 .data-table tbody tr:hover {
-    background-color: #f5f5f5;
+    background-color: var(--table-row-hover-background-color);
 }
 
 .data-table tbody tr:nth-child(even) {
-    background-color: #fafafa;
+    background-color: var(--table-row-even-background-color);
 }
 
 .data-table .actions {
@@ -154,45 +267,68 @@ tbody tr:hover {
 }
 
 /* Button styles */
-button, .btn {
-    background-color: #d4af37; /* Golden color */
-    color: white;
+button,
+.btn {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
     border: none;
     padding: 10px 16px;
     border-radius: 4px;
     cursor: pointer;
     font-weight: 500;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, color 0.2s;
     font-size: 16px;
     text-decoration: none;
     display: inline-block;
     text-align: center;
 }
 
-button:hover, .btn:hover {
-    background-color: #b8860b; /* Darker golden color */
+button:hover,
+.btn:hover {
+    background-color: var(--primary-color-hover);
 }
 
-.primary-button, .toggle-button, button[type="submit"], button[type="button"], .btn.primary {
-    background-color: #d4af37;
+.primary-button,
+.toggle-button,
+button[type="submit"],
+button[type="button"],
+.btn.primary {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
 }
 
-.primary-button:hover, .toggle-button:hover, button[type="submit"]:hover, button[type="button"]:hover, .btn.primary:hover {
-    background-color: #b8860b;
+.primary-button:hover,
+.toggle-button:hover,
+button[type="submit"]:hover,
+button[type="button"]:hover,
+.btn.primary:hover {
+    background-color: var(--primary-color-hover);
 }
 
 .btn.small {
     padding: 4px 8px;
     font-size: 0.9em;
+    color: var(--button-small-text-color);
 }
 
 .btn.danger {
-    background-color: #DB4437;
+    background-color: var(--danger-color);
+    color: var(--button-danger-text-color);
 }
 
 .btn.danger:hover {
-    background-color: #B71C1C;
+    background-color: var(--danger-hover-color);
 }
+
+/* Active state for buttons and specified blocks for glow effect */
+.btn:active,
+button:active,
+.service-card a:active, /* Glow for service card links */
+.admin-section a.btn:active { /* Glow for admin section buttons */
+    transform: scale(0.98); /* Subtle shrink effect */
+    box-shadow: 0 0 8px 1px var(--primary-color); /* Subtle glow */
+}
+
 
 .buttons {
     display: flex;
@@ -235,7 +371,8 @@ label {
     display: block;
     margin-bottom: 10px;
     font-weight: 500;
-    color: #555;
+    color: var(--text-color);
+    transition: color 0.3s;
 }
 
 input[type="text"],
@@ -244,16 +381,54 @@ input[type="email"],
 input[type="date"],
 input[type="number"],
 input[type="file"],
-select {
+select,
+textarea { /* Added textarea for future use */
     width: 100%;
     min-width: 100%;
     max-width: 100%;
     padding: 10px;
     margin-bottom: 20px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--input-border-color);
     border-radius: 4px;
     box-sizing: border-box;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    transition: border-color 0.3s, background-color 0.3s, color 0.3s, box-shadow 0.3s; /* Added box-shadow transition */
 }
+
+/* Input focus styles */
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+input[type="date"]:focus,
+input[type="number"]:focus,
+input[type="file"]:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem var(--focus-ring-color);
+    outline: none; /* Remove default browser outline */
+}
+
+
+/* Override browser autofill styles for WebKit-based browsers */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--input-text-color) !important;
+    -webkit-box-shadow: 0 0 0px 1000px var(--input-background-color) inset !important;
+    transition: background-color 5000s ease-in-out 0s; /* A trick to delay browser style application */
+    font-family: Arial, sans-serif; /* Ensure font matches */
+}
+
+/* For Firefox, direct override is harder, but this can sometimes help if it uses a specific pseudo-class */
+/* input:-moz-autofill {
+    background-color: var(--input-background-color) !important;
+    color: var(--input-text-color) !important;
+    box-shadow: 0 0 0px 1000px var(--input-background-color) inset !important;
+} */
+
 
 input[type="date"],
 input[type="file"] {
@@ -273,7 +448,7 @@ input[type="file"]:hover {
     cursor: pointer;
 }
 
-input[type="text"][name="password"]{
+input[type="text"][name="password"] {
     -webkit-text-security: disc !important;
 }
 
@@ -283,31 +458,38 @@ input[type="text"][name="password"]{
     width: 100%;
 }
 
-.flash-message, .alert {
+.flash-message,
+.alert {
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 4px;
     text-align: center;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
-.flash-message.danger, .alert.error {
-    background-color: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
+.flash-message.danger,
+.alert.error {
+    background-color: var(--flash-danger-background);
+    color: var(--flash-danger-text);
+    border: 1px solid var(--flash-danger-border);
 }
 
-.flash-message.success, .alert.success {
-    background-color: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+.flash-message.success,
+.alert.success {
+    background-color: var(--flash-success-background);
+    color: var(--flash-success-text);
+    border: 1px solid var(--flash-success-border);
 }
 
 .error-message {
-    color: #DB4437;
+    color: var(--danger-color);
     margin-bottom: 15px;
     padding: 10px;
-    background-color: #fde9e8;
+    background-color: var(--flash-danger-background);
+    /* Use variable */
     border-radius: 4px;
+    border: 1px solid var(--flash-danger-border);
+    /* Add border for consistency */
 }
 
 /* Pagination styles */
@@ -321,9 +503,9 @@ input[type="text"][name="password"]{
 
 .pagination button {
     min-width: auto;
-    background-color: #fff;
-    color: #333;
-    border: 1px solid #ddd;
+    background-color: var(--input-background-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
     padding: 8px 12px;
     margin: 0 4px;
     cursor: pointer;
@@ -332,25 +514,27 @@ input[type="text"][name="password"]{
 }
 
 .pagination button:hover {
-    background-color: #f5f5f5;
+    background-color: var(--table-row-hover-background-color);
+    /* Using a slightly different hover */
 }
 
 .pagination button.active {
-    background-color: #d4af37;
-    color: white;
-    border-color: #d4af37;
+    background-color: var(--primary-color);
+    color: var(--primary-text-color);
+    border-color: var(--primary-color);
 }
 
 .pagination button:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--background-color);
     color: #aaa;
+    /* Consider a muted text variable */
     cursor: not-allowed;
 }
 
 .pagination-info {
     text-align: center;
     margin-bottom: 10px;
-    color: #666;
+    color: var(--text-color);
     font-size: 14px;
 }
 
@@ -373,14 +557,15 @@ input[type="text"][name="password"]{
 .items-per-page label {
     margin-bottom: 0;
     font-size: 14px;
-    color: #555;
+    color: var(--text-color);
 }
 
 .items-per-page select {
     padding: 6px 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    background-color: white;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
     min-width: auto;
     width: auto;
     margin-bottom: 0;
@@ -397,14 +582,14 @@ input[type="text"][name="password"]{
 .page-jump label {
     margin-bottom: 0;
     font-size: 14px;
-    color: #555;
+    color: var(--text-color);
 }
 
 .page-jump-input {
     width: 60px !important;
     min-width: 60px !important;
     padding: 6px 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     text-align: center;
     margin-bottom: 0 !important;
@@ -414,15 +599,15 @@ input[type="text"][name="password"]{
     min-width: auto !important;
     width: auto !important;
     padding: 6px 12px;
-    background-color: #d4af37;
-    color: white;
+    background-color: var(--primary-color);
+    color: var(--primary-text-color);
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
 
 .page-jump-btn:hover {
-    background-color: #b8860b;
+    background-color: var(--primary-color-hover);
 }
 
 /* ---------- ADMIN SECTION STYLES ---------- */
@@ -442,7 +627,7 @@ input[type="text"][name="password"]{
 }
 
 .admin-form {
-    background-color: white;
+    background-color: var(--card-background-color);
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
@@ -450,7 +635,7 @@ input[type="text"][name="password"]{
 }
 
 .admin-form h3 {
-    color: #b8860b;
+    color: var(--primary-color-hover);
     margin-top: 0;
     margin-bottom: 15px;
     font-weight: 500;
@@ -464,7 +649,7 @@ input[type="text"][name="password"]{
 .role-checkboxes {
     max-height: 200px;
     overflow-y: auto;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     padding: 10px;
     margin-bottom: 20px;
@@ -479,7 +664,8 @@ input[type="text"][name="password"]{
 }
 
 .role-checkbox:hover {
-    background-color: #f8f8f8;
+    background-color: var(--table-row-hover-background-color);
+    /* Consistent hover */
 }
 
 .role-checkbox input[type="checkbox"] {
@@ -492,46 +678,92 @@ input[type="text"][name="password"]{
     font-weight: 500;
     margin-bottom: 0;
     margin-right: 8px;
+    color: var(--text-color);
+    /* Ensure label color adapts */
 }
 
 .role-description {
-    color: #666;
-    font-size: 12px;
-    font-style: italic;
+    color: var(--text-color);
+    /* Ensure description color adapts */
+    opacity: 0.7;
+    /* Slightly muted */
 }
 
 /* Header styles */
 .header-container {
     display: flex;
-    justify-content: space-between;
+    justify-content: space-between; /* Pushes logo to left, controls to right */
     align-items: center;
     width: 100%;
-    padding: 10px 20px;
-    background-color: #ffffff;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    padding: 10px 20px; 
+    background-color: var(--header-background-color);
+    box-shadow: 0 2px 5px var(--primary-color);
+    /* box-shadow: 0 0 8px 1px var(--primary-color);  */
     position: fixed;
     top: 0;
     left: 0;
     z-index: 100;
+    transition: background-color 0.3s, box-shadow 0.3s;
+    box-sizing: border-box; 
 }
 
-.top-right {
+.header-logo-section {
+    /* No specific flex properties needed, it will align left by default */
+    display: flex; /* To ensure the <a> and <img> align well if needed */
+    align-items: center;
+}
+
+.header-controls-section {
     display: flex;
     align-items: center;
-    gap: 15px;
-    padding-right: 4vw;
+    gap: 15px; /* Space between user-info and buttons group */
 }
 
-.user-welcome {
-    color: #666;
+.header-user-info {
+    display: flex;
+    flex-direction: column; 
+    align-items: flex-end; 
+    color: var(--text-color);
     font-size: 14px;
+    text-align: right;
+    /* margin-right: 10px; Replaced by gap on parent */
 }
 
+.header-right {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.header-username {
+    font-weight: bold;
+}
+
+.header-fullname {
+    font-size: 0.85em; 
+    opacity: 0.8;
+}
+
+.header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Space between theme switcher and logout button */
+}
+
+.logo-img { /* New class for the img itself */
+    height: auto;
+    min-width: 100px;
+    /* Maintain aspect ratio */
+}
+
+/* 
 .logout-btn {
     display: inline-block;
     padding: 8px 16px;
-    background-color: #d4af37;
-    color: white;
+    background-color: var(--primary-color);
+    color: var(--primary-text-color);
     text-decoration: none;
     border-radius: 4px;
     font-size: 14px;
@@ -539,8 +771,86 @@ input[type="text"][name="password"]{
 }
 
 .logout-btn:hover {
-    background-color: #b8860b;
+    background-color: var(--primary-color-hover);
+} */
+
+.logout-btn {
+    background: transparent; /* Changed from none for clarity */
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    margin-left: 10px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+    /* min-width: 45px; */
+    text-align: center;
+    font-weight: bold;
+    text-decoration: none;
+
 }
+
+.logout-btn:hover {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    border-color: var(--primary-color-hover); /* Ensure border color changes on hover too */
+    transform: scale(1.05); /* Slight scale effect on hover */
+}
+
+/* Added active state for logout button */
+.logout-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 0 8px 1px var(--primary-color);
+}
+
+/* Theme switcher button */
+#theme-switcher {
+    background: transparent; /* Changed from none for clarity */
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    margin-left: 10px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+    /* min-width: 45px; */
+    text-align: center;
+    font-weight: bold;
+}
+
+#theme-switcher:hover {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    border-color: var(--primary-color-hover); /* Ensure border color changes on hover too */
+    transform: scale(1.05); /* Slight scale effect on hover */
+}
+
+#theme-switcher:active {
+    transform: scale(0.95); /* Specific stronger shrink effect for theme switcher */
+    box-shadow: 0 0 8px 1px var(--primary-color); /* Added glow */
+}
+
+/* Styles for theme switcher on login page */
+.login-page-theme-switcher-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1001; /* Ensure it's above other elements */
+}
+
+/* New header right section for user info */
+.header-right {
+    flex: 1; /* Takes up 1/3 of the space */
+    justify-content: flex-end;
+    align-items: center; /* Ensure vertical alignment */
+    gap: 15px;
+    /* padding-right: 4vw; This might make it asymmetric, consider removing or balancing with header-left padding */
+}
+
 
 /* Utility classes */
 .actions {
@@ -553,12 +863,13 @@ input[type="text"][name="password"]{
 }
 
 .back-link a {
-    color: #4285F4;
+    color: var(--link-color);
     text-decoration: none;
 }
 
 .back-link a:hover {
     text-decoration: underline;
+    color: var(--link-hover-color);
 }
 
 /* Additional print styles */
@@ -567,7 +878,7 @@ input[type="text"][name="password"]{
         background-color: white !important;
         color: black !important;
     }
-    
+
     .no-print {
         display: none !important;
     }
@@ -580,18 +891,20 @@ input[type="text"][name="password"]{
         padding: 10px;
         margin-top: 60px;
     }
-    
-    .buttons button, .btn {
+
+    .buttons button,
+    .btn {
         width: 100%;
         padding: 15px;
         margin-bottom: 10px;
     }
-    
+
     .action-buttons {
         flex-direction: column;
     }
-    
-    .top-left, .top-right {
+
+    .top-left,
+    .top-right {
         position: relative;
         text-align: center;
         top: 0;
@@ -599,7 +912,7 @@ input[type="text"][name="password"]{
         right: 0;
         margin-bottom: 20px;
     }
-    
+
     .logo {
         max-height: 60px;
     }
@@ -610,13 +923,14 @@ input[type="text"][name="password"]{
         flex-direction: row;
         justify-content: space-between;
     }
-    
+
     .buttons {
         flex-direction: row;
         flex-wrap: wrap;
     }
-    
-    button, .btn {
+
+    button,
+    .btn {
         min-width: auto;
     }
 }
@@ -628,8 +942,12 @@ input[type="text"][name="password"]{
     display: flex;
     margin: auto auto;
     padding: 30px;
-    background-color: white;
-    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(4.7px);
+    -webkit-backdrop-filter: blur(4.7px);
+    border-radius: 20px;
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
     text-align: center;
     flex-direction: column;
@@ -639,10 +957,11 @@ input[type="text"][name="password"]{
 .login-logo {
     margin-bottom: 30px;
     max-width: 150px;
+    /* filter: var(--logo-filter); Removed */
 }
 
 .login-title {
-    color: #d4af37;
+    color: var(--primary-color);
     margin-bottom: 30px;
 }
 
@@ -657,11 +976,11 @@ input[type="text"][name="password"]{
 
 /* ---------- USER MENU STYLES ---------- */
 .user-info {
-    background-color: #f9f9f9;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    border-left: 4px solid #d4af37;
+    background-color: var(--card-background-color);
+    padding-bottom: 10px;
+    width: 100%;
+    max-width: 800px;
+    background: transparent;
 }
 
 .services-list {
@@ -673,21 +992,29 @@ input[type="text"][name="password"]{
 }
 
 .service-card {
-    background-color: white;
-    border-radius: 8px;
+    background-color: var(--card-background-color);
+    border-radius: 20px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     padding: 20px;
     text-align: center;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s;
 }
+
+.service-card a { /* Ensure 'a' tag can receive focus for :active to work reliably on click */
+    display: block; /* Make the link fill the card area for better click interaction */
+    text-decoration: none;
+    color: inherit;
+    border-radius: inherit; /* If service-card has rounded corners, link should too */
+}
+
 
 .service-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 0 8px 1px var(--primary-color); /* Subtle glow */
 }
 
 .service-card h3 {
-    color: #d4af37;
+    color: var(--primary-color);
     margin-top: 0;
 }
 
@@ -699,5 +1026,18 @@ input[type="text"][name="password"]{
 .service-icon {
     font-size: 40px;
     margin-bottom: 15px;
-    color: #d4af37;
+    color: var(--primary-color);
+    transition: color 0.3s;
+}
+
+/* Logo SVG specific styles */
+.logo-svg { /* Styles for the embedded SVG logo */
+    /* height: 40px; Adjust to match your desired logo height */
+    width: 100px;
+    vertical-align: middle; /* Helps align with adjacent elements if any */
+}
+
+/* Ensure logo in header also respects dark theme if needed */
+.dark-theme .logo {
+    /* filter: var(--logo-filter); This rule is no longer needed and can be removed */
 }

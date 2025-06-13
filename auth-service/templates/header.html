@@ -1,10 +1,18 @@
 {{ define "header" }}
+<head>
+    <!-- Adding Font Awesome here to ensure it's available on all pages using this header -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
 <div class="header-container">
     <div class="top-left">
-        <a href="/auth/menu"><img src="/auth/static/img/logo.png" alt="Golden House" class="logo"></a>
+        <a href="/auth/menu"><img src="static/img/logo-dark.svg" alt="Golden House" class="logo-svg" id="dynamic-logo"></a>
     </div>
-    
-    <div class="top-right">
+    <div class="header-column header-right">
+        <div class="header-user-info">
+            <span class="header-username">{{ .username }}</span>
+            <span class="header-fullname">({{ .full_name }})</span>
+        </div>
+        <button id="theme-switcher" title="Toggle theme"><i class="fas fa-moon"></i></button> <!-- Default to moon icon -->
         <a href="/auth/logout" class="logout-btn">Выйти</a>
     </div>
 </div>

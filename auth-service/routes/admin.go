@@ -68,52 +68,13 @@ func SetupAdminRoutes(router *gin.Engine) {
 	}
 }
 
-// showUserFormHandler shows the form to create a new user
-func showUserFormHandler(c *gin.Context) {
-	roles, err := models.GetAllRoles()
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить роли",
-		})
-		return
-	}
-
-	c.HTML(http.StatusOK, "user_form.html", gin.H{
-		"title": "Создать пользователя",
-		"roles": roles,
-	})
-}
-
-// showRoleFormHandler shows the form to create a new role
-func showRoleFormHandler(c *gin.Context) {
-	permissions, err := models.GetAllPermissions()
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить разрешения",
-		})
-		return
-	}
-
-	c.HTML(http.StatusOK, "role_form.html", gin.H{
-		"title":       "Создать роль",
-		"permissions": permissions,
-	})
-}
-
-// showPermissionFormHandler shows the form to create a new permission
-func showPermissionFormHandler(c *gin.Context) {
-	c.HTML(http.StatusOK, "permission_form.html", gin.H{
-		"title": "Добавить сервис",
-	})
-}
-
 // adminAuthRequired middleware ensures the user is an admin
 func adminAuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get JWT token from cookie
 		cookie, err := c.Cookie("token")
 		if err != nil {
-			c.Redirect(http.StatusFound, "/auth/login?redirect=/admin")
+			c.Redirect(http.StatusFound, "/auth/login?redirect="+c.Request.URL.Path) // Preserve original redirect
 			c.Abort()
 			return
 		}
@@ -121,7 +82,7 @@ func adminAuthRequired() gin.HandlerFunc {
 		// Parse and validate token
 		claims, valid := validateToken(cookie)
 		if !valid {
-			c.Redirect(http.StatusFound, "/auth/login?redirect=/admin")
+			c.Redirect(http.StatusFound, "/auth/login?redirect="+c.Request.URL.Path) // Preserve original redirect
 			c.Abort()
 			return
 		}
@@ -129,6 +90,7 @@ func adminAuthRequired() gin.HandlerFunc {
 		// Get user info
 		user, err := models.GetUserByID(claims.UserID)
 		if err != nil {
+			// error.html does not use the shared header, so no username/full_name needed here
 			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 				"error": "Не удалось получить данные пользователя",
 			})
@@ -136,16 +98,21 @@ func adminAuthRequired() gin.HandlerFunc {
 			return
 		}
 
+		// Store user info for handlers
+		c.Set("username", user.Username)
+		c.Set("full_name", user.FullName)
+
 		// Check if user has admin role
 		isAdmin := false
-		for _, role := range user.Roles {
-			if role == "admin" {
+		for _, roleName := range user.Roles { // Iterate over role names
+			if roleName == "admin" {
 				isAdmin = true
 				break
 			}
 		}
 
 		if !isAdmin {
+			// error.html does not use the shared header
 			c.HTML(http.StatusForbidden, "error.html", gin.H{
 				"error": "У вас нет прав для доступа к панели администратора",
 			})
@@ -159,33 +126,72 @@ func adminAuthRequired() gin.HandlerFunc {
 
 // adminDashboardHandler handles the admin dashboard page
 func adminDashboardHandler(c *gin.Context) {
+	username := c.GetString("username")
+	fullName := c.GetString("full_name")
 	c.HTML(http.StatusOK, "admin.html", gin.H{
-		"title": "Панель администратора",
+		"title":     "Панель администратора",
+		"username":  username,
+		"full_name": fullName,
 	})
 }
 
 // User management handlers
 func listUsersHandler(c *gin.Context) {
+	username := c.GetString("username")
+	fullName := c.GetString("full_name")
 	users, err := models.GetAllUsers()
 	if err != nil {
+		// error.html does not use the shared header
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 			"error": "Не удалось получить пользователей",
 		})
 		return
 	}
 
+	// Get 'imported' query parameter
+	importedCount := c.Query("imported")
+
 	c.HTML(http.StatusOK, "users_list.html", gin.H{
-		"title": "Управление пользователями",
-		"users": users,
+		"title":     "Управление пользователями",
+		"users":     users,
+		"username":  username,
+		"full_name": fullName,
+		"imported":  importedCount, // Pass imported count to template
+	})
+}
+
+// showUserFormHandler shows the form to create a new user
+func showUserFormHandler(c *gin.Context) {
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
+	roles, err := models.GetAllRoles()
+	if err != nil {
+		// error.html does not use the shared header
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось получить роли",
+		})
+		return
+	}
+
+	c.HTML(http.StatusOK, "user_form.html", gin.H{
+		"title":     "Создать пользователя",
+		"roles":     roles,
+		"username":  usernameCtx, // For header
+		"full_name": fullNameCtx, // For header
 	})
 }
 
 func createUserHandler(c *gin.Context) {
-	if c.Request.Method == "GET" {
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
+
+	if c.Request.Method == "GET" { // Should be POST, but if GET, show form
 		roles, _ := models.GetAllRoles()
 		c.HTML(http.StatusOK, "user_form.html", gin.H{
-			"title": "Создать пользователя",
-			"roles": roles,
+			"title":     "Создать пользователя",
+			"roles":     roles,
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
 		})
 		return
 	}
@@ -194,22 +200,28 @@ func createUserHandler(c *gin.Context) {
 	username := c.PostForm("username")
 	email := c.PostForm("email")
 	password := c.PostForm("password")
-	fullName := c.PostForm("full_name")
+	formFullName := c.PostForm("full_name") // Renamed to avoid conflict with fullNameCtx
 	roleNames := c.PostFormArray("roles")
 
-	if username == "" || email == "" || password == "" || fullName == "" {
+	if username == "" || email == "" || password == "" || formFullName == "" {
+		roles, _ := models.GetAllRoles() // Fetch roles again for the form
 		c.HTML(http.StatusBadRequest, "user_form.html", gin.H{
-			"title":     "Создать пользователя",
-			"error":     "Все поля обязательны для заполнения",
-			"username":  username,
-			"email":     email,
-			"full_name": fullName,
+			"title":          "Создать пользователя",
+			"error":          "Все поля обязательны для заполнения",
+			"username_val":   username, // Pass back form values
+			"email_val":      email,
+			"full_name_val":  formFullName,
+			"selected_roles": roleNames,
+			"roles":          roles,
+			"username":       usernameCtx, // For header
+			"full_name":      fullNameCtx, // For header
 		})
 		return
 	}
 
-	_, err := models.CreateUser(username, email, password, fullName, roleNames)
+	_, err := models.CreateUser(username, email, password, formFullName, roleNames)
 	if err != nil {
+		// error.html does not use the shared header
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 			"error": "Не удалось создать пользователя: " + err.Error(),
 		})
@@ -221,148 +233,162 @@ func createUserHandler(c *gin.Context) {
 
 // getUserHandler shows the form to edit an existing user
 func getUserHandler(c *gin.Context) {
-	// Get user ID from URL parameter
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
 	userID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID пользователя",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID пользователя"})
 		return
 	}
 
-	// Get user from database
 	user, err := models.GetUserByObjectID(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить пользователя: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить пользователя: " + err.Error()})
 		return
 	}
 
-	// Get all roles for role selection
 	roles, err := models.GetAllRoles()
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить роли: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить роли: " + err.Error()})
 		return
 	}
 
-	// Render edit form with user data
 	c.HTML(http.StatusOK, "user_form.html", gin.H{
-		"title": "Редактировать пользователя",
-		"user":  user,
-		"roles": roles,
+		"title":     "Редактировать пользователя",
+		"user":      user,
+		"roles":     roles,
+		"username":  usernameCtx,
+		"full_name": fullNameCtx,
 	})
 }
 
 // updateUserHandler processes the form submission to update a user
 func updateUserHandler(c *gin.Context) {
-	// Get user ID from URL parameter
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
 	userID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID пользователя",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID пользователя"})
 		return
 	}
 
-	// Get existing user first
 	existingUser, err := models.GetUserByObjectID(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить пользователя: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить пользователя: " + err.Error()})
 		return
 	}
 
-	// Get form data
-	username := c.PostForm("username")
-	email := c.PostForm("email")
-	password := c.PostForm("password")
-	fullName := c.PostForm("full_name")
-	roleNames := c.PostFormArray("roles")
+	usernameForm := c.PostForm("username")
+	emailForm := c.PostForm("email")
+	passwordForm := c.PostForm("password")
+	fullNameForm := c.PostForm("full_name")
+	roleNamesForm := c.PostFormArray("roles")
 
-	// Use existing values if fields are empty
-	if username == "" {
-		username = existingUser.Username
-	}
-	if email == "" {
-		email = existingUser.Email
-	}
-	if fullName == "" {
-		fullName = existingUser.FullName
-	}
+	// Use existing values if fields are empty (this logic is in models.UpdateUser, but good to be aware)
+	// For rendering the form back on error, we need to decide what to show.
+	// Let's assume the model handles using existing if empty for the actual update.
 
-	// Update user in database with validated data
-	err = models.UpdateUser(objectID, username, email, password, fullName, roleNames)
+	err = models.UpdateUser(objectID, usernameForm, emailForm, passwordForm, fullNameForm, roleNamesForm)
 	if err != nil {
-		// Get all roles for re-rendering the form
 		roles, _ := models.GetAllRoles()
-
+		// user_form.html needs header data
 		c.HTML(http.StatusInternalServerError, "user_form.html", gin.H{
-			"title": "Редактировать пользователя",
-			"error": "Не удалось обновить пользователя: " + err.Error(),
-			"user":  existingUser,
-			"roles": roles,
+			"title":     "Редактировать пользователя",
+			"error":     "Не удалось обновить пользователя: " + err.Error(),
+			"user":      existingUser, // Show existing user data in form
+			"roles":     roles,
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
 		})
 		return
 	}
 
-	// Redirect to user list page
 	c.Redirect(http.StatusFound, "/admin/users")
 }
 
 // Role management handlers
 func listRolesHandler(c *gin.Context) {
+	username := c.GetString("username")
+	fullName := c.GetString("full_name")
 	roles, err := models.GetAllRoles()
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить роли: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить роли: " + err.Error()})
 		return
 	}
 
 	c.HTML(http.StatusOK, "roles_list.html", gin.H{
-		"title": "Управление ролями",
-		"roles": roles,
+		"title":     "Управление ролями",
+		"roles":     roles,
+		"username":  username,
+		"full_name": fullName,
+	})
+}
+
+// showRoleFormHandler shows the form to create a new role
+func showRoleFormHandler(c *gin.Context) {
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
+	permissions, err := models.GetAllPermissions()
+	if err != nil {
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить разрешения"})
+		return
+	}
+
+	c.HTML(http.StatusOK, "role_form.html", gin.H{
+		"title":       "Создать роль",
+		"permissions": permissions,
+		"username":    usernameCtx,
+		"full_name":   fullNameCtx,
 	})
 }
 
 func createRoleHandler(c *gin.Context) {
-	if c.Request.Method == "GET" {
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
+
+	if c.Request.Method == "GET" { // Should be POST
 		permissions, _ := models.GetAllPermissions()
 		c.HTML(http.StatusOK, "role_form.html", gin.H{
 			"title":       "Создать роль",
 			"permissions": permissions,
+			"username":    usernameCtx,
+			"full_name":   fullNameCtx,
 		})
 		return
 	}
 
-	// Handle POST
 	name := c.PostForm("name")
 	description := c.PostForm("description")
 	permissionNames := c.PostFormArray("permissions")
 
 	if name == "" || description == "" {
+		permissions, _ := models.GetAllPermissions()
 		c.HTML(http.StatusBadRequest, "role_form.html", gin.H{
-			"title": "Создать роль",
-			"error": "Имя и описание обязательны для заполнения",
+			"title":           "Создать роль",
+			"error":           "Имя и описание обязательны для заполнения",
+			"name_val":        name,
+			"description_val": description,
+			"permissions":     permissions, // For repopulating checkboxes
+			"selected_perms":  permissionNames,
+			"username":        usernameCtx,
+			"full_name":       fullNameCtx,
 		})
 		return
 	}
 
 	_, err := models.CreateRole(name, description, permissionNames)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось создать роль: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось создать роль: " + err.Error()})
 		return
 	}
 
@@ -371,469 +397,407 @@ func createRoleHandler(c *gin.Context) {
 
 // getRoleHandler shows the form to edit an existing role
 func getRoleHandler(c *gin.Context) {
-	// Get role ID from URL parameter
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
 	roleID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(roleID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID роли",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID роли"})
 		return
 	}
 
-	// Get role from database
 	role, err := models.GetRoleByID(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить роль: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить роль: " + err.Error()})
 		return
 	}
 
-	// Get all permissions for permission selection
 	permissions, err := models.GetAllPermissions()
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить разрешения: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить разрешения: " + err.Error()})
 		return
 	}
 
-	// Render edit form with role data
 	c.HTML(http.StatusOK, "role_form.html", gin.H{
 		"title":       "Редактировать роль",
 		"role":        role,
 		"permissions": permissions,
+		"username":    usernameCtx,
+		"full_name":   fullNameCtx,
 	})
 }
 
 // updateRoleHandler processes the form submission to update a role
 func updateRoleHandler(c *gin.Context) {
-	// Get role ID from URL parameter
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
 	roleID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(roleID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID роли",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID роли"})
 		return
 	}
 
-	// Get form data
-	name := c.PostForm("name")
-	description := c.PostForm("description")
-	permissionNames := c.PostFormArray("permissions")
+	nameForm := c.PostForm("name")
+	descriptionForm := c.PostForm("description")
+	permissionNamesForm := c.PostFormArray("permissions")
 
-	// Remove special protection for admin role's services
-	// We only maintain the admin role name
+	role, err := models.GetRoleByID(objectID) // Fetch role for validation and form repopulation
+	if err != nil {
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить роль: " + err.Error()})
+		return
+	}
 
-	// Basic validation
-	if name == "" || description == "" {
-		// Get role and permissions for re-rendering the form with error
-		role, _ := models.GetRoleByID(objectID)
+	if nameForm == "" || descriptionForm == "" {
 		permissions, _ := models.GetAllPermissions()
-
 		c.HTML(http.StatusBadRequest, "role_form.html", gin.H{
-			"title":       "Редактировать роль",
-			"error":       "Имя и описание обязательны для заполнения",
-			"role":        role,
-			"permissions": permissions,
+			"title":          "Редактировать роль",
+			"error":          "Имя и описание обязательны для заполнения",
+			"role":           role, // Pass existing role data back
+			"permissions":    permissions,
+			"selected_perms": permissionNamesForm, // Pass submitted permissions
+			"username":       usernameCtx,
+			"full_name":      fullNameCtx,
 		})
 		return
 	}
 
-	// Get the role from the database
-	role, err := models.GetRoleByID(objectID)
+	if role.Name == "admin" && nameForm != "admin" {
+		// error.html
+		c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "Нельзя менять имя роли admin"})
+		return
+	}
+
+	err = models.UpdateRole(objectID, nameForm, descriptionForm, permissionNamesForm)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить роль: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось обновить роль: " + err.Error()})
 		return
 	}
 
-	// For admin role, ensure we're not removing the admin status
-	if role.Name == "admin" && name != "admin" {
-		c.HTML(http.StatusForbidden, "error.html", gin.H{
-			"error": "Нельзя менять имя роли admin",
-		})
-		return
-	}
-
-	// Update role in database
-	err = models.UpdateRole(objectID, name, description, permissionNames)
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось обновить роль: " + err.Error(),
-		})
-		return
-	}
-
-	// Redirect to role list page
 	c.Redirect(http.StatusFound, "/admin/roles")
 }
 
 // deleteUserHandler handles the deletion of a user
 func deleteUserHandler(c *gin.Context) {
-	// Get user ID from URL parameter
+	// usernameCtx := c.GetString("username") // Not needed if only redirecting or error.html
+	// fullNameCtx := c.GetString("full_name")
 	userID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID пользователя",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID пользователя"})
 		return
 	}
 
-	// Don't allow deleting the admin user
 	user, err := models.GetUserByObjectID(objectID)
 	if err == nil && user.Username == "admin" {
-		c.HTML(http.StatusForbidden, "error.html", gin.H{
-			"error": "Невозможно удалить пользователя admin",
-		})
+		// error.html
+		c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "Невозможно удалить пользователя admin"})
 		return
 	}
 
-	// Store who performed the deletion for audit purposes
-	// adminUserID := getAdminUserID(c) // You'll need to implement this function
-
-	// Delete the user - this will now send an email notification
 	err = models.DeleteUser(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось удалить пользователя: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось удалить пользователя: " + err.Error()})
 		return
 	}
 
-	// Redirect to user list page
 	c.Redirect(http.StatusFound, "/admin/users")
-}
-
-// Helper function to get the admin user ID from the context
-func getAdminUserID(c *gin.Context) string {
-	cookie, err := c.Cookie("token")
-	if err != nil {
-		return "unknown"
-	}
-
-	claims := &models.Claims{}
-	token, err := jwt.ParseWithClaims(cookie, claims, func(token *jwt.Token) (interface{}, error) {
-		jwtSecret := os.Getenv("JWT_SECRET")
-		if jwtSecret == "" {
-			jwtSecret = "default_jwt_secret_change_in_production"
-		}
-		return []byte(jwtSecret), nil
-	})
-
-	if err != nil || !token.Valid {
-		return "unknown"
-	}
-
-	return claims.UserID
 }
 
 // deleteRoleHandler handles the deletion of a role
 func deleteRoleHandler(c *gin.Context) {
-	// Get role ID from URL parameter
+	// usernameCtx := c.GetString("username") // Not needed
+	// fullNameCtx := c.GetString("full_name")
 	roleID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(roleID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID роли",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID роли"})
 		return
 	}
 
-	// Don't allow deleting the admin role
 	role, err := models.GetRoleByID(objectID)
 	if err == nil && role.Name == "admin" {
-		c.HTML(http.StatusForbidden, "error.html", gin.H{
-			"error": "Невозможно удалить роль admin",
-		})
+		// error.html
+		c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "Невозможно удалить роль admin"})
 		return
 	}
 
-	// Check if role is assigned to any user
 	usersWithRole, err := models.GetUsersWithRole(role.Name)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось проверить назначение ролей: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось проверить назначение ролей: " + err.Error()})
 		return
 	}
 
 	if len(usersWithRole) > 0 {
-		c.HTML(http.StatusForbidden, "error.html", gin.H{
-			"error": "Невозможно удалить роль, которая назначена пользователям",
-		})
+		// error.html
+		c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "Невозможно удалить роль, которая назначена пользователям"})
 		return
 	}
 
-	// Delete the role
 	err = models.DeleteRole(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось удалить роль: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось удалить роль: " + err.Error()})
 		return
 	}
 
-	// Redirect to role list page
 	c.Redirect(http.StatusFound, "/admin/roles")
 }
 
 // Permission management handlers
 func listPermissionsHandler(c *gin.Context) {
+	username := c.GetString("username")
+	fullName := c.GetString("full_name")
 	permissions, err := models.GetAllPermissions()
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить разрешения: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить разрешения: " + err.Error()})
 		return
 	}
 
 	c.HTML(http.StatusOK, "permissions_list.html", gin.H{
 		"title":       "Управление сервисами",
 		"permissions": permissions,
+		"username":    username,
+		"full_name":   fullName,
+	})
+}
+
+// showPermissionFormHandler shows the form to create a new permission
+func showPermissionFormHandler(c *gin.Context) {
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
+	c.HTML(http.StatusOK, "permission_form.html", gin.H{
+		"title":     "Добавить сервис",
+		"username":  usernameCtx,
+		"full_name": fullNameCtx,
 	})
 }
 
 // createPermissionHandler creates a new service permission
 func createPermissionHandler(c *gin.Context) {
-	if c.Request.Method == "GET" {
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
+
+	if c.Request.Method == "GET" { // Should be POST
 		c.HTML(http.StatusOK, "permission_form.html", gin.H{
-			"title": "Добавить сервис",
+			"title":     "Добавить сервис",
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
 		})
 		return
 	}
 
-	// Handle POST
 	service := c.PostForm("service")
 	displayName := c.PostForm("display_name")
 
 	if service == "" {
 		c.HTML(http.StatusBadRequest, "permission_form.html", gin.H{
-			"title": "Добавить сервис",
-			"error": "Имя сервиса обязательно для заполнения",
+			"title":            "Добавить сервис",
+			"error":            "Имя сервиса обязательно для заполнения",
+			"service_val":      service,
+			"display_name_val": displayName,
+			"username":         usernameCtx,
+			"full_name":        fullNameCtx,
 		})
 		return
 	}
 
 	if displayName == "" {
-		displayName = service // Default to service name if no display name provided
+		displayName = service
 	}
 
-	// Create permission in database
 	err := models.CreatePermission(service, displayName)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось создать разрешение: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось создать разрешение: " + err.Error()})
 		return
 	}
 
-	// Redirect to permissions list page
 	c.Redirect(http.StatusFound, "/admin/permissions")
 }
 
 // getPermissionHandler shows the form to edit an existing permission
 func getPermissionHandler(c *gin.Context) {
-	// Get permission ID from URL parameter
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
 	permissionID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(permissionID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID разрешения",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID разрешения"})
 		return
 	}
 
-	// Get permission from database
 	permission, err := models.GetPermissionByID(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить разрешение: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить разрешение: " + err.Error()})
 		return
 	}
 
-	// Render edit form with permission data
 	c.HTML(http.StatusOK, "permission_form.html", gin.H{
 		"title":      "Редактировать сервис",
 		"permission": permission,
+		"username":   usernameCtx,
+		"full_name":  fullNameCtx,
 	})
 }
 
 // updatePermissionHandler processes the form submission to update a permission
 func updatePermissionHandler(c *gin.Context) {
-	// Get permission ID from URL parameter
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
 	permissionID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(permissionID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID разрешения",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID разрешения"})
 		return
 	}
 
-	// Get form data
-	displayName := c.PostForm("display_name")
+	displayNameForm := c.PostForm("display_name")
+	permission, _ := models.GetPermissionByID(objectID) // Fetch for form repopulation
 
-	if displayName == "" {
-		permission, _ := models.GetPermissionByID(objectID)
+	if displayNameForm == "" {
 		c.HTML(http.StatusBadRequest, "permission_form.html", gin.H{
 			"title":      "Редактировать сервис",
 			"error":      "Отображаемое имя обязательно для заполнения",
-			"permission": permission,
+			"permission": permission, // Pass existing permission data
+			"username":   usernameCtx,
+			"full_name":  fullNameCtx,
 		})
 		return
 	}
 
-	// Update permission in database
-	err = models.UpdatePermissionDisplayName(objectID, displayName)
+	err = models.UpdatePermissionDisplayName(objectID, displayNameForm)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось обновить разрешение: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось обновить разрешение: " + err.Error()})
 		return
 	}
 
-	// Redirect to permissions list page
 	c.Redirect(http.StatusFound, "/admin/permissions")
 }
 
 // deletePermissionHandler handles the deletion of a permission
 func deletePermissionHandler(c *gin.Context) {
-	// Get permission ID from URL parameter
+	// usernameCtx := c.GetString("username") // Not needed
+	// fullNameCtx := c.GetString("full_name")
 	permissionID := c.Param("id")
-
-	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(permissionID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный формат ID разрешения",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID разрешения"})
 		return
 	}
 
-	// Получение информации о разрешении
 	permission, err := models.GetPermissionByID(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить информацию о разрешении: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить информацию о разрешении: " + err.Error()})
 		return
 	}
 
-	// Удаляем эту проверку, чтобы разрешить удаление любых сервисов
-	// if err == nil && (permission.Service == "referal" || permission.Service == "sample") {
-	//     c.HTML(http.StatusForbidden, "error.html", gin.H{
-	//         "error": "Невозможно удалить системные разрешения",
-	//     })
-	//     return
-	// }
-
-	// Check if permission is used by any roles
 	rolesWithPermission, err := models.GetRolesWithPermission(permission.Service)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось проверить использование разрешений: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось проверить использование разрешений: " + err.Error()})
 		return
 	}
 
 	if len(rolesWithPermission) > 0 {
-		c.HTML(http.StatusForbidden, "error.html", gin.H{
-			"error": "Невозможно удалить разрешение, которое используется ролями",
-		})
+		// error.html
+		c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "Невозможно удалить разрешение, которое используется ролями"})
 		return
 	}
 
-	// Delete the permission
 	err = models.DeletePermission(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось удалить разрешение: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось удалить разрешение: " + err.Error()})
 		return
 	}
 
-	// Redirect to permission list page
 	c.Redirect(http.StatusFound, "/admin/permissions")
 }
 
 // showUserImportFormHandler shows the form to import users from Excel
 func showUserImportFormHandler(c *gin.Context) {
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
 	c.HTML(http.StatusOK, "user_import.html", gin.H{
-		"title": "Импорт пользователей из Excel",
+		"title":     "Импорт пользователей из Excel",
+		"username":  usernameCtx,
+		"full_name": fullNameCtx,
 	})
 }
 
 // importUsersHandler processes the Excel file upload and imports users
 func importUsersHandler(c *gin.Context) {
-	// Get uploaded file
+	usernameCtx := c.GetString("username")
+	fullNameCtx := c.GetString("full_name")
+
 	file, err := c.FormFile("excelFile")
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Нет файла для загрузки: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Нет файла для загрузки: " + err.Error()})
 		return
 	}
 
-	// Validate file extension
 	ext := filepath.Ext(file.Filename)
 	if ext != ".xlsx" && ext != ".xls" {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error": "Неверный тип файла. Разрешены только файлы Excel (.xlsx, .xls).",
-		})
+		// error.html
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный тип файла. Разрешены только файлы Excel (.xlsx, .xls)."})
 		return
 	}
 
-	// Create temp file path
 	tempFilePath := filepath.Join(os.TempDir(), "user_import"+time.Now().Format("20060102150405")+ext)
-
-	// Save file to temp directory
 	if err := c.SaveUploadedFile(file, tempFilePath); err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось сохранить файл: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось сохранить файл: " + err.Error()})
 		return
 	}
+	defer os.Remove(tempFilePath) // Ensure temp file is deleted
 
-	// Import users
-	usersCreated, err := models.ImportUsersFromExcel(tempFilePath)
-
-	// Delete temp file
-	os.Remove(tempFilePath)
+	usersCreated, err := models.ImportUsersFromExcel(tempFilePath) // Modified to return warnings
 
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось импортировать пользователей: " + err.Error(),
-		})
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось импортировать пользователей: " + err.Error()})
 		return
 	}
 
-	// If no users were created, show a warning
+	// import_result.html uses the header
 	if usersCreated == 0 {
 		c.HTML(http.StatusOK, "import_result.html", gin.H{
-			"title":   "Результаты импорта",
-			"warning": "Не удалось создать новых пользователей.",
+			"title":     "Результаты импорта",
+			"success":   "Новых пользователей не создано (возможно, все уже существуют или файл пуст).",
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
 		})
 		return
 	}
 
-	// Redirect to user list with success message
-	c.Redirect(http.StatusFound, "/admin/users?imported="+fmt.Sprintf("%d", usersCreated))
+	successMessage := fmt.Sprintf("Успешно создано %d пользователей.", usersCreated)
+	if usersCreated == 0 {
+		successMessage = "Новых пользователей не создано."
+	}
+
+	c.HTML(http.StatusOK, "import_result.html", gin.H{
+		"title":     "Результаты импорта",
+		"success":   successMessage,
+		"username":  usernameCtx,
+		"full_name": fullNameCtx,
+	})
 }
