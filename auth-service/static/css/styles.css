@@ -74,21 +74,32 @@
     --focus-ring-color: rgba(var(--primary-color-rgb), 0.35); /* Adjusted opacity for dark theme if needed */
 }
 
+html {
+    width: 100%;
+    overflow-x: hidden; /* Prevent horizontal scroll on the html element */
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+*, *::before, *::after { /* Apply box-sizing to all elements */
+    box-sizing: inherit;
+}
+
 body {
-    width: 100vw;
-    height: 100vh;
-    display: flex;
+    /* max-width: 100vw; Removed, width: 100% is default and usually better */
+    width: 100%; /* Explicitly set width to 100% of html */
+    min-height: 100vh; /* Ensures body is at least viewport height, allows growing */
+    display: flex; /* Keep flex if you need a footer pushed to the bottom, but ensure main content area can grow */
     flex-direction: column;
     font-family: Arial, sans-serif;
     background-color: var(--background-color);
     color: var(--text-color);
     margin: 0;
     padding: 0;
-    justify-content: center;
+    /* justify-content: center; Removed, content should start at the top */
     transition: background-color 0.3s, color 0.3s;
-    z-index: -2;
-    position: fixed;
-    /* Added transition */
+    /* align-items: center; Removed, content should be full width or controlled by containers */
+    position: relative; /* Ensures body is in normal document flow */
+    overflow-x: hidden; /* Prevent horizontal scrollbars on body */
 }
 
 /* Particles.js background container */
@@ -98,7 +109,7 @@ body {
     height: 100%;
     top: 0;
     left: 0;
-    z-index: -1; /* Corrected as per user feedback */
+    z-index: 0; /* Corrected as per user feedback */
     /* This places it above the body's direct background, but behind other z-indexed content */
 }
 
@@ -106,22 +117,119 @@ body {
 .container {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    min-width: 50%;
+    align-items: center; /* This centers content *within* the container if it's narrower than the container */
+    width: 90%; 
     max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-/* From https://css.glass */
-    background: rgba(255, 255, 255, 0.1);
+    margin-left: auto; /* For horizontal centering */
+    margin-right: auto; /* For horizontal centering */
+    margin-bottom: 20px; /* Space at the bottom */
+    /* margin-top is removed as JS will set padding-top */
+    padding: 20px; /* Base padding for left/right/bottom. JS adjusts padding-top. */
+    /* padding-top will be set by layout-adjust.js */
+    background: rgba(255, 255, 255, 0.1); 
     border-radius: 20px;
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(4.7px);
     -webkit-backdrop-filter: blur(4.7px);
-    border-radius: 20px;
     position: relative;
-    /* Ensure container content is above particles */
     z-index: 1;
     transition: background-color 0.3s;
+}
+.header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Space between theme switcher and logout button */
+}
+
+.logo-img { /* New class for the img itself */
+    height: auto;
+    min-width: 100px;
+    /* Maintain aspect ratio */
+}
+
+/* 
+.logout-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background-color: var(--primary-color);
+    color: var(--primary-text-color);
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.logout-btn:hover {
+    background-color: var(--primary-color-hover);
+} */
+
+.logout-btn {
+    background: transparent; /* Changed from none for clarity */
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    margin-left: 10px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+    /* min-width: 45px; */
+    text-align: center;
+    font-weight: bold;
+    text-decoration: none;
+
+}
+
+.logout-btn:hover {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    border-color: var(--primary-color-hover); /* Ensure border color changes on hover too */
+    transform: scale(1.05); /* Slight scale effect on hover */
+}
+
+/* Added active state for logout button */
+.logout-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 0 8px 1px var(--primary-color);
+}
+
+
+/* Theme switcher button */
+#theme-switcher {
+    background: transparent; /* Changed from none for clarity */
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    margin-left: 10px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+    /* min-width: 45px; */
+    text-align: center;
+    font-weight: bold;
+}
+
+#theme-switcher:hover {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    border-color: var(--primary-color-hover); /* Ensure border color changes on hover too */
+    transform: scale(1.05); /* Slight scale effect on hover */
+}
+
+#theme-switcher:active {
+    transform: scale(0.95); /* Specific stronger shrink effect for theme switcher */
+    box-shadow: 0 0 8px 1px var(--primary-color); /* Added glow */
+}
+
+/* Styles for theme switcher on login page */
+.login-page-theme-switcher-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1001; /* Ensure it's above other elements */
 }
 
 
@@ -135,6 +243,7 @@ body {
     position: relative;
     /* Ensure container content is above particles */
     z-index: 1;
+    margin: auto;
 }
 
 h1,
@@ -709,229 +818,279 @@ input[type="text"][name="password"] {
 
 .header-logo-section {
     /* No specific flex properties needed, it will align left by default */
-    display: flex; /* To ensure the <a> and <img> align well if needed */
+    display: flex; 
     align-items: center;
 }
 
 .header-controls-section {
-    display: flex;
+    display: flex; /* Visible by default on desktop */
     align-items: center;
-    gap: 15px; /* Space between user-info and buttons group */
+    gap: 15px; 
 }
 
-.header-user-info {
-    display: flex;
-    flex-direction: column; 
-    align-items: flex-end; 
+/* Burger Menu Button */
+.burger-menu-button {
+    display: none; 
+    background: transparent;
+    border: 2px solid var(--primary-color); /* Changed to primary-color */
+    /* color: var(--text-color); Removed, spans handle icon color */
+    padding: 0; 
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s; 
+    line-height: 1; 
+    position: relative; 
+    width: 40px; 
+    height: 36px; 
+    flex-direction: column;
+    justify-content: space-around; 
+    align-items: center; 
+}
+
+.burger-menu-button span {
+    display: block;
+    width: 22px; 
+    height: 2px; 
+    background-color: var(--primary-color); /* Changed to primary-color */
+    border-radius: 1px;
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out, background-color 0.3s ease-in-out;
+}
+
+.burger-menu-button:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color); /* Keep border same as background on hover */
+}
+.burger-menu-button:hover span {
+    background-color: var(--button-text-color); 
+}
+
+/* Active state for burger icon (X shape) */
+.burger-menu-button.active span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg); 
+}
+.burger-menu-button.active span:nth-child(2) {
+    opacity: 0;
+    transform: translateX(-100%); 
+}
+.burger-menu-button.active span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg); 
+}
+.burger-menu-button.active:hover span { /* Ensure X parts also change color on hover */
+    background-color: var(--button-text-color);
+}
+
+
+/* Mobile Menu Modal (Off-canvas) */
+#mobile-menu-modal { 
+    display: none; /* Initially hidden */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+    position: fixed;
+    top: 0;
+    right: -300px; /* Start off-screen for slide-in animation */
+    width: 280px;
+    max-width: 80%;
+    height: 100%;
+    background-color: var(--card-background-color);
+    box-shadow: -3px 0 10px rgba(0,0,0,0.15);
+    z-index: 1001;
+    padding: 20px;
+    padding-top: 50px;
+    box-sizing: border-box;
+    transition: right 0.3s ease-in-out, opacity 0.3s ease-in-out; /* Added opacity transition */
+    overflow-y: auto;
+    opacity: 0; /* Start with opacity 0 for fade-in */
+}
+
+#mobile-menu-modal.open { 
+    right: 0; 
+    display: flex; 
+    opacity: 1; /* Fade to opacity 1 when open */
+}
+
+.mobile-menu-close-button {
+    background: transparent;
+    border: none;
     color: var(--text-color);
-    font-size: 14px;
-    text-align: right;
-    /* margin-right: 10px; Replaced by gap on parent */
+    cursor: pointer;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 18px;
+    transition: color 0.3s;
 }
 
-.header-right {
+.mobile-menu-close-button:hover {
+    color: var(--primary-color);
+}
+
+/* Ensure user info in mobile menu is centered and stacked */
+.mobile-menu-modal .mobile-user-info {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 20px;
+    width: 100%;
+    margin-bottom: 20px;
 }
 
-.header-username {
-    font-weight: bold;
-}
-
-.header-fullname {
+.mobile-menu-modal .mobile-user-info .header-fullname {
+    display: block; 
+    text-align: center; 
     font-size: 0.85em; 
     opacity: 0.8;
 }
 
-.header-buttons {
-    display: flex;
-    align-items: center;
-    gap: 10px; /* Space between theme switcher and logout button */
+
+#mobile-menu-modal .btn, 
+#mobile-menu-modal #theme-switcher-mobile { 
+    width: 100%; 
+    text-align: left; 
+    padding: 10px 15px; 
+    margin-bottom: 10px; 
+    background: transparent; 
+    color: var(--primary-color); 
+    border: 2px solid var(--primary-color); 
+    border-radius: 6px; 
+    font-weight: 500; 
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s; /* Added box-shadow to transition */
+    text-decoration: none; 
+    display: flex; 
+    align-items: center; 
+    outline: none; /* Remove default outline, we'll add a custom focus ring */
+}
+#mobile-menu-modal .btn:hover, 
+#mobile-menu-modal #theme-switcher-mobile:hover {
+    background-color: var(--primary-color); 
+    color: var(--button-text-color); 
+    border-color: var(--primary-color-hover); 
+    transform: scale(1.02); 
 }
 
-.logo-img { /* New class for the img itself */
-    height: auto;
-    min-width: 100px;
-    /* Maintain aspect ratio */
+#mobile-menu-modal .btn:active,
+#mobile-menu-modal #theme-switcher-mobile:active {
+    transform: scale(0.98); /* Subtle shrink on press */
+    /* Keep other styles like hover or default, active is brief */
 }
 
-/* 
-.logout-btn {
-    display: inline-block;
-    padding: 8px 16px;
-    background-color: var(--primary-color);
-    color: var(--primary-text-color);
-    text-decoration: none;
-    border-radius: 4px;
-    font-size: 14px;
-    transition: background-color 0.2s;
+#mobile-menu-modal .btn:focus,
+#mobile-menu-modal #theme-switcher-mobile:focus {
+    background: transparent; /* Ensure background is not from hover */
+    color: var(--primary-color); /* Ensure text color is not from hover */
+    border-color: var(--primary-color); /* Ensure border color is not from hover */
+    transform: none; /* Ensure transform is not from hover */
+    box-shadow: 0 0 0 0.2rem var(--focus-ring-color); /* Custom focus ring */
 }
 
-.logout-btn:hover {
-    background-color: var(--primary-color-hover);
-} */
+/* Specific for :focus-visible if you want to only show ring for keyboard users */
+/*
+#mobile-menu-modal .btn:focus:not(:focus-visible),
+#mobile-menu-modal #theme-switcher-mobile:focus:not(:focus-visible) {
+    box-shadow: none; 
+}
+*/
 
-.logout-btn {
-    background: transparent; /* Changed from none for clarity */
-    border: 2px solid var(--primary-color);
-    color: var(--primary-color);
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    margin-left: 10px;
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
-    /* min-width: 45px; */
-    text-align: center;
-    font-weight: bold;
-    text-decoration: none;
-
+#mobile-menu-modal .btn i, 
+#mobile-menu-modal #theme-switcher-mobile i {
+    margin-right: 10px; 
+    /* font-size: 1em; /* Ensure icon size is appropriate */
 }
 
-.logout-btn:hover {
-    background-color: var(--primary-color);
-    color: var(--button-text-color);
-    border-color: var(--primary-color-hover); /* Ensure border color changes on hover too */
-    transform: scale(1.05); /* Slight scale effect on hover */
-}
 
-/* Added active state for logout button */
-.logout-btn:active {
-    transform: scale(0.98);
-    box-shadow: 0 0 8px 1px var(--primary-color);
-}
-
-/* Theme switcher button */
-#theme-switcher {
-    background: transparent; /* Changed from none for clarity */
-    border: 2px solid var(--primary-color);
-    color: var(--primary-color);
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    margin-left: 10px;
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
-    /* min-width: 45px; */
-    text-align: center;
-    font-weight: bold;
-}
-
-#theme-switcher:hover {
-    background-color: var(--primary-color);
-    color: var(--button-text-color);
-    border-color: var(--primary-color-hover); /* Ensure border color changes on hover too */
-    transform: scale(1.05); /* Slight scale effect on hover */
-}
-
-#theme-switcher:active {
-    transform: scale(0.95); /* Specific stronger shrink effect for theme switcher */
-    box-shadow: 0 0 8px 1px var(--primary-color); /* Added glow */
-}
-
-/* Styles for theme switcher on login page */
-.login-page-theme-switcher-container {
+/* Backdrop for modal */
+#modal-backdrop { /* Changed from .modal-backdrop to #modal-backdrop */
+    display: none;
     position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 1001; /* Ensure it's above other elements */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.4); 
+    z-index: 1000; 
 }
 
-/* New header right section for user info */
-.header-right {
-    flex: 1; /* Takes up 1/3 of the space */
-    justify-content: flex-end;
-    align-items: center; /* Ensure vertical alignment */
-    gap: 15px;
-    /* padding-right: 4vw; This might make it asymmetric, consider removing or balancing with header-left padding */
+#modal-backdrop.open { /* Changed from .modal-backdrop.open */
+    display: block;
 }
 
-
-/* Utility classes */
-.actions {
-    white-space: nowrap;
-}
-
-.back-link {
-    margin-top: 20px;
-    text-align: center;
-}
-
-.back-link a {
-    color: var(--link-color);
-    text-decoration: none;
-}
-
-.back-link a:hover {
-    text-decoration: underline;
-    color: var(--link-hover-color);
-}
-
-/* Additional print styles */
-@media print {
-    body {
-        background-color: white !important;
-        color: black !important;
+/* ---------- HEADER STYLES (Responsive part) ---------- */
+/* Ensure existing media queries correctly hide/show burger vs desktop controls */
+@media (max-width: 768px) {
+    .header-container {
+        padding: 10px 15px;
     }
 
-    .no-print {
-        display: none !important;
+    .header-logo-section {
+        /* Optional: Adjust logo size or padding for mobile */
+    }
+
+    .header-controls-section {
+        display: none; /* Hide controls on mobile, burger menu will replace this */
+    }
+
+    .burger-menu-button {
+        display: flex; /* Ensure burger menu button is displayed */
     }
 }
 
-/* ---------- RESPONSIVE STYLES ---------- */
-@media (max-width: 600px) {
+@media (max-width: 600px) { /* Mobile phones */
     .container {
         width: 100%;
-        padding: 10px;
-        margin-top: 60px;
+        border-radius: 0; 
+        backdrop-filter: none;
     }
 
-    .buttons button,
-    .btn {
-        width: 100%;
-        padding: 15px;
-        margin-bottom: 10px;
-    }
-
-    .action-buttons {
-        flex-direction: column;
-    }
-
-    .top-left,
-    .top-right {
-        position: relative;
-        text-align: center;
-        top: 0;
-        left: 0;
-        right: 0;
+    h1 {
+        font-size: 1.6em;
         margin-bottom: 20px;
     }
 
-    .logo {
-        max-height: 60px;
-    }
-}
-
-@media (min-width: 768px) {
-    .pagination-controls {
-        flex-direction: row;
-        justify-content: space-between;
+    h2 {
+        font-size: 1.4em;
+        margin-bottom: 18px;
     }
 
-    .buttons {
-        flex-direction: row;
-        flex-wrap: wrap;
+    h3 {
+        font-size: 1.1em;
+        margin-bottom: 12px;
     }
 
     button,
     .btn {
-        min-width: auto;
+        padding: 10px 14px;
+        font-size: 14px;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 8px 10px;
+    }
+
+    .flash-message,
+    .alert {
+        font-size: 13px;
+        padding: 7px;
+    }
+
+    .pagination button {
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+
+    .admin-form {
+        padding: 10px;
+    }
+
+    .role-checkboxes {
+        max-height: 120px;
+    }
+
+    .service-card {
+        padding: 10px;
+    }
+
+    .logo-img {
+        min-width: 70px;
     }
 }
 
@@ -1040,4 +1199,124 @@ input[type="text"][name="password"] {
 /* Ensure logo in header also respects dark theme if needed */
 .dark-theme .logo {
     /* filter: var(--logo-filter); This rule is no longer needed and can be removed */
+}
+
+/* Styles for theme switcher on login page
+#theme-switcher {
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#theme-switcher:hover {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    border-color: var(--primary-color-hover);
+    transform: scale(1.05);
+}
+
+#theme-switcher:active {
+    transform: scale(0.98);
+    box-shadow: 0 0 8px 1px var(--primary-color);
+}
+
+/* Ensure icons inside these buttons are sized appropriately if not by font-size */
+/* #theme-switcher i,
+.logout-btn i {
+    font-size: 1em; 
+    line-height: 1; 
+} */ 
+
+/* ---------- RESPONSIVE STYLES ---------- */
+@media (max-width: 768px) { /* Tablet and smaller */
+    .container {
+        width: 95%;
+        padding: 15px; 
+        /* margin-top: 100px; Removed, JS will handle this via padding-top */
+    }
+
+    .header-controls-section { /* Hide desktop controls on mobile */
+        display: none !important; 
+    }
+    .burger-menu-button { /* Show burger button on mobile */
+        display: flex; /* Crucial: set to flex to enable its flex properties for spans */
+    }
+}
+
+@media (max-width: 600px) { /* Mobile phones */
+    .container {
+        width: 100%;
+        padding: 10px; /* Base padding, JS will adjust padding-top */
+        /* margin: 150px auto 10px auto; Removed specific top margin, JS will handle this via padding-top */
+        margin-bottom: 10px; /* Keep bottom margin */
+        margin-left: auto; /* Keep horizontal centering */
+        margin-right: auto; /* Keep horizontal centering */
+        border-radius: 0; 
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    h1 {
+        font-size: 1.6em;
+        margin-bottom: 20px;
+    }
+
+    h2 {
+        font-size: 1.4em;
+        margin-bottom: 18px;
+    }
+
+    h3 {
+        font-size: 1.1em;
+        margin-bottom: 12px;
+    }
+
+    button,
+    .btn {
+        padding: 10px 14px;
+        font-size: 14px;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 8px 10px;
+    }
+
+    .flash-message,
+    .alert {
+        font-size: 13px;
+        padding: 7px;
+    }
+
+    .pagination button {
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+
+    .admin-form {
+        padding: 10px;
+    }
+
+    .role-checkboxes {
+        max-height: 120px;
+    }
+
+    .service-card {
+        padding: 10px;
+    }
+
+    .logo-img {
+        min-width: 70px;
+    }
 }

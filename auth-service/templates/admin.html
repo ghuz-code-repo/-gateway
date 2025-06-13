@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
     <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <style>
+      body {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity .05s ease-in-out;
+      }
+    </style>
 </head>
 <body>
     <script>
@@ -15,6 +22,10 @@
             } else {
                 document.documentElement.classList.remove('dark-theme');
             }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
         })();
     </script>
     <div id="particles-js"></div>
@@ -48,6 +59,8 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <script src="/auth/static/js/theme-switcher.js"></script>
+    <script src="/auth/static/js/layout-adjust.js"></script>
+    <script src="/auth/static/js/mobile-menu.js"></script>
     <script>
         particlesJS('particles-js', {
             "particles": { "number": { "value": 50, "density": { "enable": true, "value_area": 800 } }, "color": { "value": "#c4a668" }, "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } }, "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } }, "size": { "value": 4, "random": true }, "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 }, "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" } }, "interactivity": { "detect_on": "canvas", "events": { "onhover": { "enable": true, "mode": "bubble" } }, "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } } }, "retina_detect": true

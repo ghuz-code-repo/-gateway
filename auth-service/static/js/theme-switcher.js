@@ -1,14 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     const themeSwitcherButton = document.getElementById('theme-switcher');
     const htmlElement = document.documentElement;
-    const bodyElement = document.body;
     const logo = document.getElementById('dynamic-logo');
 
     // Theme-specific values
     const darkThemeClass = 'dark-theme';
     const lightThemeClass = 'light-theme'; // Optional: if you have specific light-theme only styles
-    const darkThemeBgColor = '#121212'; // From your CSS
-    const lightThemeBgColor = '#f5f5f5'; // From your CSS
     const darkLogoSrc = '/auth/static/img/logo-dark.svg'; // Default logo
     const lightLogoSrc = '/auth/static/img/logo-light.svg'; // Assumed logo for dark theme
 
@@ -22,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (theme === 'dark') {
             htmlElement.classList.add(darkThemeClass);
             htmlElement.classList.remove(lightThemeClass); // Remove light if it exists
-            bodyElement.style.backgroundColor = darkThemeBgColor;
             if (logo) {
                 logo.src = lightLogoSrc;
             }
@@ -33,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else { // Light theme
             htmlElement.classList.remove(darkThemeClass);
             htmlElement.classList.add(lightThemeClass); // Add light if you use it
-            bodyElement.style.backgroundColor = lightThemeBgColor;
             if (logo) {
                 logo.src = darkLogoSrc;
             }
@@ -53,7 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentTheme === 'dark') {
         // Ensure class and bg are set if somehow missed by inline script (defensive)
         htmlElement.classList.add(darkThemeClass);
-        bodyElement.style.backgroundColor = darkThemeBgColor;
         if (logo) logo.src = lightLogoSrc;
         if (initialIconElement) {
             initialIconElement.classList.remove(moonIconClass);
@@ -61,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } else {
         htmlElement.classList.remove(darkThemeClass); // Ensure dark is removed
-        bodyElement.style.backgroundColor = lightThemeBgColor;
         if (logo) logo.src = darkLogoSrc;
         if (initialIconElement) {
             initialIconElement.classList.remove(sunIconClass);

@@ -3,17 +3,64 @@
     <!-- Adding Font Awesome here to ensure it's available on all pages using this header -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<div class="header-container">
-    <div class="top-left">
-        <a href="/auth/menu"><img src="static/img/logo-dark.svg" alt="Golden House" class="logo-svg" id="dynamic-logo"></a>
+<header class="header-container">
+    <div class="header-logo-section"> <!-- Changed from top-left for consistency with CSS -->
+        <a href="/auth/menu">
+            <!-- Ensure the path to static assets is correct if your Go server serves them from /auth/static -->
+            <img src="/auth/static/img/logo-dark.svg" alt="Golden House Logo" class="logo-img" id="dynamic-logo">
+        </a>
     </div>
-    <div class="header-column header-right">
+
+    <!-- Desktop Header Controls -->
+    <div class="header-controls-section">
+        {{if .username }} <!-- Assuming .username implies a logged-in user -->
         <div class="header-user-info">
             <span class="header-username">{{ .username }}</span>
-            <span class="header-fullname">({{ .full_name }})</span>
+            {{ if .full_name }}<span class="header-fullname">({{ .full_name }})</span>{{ end }}
         </div>
-        <button id="theme-switcher" title="Toggle theme"><i class="fas fa-moon"></i></button> <!-- Default to moon icon -->
-        <a href="/auth/logout" class="logout-btn">Выйти</a>
+        {{end}}
+        <div class="header-buttons">
+            <button id="theme-switcher" title="Сменить тему">
+                <i class="fas fa-moon"></i> <!-- Icon changes via JS -->
+            </button>
+            {{if .username }}
+            <a href="/auth/logout" class="logout-btn" title="Выход">
+                <i class="fas fa-sign-out-alt"></i>
+                <!-- <span class="logout-text">Выход</span> --> <!-- Optional: text next to icon -->
+            </a>
+            {{end}}
+        </div>
     </div>
+
+    <!-- Burger Menu Button (shown on mobile via CSS) -->
+    <button id="burger-menu-toggle" class="burger-menu-button" aria-label="Открыть меню" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+</header>
+
+<!-- Mobile Menu Modal (Place outside .header-container but within the define block) -->
+<div id="mobile-menu-modal" class="mobile-menu-modal">
+    <button id="mobile-menu-close" class="mobile-menu-close-button">&times;</button>
+    
+    {{if .username }}
+    <div class="mobile-user-info">
+        <span class="header-username">{{ .username }}</span>
+        {{ if .full_name }}<span class="header-fullname">({{ .full_name }})</span>{{ end }}
+    </div>
+    {{end}}
+
+    <button id="theme-switcher-mobile" class="btn">
+        <i class="fas fa-moon"></i> Тёмная тема <!-- Text and icon will be updated by JS -->
+    </button>
+    
+    {{if .username }}
+    <a href="/auth/logout" class="btn">
+        <i class="fas fa-sign-out-alt"></i> Выход
+    </a>
+    {{end}}
+    <!-- You can add other navigation links here if needed for mobile -->
 </div>
+<div id="modal-backdrop" class="modal-backdrop"></div>
 {{ end }}
