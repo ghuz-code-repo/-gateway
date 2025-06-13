@@ -120,12 +120,8 @@ body {
     align-items: center; /* This centers content *within* the container if it's narrower than the container */
     width: 90%; 
     max-width: 1200px;
-    margin-left: auto; /* For horizontal centering */
-    margin-right: auto; /* For horizontal centering */
-    margin-bottom: 20px; /* Space at the bottom */
-    /* margin-top is removed as JS will set padding-top */
+    margin: auto; /* Centers the container horizontally */
     padding: 20px; /* Base padding for left/right/bottom. JS adjusts padding-top. */
-    /* padding-top will be set by layout-adjust.js */
     background: rgba(255, 255, 255, 0.1); 
     border-radius: 20px;
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
@@ -146,22 +142,6 @@ body {
     min-width: 100px;
     /* Maintain aspect ratio */
 }
-
-/* 
-.logout-btn {
-    display: inline-block;
-    padding: 8px 16px;
-    background-color: var(--primary-color);
-    color: var(--primary-text-color);
-    text-decoration: none;
-    border-radius: 4px;
-    font-size: 14px;
-    transition: background-color 0.2s;
-}
-
-.logout-btn:hover {
-    background-color: var(--primary-color-hover);
-} */
 
 .logout-btn {
     background: transparent; /* Changed from none for clarity */
@@ -1037,7 +1017,6 @@ input[type="text"][name="password"] {
     .container {
         width: 100%;
         border-radius: 0; 
-        backdrop-filter: none;
     }
 
     h1 {
@@ -1201,42 +1180,6 @@ input[type="text"][name="password"] {
     /* filter: var(--logo-filter); This rule is no longer needed and can be removed */
 }
 
-/* Styles for theme switcher on login page
-#theme-switcher {
-    background: transparent;
-    border: 2px solid var(--primary-color);
-    color: var(--primary-color);
-    padding: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#theme-switcher:hover {
-    background-color: var(--primary-color);
-    color: var(--button-text-color);
-    border-color: var(--primary-color-hover);
-    transform: scale(1.05);
-}
-
-#theme-switcher:active {
-    transform: scale(0.98);
-    box-shadow: 0 0 8px 1px var(--primary-color);
-}
-
-/* Ensure icons inside these buttons are sized appropriately if not by font-size */
-/* #theme-switcher i,
-.logout-btn i {
-    font-size: 1em; 
-    line-height: 1; 
-} */ 
 
 /* ---------- RESPONSIVE STYLES ---------- */
 @media (max-width: 768px) { /* Tablet and smaller */
@@ -1258,13 +1201,6 @@ input[type="text"][name="password"] {
     .container {
         width: 100%;
         padding: 10px; /* Base padding, JS will adjust padding-top */
-        /* margin: 150px auto 10px auto; Removed specific top margin, JS will handle this via padding-top */
-        margin-bottom: 10px; /* Keep bottom margin */
-        margin-left: auto; /* Keep horizontal centering */
-        margin-right: auto; /* Keep horizontal centering */
-        border-radius: 0; 
-        box-shadow: none;
-        backdrop-filter: none;
     }
 
     h1 {
