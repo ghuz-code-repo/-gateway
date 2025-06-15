@@ -412,9 +412,8 @@ button[type="button"]:hover,
 /* Active state for buttons and specified blocks for glow effect */
 .btn:active,
 button:active,
-.service-card a:active, /* Glow for service card links */
 .admin-section a.btn:active { /* Glow for admin section buttons */
-    transform: scale(0.98); /* Subtle shrink effect */
+    /* transform: scale(1); Subtle shrink effect */
     box-shadow: 0 0 8px 1px var(--primary-color); /* Subtle glow */
 }
 
