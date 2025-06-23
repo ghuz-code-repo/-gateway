@@ -17,7 +17,20 @@
 <body>
     <script>
         (function() {
-            const theme = localStorage.getItem('theme');
+            // Cookie function
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+
+            const cookieTheme = getCookie('gh_theme');
+            const theme = cookieTheme || localStorage.getItem('theme');
             if (theme === 'dark') {
                 document.documentElement.classList.add('dark-theme');
             } else {
@@ -42,7 +55,7 @@
         <div class="services-list">
             {{ range .serviceInfos }}
             <div class="service-card">
-                <a href="/{{ .id }}/">
+                <a href="/{{ .id }}/" class="service-link" data-service="{{ .id }}">
                     <div class="service-icon">
                         {{ if eq .id "calculators" }}
                             <i class="fas fa-calculator"></i>
@@ -71,6 +84,7 @@
             {{ end }}
         </div>
     </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
 <script src="/auth/static/js/theme-switcher.js"></script>
 <script src="/auth/static/js/layout-adjust.js"></script>
@@ -80,5 +94,39 @@
         "particles": { "number": { "value": 50, "density": { "enable": true, "value_area": 800 } }, "color": { "value": "#c4a668" }, "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } }, "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } }, "size": { "value": 4, "random": true }, "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 }, "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" } }, "interactivity": { "detect_on": "canvas", "events": { "onhover": { "enable": true, "mode": "bubble" } }, "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } } }, "retina_detect": true
     });
 </script>
+<script>
+        // Передача темы через cookie (cookie автоматически передается)
+        document.addEventListener('DOMContentLoaded', function() {
+            const serviceLinks = document.querySelectorAll('.service-link');
+            
+            // Cookie уже будет передан автоматически браузером
+            // Дополнительно можем добавить URL параметр для надежности
+            serviceLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    const currentTheme = getCookie('gh_theme') || localStorage.getItem('theme') || 'light';
+                    
+                    // Обновляем cookie перед переходом
+                    setCookie('gh_theme', currentTheme, 365);
+                });
+            });
+            
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+            
+            function setCookie(name, value, days) {
+                const expires = new Date();
+                expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+                document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+            }
+        });
+    </script>
 </body>
 </html>

@@ -34,10 +34,29 @@ document.addEventListener('DOMContentLoaded', () => {
         modalBackdrop.addEventListener('click', closeMenu);
     }
 
+    // Cookie functions
+    function setCookie(name, value, days) {
+        const expires = new Date();
+        expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+        document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+    }
+
+    function getCookie(name) {
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for(let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+    }
+
     // Handle theme switching from the mobile menu
     if (themeSwitcherMobile) {
         // Initialize mobile theme switcher icon based on current theme
-        const currentTheme = localStorage.getItem('theme') || 'light';
+        const cookieTheme = getCookie('gh_theme');
+        const currentTheme = cookieTheme || localStorage.getItem('theme') || 'light';
         const mobileIconElement = themeSwitcherMobile.querySelector('i');
 
         if (currentTheme === 'dark') {
@@ -58,10 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const isDark = htmlElement.classList.contains('dark-theme');
             const newTheme = isDark ? 'light' : 'dark';
             
-            // This reuses the logic from your main theme-switcher.js,
-            // but applies it specifically for the mobile button's context.
-            // Ideally, the core theme application logic would be a shared function.
             localStorage.setItem('theme', newTheme);
+            setCookie('gh_theme', newTheme, 365); // Сохраняем в cookie
+            
             const mainLogo = document.getElementById('dynamic-logo'); // The main logo in the header
             const darkLogoSrc = '/auth/static/img/logo-dark.svg'; 
             const lightLogoSrc = '/auth/static/img/logo-light.svg';

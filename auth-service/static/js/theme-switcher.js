@@ -5,20 +5,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Theme-specific values
     const darkThemeClass = 'dark-theme';
-    const lightThemeClass = 'light-theme'; // Optional: if you have specific light-theme only styles
-    const darkLogoSrc = '/auth/static/img/logo-dark.svg'; // Default logo
-    const lightLogoSrc = '/auth/static/img/logo-light.svg'; // Assumed logo for dark theme
+    const lightThemeClass = 'light-theme';
+    const darkLogoSrc = '/auth/static/img/logo-dark.svg';
+    const lightLogoSrc = '/auth/static/img/logo-light.svg';
 
     const moonIconClass = 'fa-moon';
     const sunIconClass = 'fa-sun';
 
+    // Cookie functions
+    function setCookie(name, value, days) {
+        const expires = new Date();
+        expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+        document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+    }
+
+    function getCookie(name) {
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for(let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+    }
+
     function applyTheme(theme) {
         localStorage.setItem('theme', theme);
+        setCookie('gh_theme', theme, 365); // Сохраняем в cookie на год
+        
         const iconElement = themeSwitcherButton ? themeSwitcherButton.querySelector('i') : null;
 
         if (theme === 'dark') {
             htmlElement.classList.add(darkThemeClass);
-            htmlElement.classList.remove(lightThemeClass); // Remove light if it exists
+            htmlElement.classList.remove(lightThemeClass);
             if (logo) {
                 logo.src = lightLogoSrc;
             }
@@ -26,9 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 iconElement.classList.remove(moonIconClass);
                 iconElement.classList.add(sunIconClass);
             }
-        } else { // Light theme
+        } else {
             htmlElement.classList.remove(darkThemeClass);
-            htmlElement.classList.add(lightThemeClass); // Add light if you use it
+            htmlElement.classList.add(lightThemeClass);
             if (logo) {
                 logo.src = darkLogoSrc;
             }
@@ -42,7 +62,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set initial state of the button icon and logo.
     // The inline script in <head> already handles the class on <html> and body background for FOUC.
     // This part ensures the button icon and logo are correct on load.
-    const currentTheme = localStorage.getItem('theme') || 'light'; // Default to light if nothing set
+    const cookieTheme = getCookie('gh_theme');
+    const currentTheme = cookieTheme || localStorage.getItem('theme') || 'light';
+    
+    // Sync localStorage with cookie if different
+    if (cookieTheme && cookieTheme !== localStorage.getItem('theme')) {
+        localStorage.setItem('theme', cookieTheme);
+    }
+    
     const initialIconElement = themeSwitcherButton ? themeSwitcherButton.querySelector('i') : null;
 
     if (currentTheme === 'dark') {
