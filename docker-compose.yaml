@@ -13,7 +13,7 @@ services:
       - public_network
       - auth_network
       - service_network
-    restart: unless-stopped
+    restart: always
 
   auth-service:
     build: ./auth-service
@@ -27,7 +27,7 @@ services:
       - public_network
     volumes:
       - auth-data:/data
-    restart: unless-stopped
+    restart: always
 
   mongo:
     image: mongo:6
