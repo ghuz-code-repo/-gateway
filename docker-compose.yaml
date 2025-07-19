@@ -26,7 +26,7 @@ services:
       - data_network
       - public_network
     volumes:
-      - auth-data:/data
+      - ./auth-service/data:/data
     restart: always
 
   mongo:
