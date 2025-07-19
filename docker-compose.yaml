@@ -26,7 +26,7 @@ services:
       - data_network
       - public_network
     volumes:
-      - auth-data:/data
+      - ./auth-service/data:/data
     restart: unless-stopped
 
   mongo:
@@ -35,7 +35,7 @@ services:
     networks:
       - data_network
     volumes:
-      - mongo-data:/data/db
+      - ./mongo_data:/data/db
     environment:
       - MONGO_INITDB_DATABASE=authdb
 
@@ -51,7 +51,3 @@ networks:
   data_network:
     name: data_network
     internal: true
-
-volumes:
-  auth-data:
-  mongo-data:
