@@ -48,7 +48,6 @@ func GetAccountCreatedEmail(fullName, username, password string, roles []string)
 
 Данные учетной записи:
 - Ссылка для входа: https://analytics.gh.uz/
-- Дополнительня ссылка для входа (если ссылка сверху не работает): https://06sz6qcb-80.euw.devtunnels.ms/
 - Имя пользователя: %s
 - Пароль: %s
 - Полное имя: %s
@@ -85,7 +84,6 @@ func GetAccountUpdatedEmail(fullName, username, email, password string, roles []
 
 Ваша учетная запись в системе утилит отдела аналитики и развития Golden House была обновлена.
 	- Ссылка для входа: https://analytics.gh.uz/
-	- Дополнительня ссылка для входа (если ссылка сверху не работает): https://06sz6qcb-80.euw.devtunnels.ms/
 	- Имя пользователя: %s
 	- Ваши текущие роли: %s
 	%s
