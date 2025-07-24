@@ -3,3 +3,4 @@
 /auth-service/.env
 /auth-service/go.sum
 
+mongo_data/*
