@@ -1,0 +1,36 @@
+# Multi-stage build для Policy Service
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Копируем go mod файлы
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Копируем исходный код
+COPY . .
+
+# Собираем только policy-сервис
+RUN CGO_ENABLED=0 GOOS=linux go build -a -o policy-service -ldflags="-X main.serviceMode=policy" .
+
+# Production image
+FROM alpine:3.21
+
+WORKDIR /root/
+
+# Копируем исполняемый файл
+COPY --from=builder /app/policy-service .
+
+# Копируем только необходимые шаблоны для policy service
+COPY --from=builder /app/templates/admin_policies.html ./templates/
+COPY --from=builder /app/templates/admin_service_policies.html ./templates/
+COPY --from=builder /app/templates/header.html ./templates/
+
+# Копируем статические файлы
+COPY --from=builder /app/static/ ./static/
+
+RUN mkdir -p /data
+
+EXPOSE 8081
+
+CMD ["./policy-service"]

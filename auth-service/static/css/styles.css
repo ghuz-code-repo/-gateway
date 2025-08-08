@@ -1,9 +1,62 @@
-/* General styles */
+/* Общие CSS переменные для всего проекта */
 :root {
+    --main-font: 'Arial', sans-serif;
+    --background-blur: blur(10px);
+    /* Базовые цвета для светлой темы */
+    --main-color: #333;
     --background-color: #f5f5f5;
-    --text-color: #333;
+    --body-background: #ffffff;
+    --card-background: #ffffff;
+    --modal-background: #f1f1f1;
+    --golden-color: #d4af37;
+    --hover-color: #b38e30;
+    --font-size-large: 1.5em;
+    --font-size-medium: 1.2em;
+    --font-size-small: 1em;
+    
+    /* Цветовая палитра для светлой темы */
+    --white: #fff;
+    --light-gray: #f8f9fa;
+    --border-gray: #e9ecef;
+    --text-gray: #6c757d;
+    --dark-gray: #495057;
+    --success-color: #28a745;
+    --info-color: #17a2b8;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    
+    /* Семантические цвета для светлой темы */
+    --text-primary: #242424;
+    --text-secondary: #363636;
+    --text-muted: #727272;
+    --border-color: #dee2e6;
+    --header-background: #ffffff;
+    --header-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    --table-hover: #f8f9fa;
+    --table-background: #ffffff;
+    --table-header-background: #f8f9fa;
+    --input-background: #ffffff;
+    --input-border: #ced4da;
+    --input-focus-border: #d4af37;
+    --input-focus-shadow: rgba(212, 175, 55, 0.25);
+    --form-section-background: #f8f9fa;
+    --readonly-input-background: #f8f9fa;
+    --disabled-color: #dddddd;
+    /* Тени и радиусы */
+    --border-radius: 4px;
+    --border-radius-lg: 8px;
+    --box-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --box-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
+    --box-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.2);
+    
+    /* Переходы */
+    --transition-fast: 0.2s ease;
+    --transition-normal: 0.3s ease;
+    --transition-slow: 0.5s ease;
+    
+    /* Совместимость со старыми переменными */
     --primary-color: #d4af37;
-    --primary-color-rgb: 212, 175, 55; /* Added for RGBA shadows */
+    --primary-color-rgb: 212, 175, 55;
     --primary-color-hover: #b8860b;
     --primary-text-color: white;
     --card-background-color: #fff;
@@ -11,13 +64,11 @@
     --table-header-text-color: white;
     --table-row-even-background-color: #f8f9fa;
     --table-row-hover-background-color: #ecf0f1;
-    --border-color: #ddd;
     --input-background-color: #fff;
     --input-text-color: #333;
     --input-border-color: #ccc;
     --link-color: #4285F4;
     --link-hover-color: #2a75e6;
-    --danger-color: #DB4437;
     --danger-hover-color: #B71C1C;
     --flash-danger-background: #f8d7da;
     --flash-danger-text: #721c24;
@@ -25,22 +76,58 @@
     --flash-success-background: #d4edda;
     --flash-success-text: #155724;
     --flash-success-border: #c3e6cb;
-    /* --logo-filter: none; Removed as filter approach is replaced */
     --header-background-color: #ffffff;
     --header-shadow-color: rgba(0, 0, 0, 0.1);
     --button-text-color: white;
     --button-small-text-color: white;
     --button-danger-text-color: white;
     --particles-color: "#c4a668";
-    /* Gold color for particles */
-    --focus-ring-color: rgba(var(--primary-color-rgb), 0.25); /* Added for input focus */
+    --focus-ring-color: rgba(var(--primary-color-rgb), 0.25);
 }
 
+/* Тёмная тема - более тёмные и контрастные цвета */
 .dark-theme {
-    --background-color: #121212;
-    --text-color: #e0e0e0;
+    --background-blur: blur(4px);
+    --main-color: #ffffff;
+    --background-color: #0f0f0f;
+    --body-background: #000000;
+    --card-background: #1a1a1a;
+    --modal-background: #1f1f1f;
+    --golden-color: #d4af37;
+    --hover-color: #b38e30;
+    
+    /* Цветовая палитра для тёмной темы */
+    --white: #1a1a1a;
+    --light-gray: #2a2a2a;
+    --border-gray: #3a3a3a;
+    --text-gray: #b8b8b8;
+    --dark-gray: #ffffff;
+    --success-color: #4caf50;
+    --info-color: #29b6f6;
+    --warning-color: #ff9800;
+    --danger-color: #f44336;
+    
+    /* Семантические цвета для тёмной темы */
+    --text-primary: #f8f8f8;
+    --text-secondary: #f0f0f0;
+    --text-muted: #c2c2c2;
+    --border-color: #3a3a3a;
+    --header-background: #0a0a0a;
+    --header-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    --table-hover: #2a2a2a;
+    --table-background: #1a1a1a;
+    --table-header-background: #2a2a2a;
+    --input-background: #1a1a1a;
+    --input-border: #3a3a3a;
+    --input-focus-border: #ffd700;
+    --input-focus-shadow: rgba(255, 215, 0, 0.25);
+    --form-section-background: #2a2a2a;
+    --readonly-input-background: #1f1f1f;
+    --disabled-color: #5f5f5f;
+    
+    /* Совместимость со старыми переменными для тёмной темы */
     --primary-color: #b8860b;
-    --primary-color-rgb: 184, 134, 11; /* Added for RGBA shadows */
+    --primary-color-rgb: 184, 134, 11;
     --primary-color-hover: #a0740a;
     --primary-text-color: #e0e0e0;
     --card-background-color: #1e1e1e;
@@ -85,21 +172,18 @@ html {
 }
 
 body {
-    /* max-width: 100vw; Removed, width: 100% is default and usually better */
-    width: 100%; /* Explicitly set width to 100% of html */
-    min-height: 100vh; /* Ensures body is at least viewport height, allows growing */
-    display: flex; /* Keep flex if you need a footer pushed to the bottom, but ensure main content area can grow */
+    width: 100%; 
+    min-height: 100vh; 
+    display: flex; 
     flex-direction: column;
-    font-family: Arial, sans-serif;
-    background-color: var(--background-color);
-    color: var(--text-color);
+    font-family: var(--main-font);
+    background-color: var(--body-background);
+    color: var(--main-color);
     margin: 0;
     padding: 0;
-    /* justify-content: center; Removed, content should start at the top */
-    transition: background-color 0.3s, color 0.3s;
-    /* align-items: center; Removed, content should be full width or controlled by containers */
-    position: relative; /* Ensures body is in normal document flow */
-    overflow-x: hidden; /* Prevent horizontal scrollbars on body */
+    transition: background-color var(--transition-normal), color var(--transition-normal);
+    position: relative; 
+    overflow-x: hidden; 
 }
 
 /* Particles.js background container */

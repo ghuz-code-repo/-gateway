@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Портал Golden House</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
       body {
@@ -57,9 +57,7 @@
             <div class="service-card">
                 <a href="/{{ .id }}/" class="service-link" data-service="{{ .id }}">
                     <div class="service-icon">
-                        {{ if eq .id "calculators" }}
-                            <i class="fas fa-calculator"></i>
-                        {{ else if eq .id "referal" }}
+                        {{ if eq .id "referal" }}
                             <i class="fas fa-users"></i>
                         {{ else if eq .id "sample" }}
                             <i class="fas fa-cube"></i>
@@ -86,9 +84,9 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-<script src="/auth/static/js/theme-switcher.js"></script>
-<script src="/auth/static/js/layout-adjust.js"></script>
-<script src="/auth/static/js/mobile-menu.js"></script>
+<script src="/static/js/theme-switcher.js"></script>
+<script src="/static/js/layout-adjust.js"></script>
+<script src="/static/js/mobile-menu.js"></script>
 <script>
     particlesJS('particles-js', {
         "particles": {

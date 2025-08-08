@@ -139,8 +139,7 @@ func DeletePermission(id primitive.ObjectID) error {
 // InitializeDefaultDisplayNames ensures all permissions have proper display names
 func InitializeDefaultDisplayNames() {
 	defaultDisplayNames := map[string]string{
-		"referal":     "Реферальная программа",
-		"calculators": "Калькуляторы",
+		"referal": "Реферальная программа",
 	}
 
 	permissions, err := GetAllPermissions()

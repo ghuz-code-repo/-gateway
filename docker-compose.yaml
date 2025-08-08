@@ -6,13 +6,13 @@ services:
       - "443:443"
     depends_on:
       - auth-service
+      - policy-service
     volumes:
       - ./nginx/conf:/etc/nginx/conf
       - ./nginx/certs:/etc/nginx/certs
     networks:
       - public_network
-      - auth_network
-      - service_network
+      - gateway_network
     restart: always
 
   auth-service:
@@ -21,13 +21,60 @@ services:
       - ./auth-service/.env
     depends_on:
       - mongo
+    # Убираем внешние порты
+    expose:
+      - "8080"
     networks:
+      - gateway_network
       - auth_network
       - data_network
-      - public_network
     volumes:
       - ./auth-service/data:/data
     restart: always
+    environment:
+      - SERVICE_MODE=auth
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRY=24h
+
+  policy-service:
+    build: 
+      context: ./auth-service
+      dockerfile: Dockerfile.policy
+    env_file:
+      - ./auth-service/.env
+    depends_on:
+      - mongo
+    expose:
+      - "8081"
+    networks:
+      - gateway_network
+      - policy_network
+      - data_network
+    volumes:
+      - ./auth-service/data:/data
+    restart: always
+    environment:
+      - SERVICE_MODE=policy
+
+  user-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile.users
+    env_file:
+      - ./auth-service/.env
+    depends_on:
+      - mongo
+    expose:
+      - "8082"
+    networks:
+      - gateway_network
+      - users_network
+      - data_network
+    volumes:
+      - ./auth-service/data:/data
+    restart: always
+    environment:
+      - SERVICE_MODE=users
 
   mongo:
     image: mongo:6
@@ -40,14 +87,35 @@ services:
       - MONGO_INITDB_DATABASE=authdb
 
 networks:
+  # Публичная сеть - только для nginx (точка входа)
   public_network:
     name: public_network
+    driver: bridge
+  
+  # Внутренняя сеть gateway - nginx + auth/policy/user services
+  gateway_network:
+    name: gateway_network
+    internal: true
+    driver: bridge
+  
+  # Специализированные внутренние сети для каждого типа сервиса
   auth_network:
     name: auth_network
     internal: true
-  service_network:
-    name: service_network
+    driver: bridge
+    
+  policy_network:
+    name: policy_network
     internal: true
+    driver: bridge
+    
+  users_network:
+    name: users_network
+    internal: true
+    driver: bridge
+  
+  # Сеть данных - только для MongoDB и сервисов с доступом к БД
   data_network:
     name: data_network
     internal: true
+    driver: bridge

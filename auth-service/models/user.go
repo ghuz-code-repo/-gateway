@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/xuri/excelize/v2"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -33,13 +33,14 @@ type User struct {
 	Password string             `bson:"password" json:"-"`          // Never return password in JSON
 	Roles    []string           `bson:"roles" json:"roles"`         // Store role names
 	FullName string             `bson:"full_name" json:"full_name"` // Add full name field
+	IsActive bool               `bson:"is_active" json:"is_active"` // User active status
 }
 
 // Claims struct for JWT
 type Claims struct {
 	Username string `json:"username"`
 	UserID   string `json:"user_id"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 // InitDB initializes MongoDB connection and collections
@@ -98,7 +99,7 @@ func InitDB(uri, dbName string) error {
 // CreateDefaultPermissions creates default permissions for services
 func CreateDefaultPermissions() {
 	ctx := context.Background()
-	services := []string{"calculators", "referal"} // Add "referal" to the default services
+	services := []string{"referal"} // Default services
 
 	log.Println("Creating default permissions for services:", services)
 
@@ -273,6 +274,11 @@ func ValidateUser(username, password string) (*User, bool) {
 	return &user, true
 }
 
+// AuthenticateUser is an alias for ValidateUser for JWT auth compatibility
+func AuthenticateUser(username, password string) (*User, bool) {
+	return ValidateUser(username, password)
+}
+
 // GenerateToken creates a new JWT token for a user
 func GenerateToken(user *User) (string, error) {
 	jwtSecret := os.Getenv("JWT_SECRET")
@@ -284,8 +290,8 @@ func GenerateToken(user *User) (string, error) {
 	claims := &Claims{
 		Username: user.Username,
 		UserID:   user.ID.Hex(),
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expirationTime.Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
 	}
 

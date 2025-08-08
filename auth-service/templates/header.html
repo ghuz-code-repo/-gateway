@@ -5,9 +5,9 @@
 </head>
 <header class="header-container">
     <div class="header-logo-section"> <!-- Changed from top-left for consistency with CSS -->
-        <a href="/auth/menu">
+        <a href="/menu">
             <!-- Ensure the path to static assets is correct if your Go server serves them from /auth/static -->
-            <img src="/auth/static/img/logo-dark.svg" alt="Golden House Logo" class="logo-img" id="dynamic-logo">
+            <img src="/static/img/logo-dark.svg" alt="Golden House Logo" class="logo-img" id="dynamic-logo">
         </a>
     </div>
 
@@ -24,7 +24,7 @@
                 <i class="fas fa-moon"></i> <!-- Icon changes via JS -->
             </button>
             {{if .username }}
-            <a href="/auth/logout" class="logout-btn" title="Выход">
+            <a href="/logout" class="logout-btn" title="Выход">
                 <i class="fas fa-sign-out-alt"></i>
                 <!-- <span class="logout-text">Выход</span> --> <!-- Optional: text next to icon -->
             </a>
@@ -56,7 +56,7 @@
     </button>
     
     {{if .username }}
-    <a href="/auth/logout" class="btn">
+    <a href="/logout" class="btn">
         <i class="fas fa-sign-out-alt"></i> Выход
     </a>
     {{end}}

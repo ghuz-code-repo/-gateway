@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,10 +22,6 @@ func SetupAuthRoutes(router *gin.Engine) {
 	router.POST("/login", loginHandler)
 	router.GET("/logout", logoutHandler)
 	router.GET("/verify", verifyHandler)
-
-	// User management routes (protected by admin middleware)
-	// Set up admin routes using the function from admin.go
-	SetupAdminRoutes(router)
 
 	// Add debug endpoint
 	router.GET("/debug", debugHandler)
@@ -52,7 +49,7 @@ func menuHandler(c *gin.Context) {
 	// Check if user is authenticated
 	cookie, err := c.Cookie("token")
 	if err != nil {
-		c.Redirect(http.StatusFound, "/auth/login?redirect=/menu")
+		c.Redirect(http.StatusFound, "/login?redirect=/menu")
 		return
 	}
 
@@ -67,7 +64,7 @@ func menuHandler(c *gin.Context) {
 	})
 
 	if err != nil || !token.Valid {
-		c.Redirect(http.StatusFound, "/auth/login?redirect=/menu")
+		c.Redirect(http.StatusFound, "/login?redirect=/menu")
 		return
 	}
 
@@ -171,7 +168,8 @@ func contains(slice []string, str string) bool {
 // loginPageHandler serves the login page
 func loginPageHandler(c *gin.Context) {
 	c.HTML(http.StatusOK, "login.html", gin.H{
-		"redirect": c.Query("redirect"),
+		"redirect":  c.Query("redirect"),
+		"Timestamp": time.Now().Unix(),
 	})
 }
 
@@ -184,8 +182,9 @@ func loginHandler(c *gin.Context) {
 	user, valid := models.ValidateUser(username, password)
 	if !valid {
 		c.HTML(http.StatusUnauthorized, "login.html", gin.H{
-			"error":    "Invalid username or password",
-			"redirect": redirect,
+			"error":     "Invalid username or password",
+			"redirect":  redirect,
+			"Timestamp": time.Now().Unix(),
 		})
 		return
 	}
@@ -194,8 +193,9 @@ func loginHandler(c *gin.Context) {
 	tokenString, err := models.GenerateToken(user)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "login.html", gin.H{
-			"error":    "Failed to generate token",
-			"redirect": redirect,
+			"error":     "Failed to generate token",
+			"redirect":  redirect,
+			"Timestamp": time.Now().Unix(),
 		})
 		return
 	}
@@ -213,7 +213,7 @@ func loginHandler(c *gin.Context) {
 // logoutHandler handles user logout
 func logoutHandler(c *gin.Context) {
 	c.SetCookie("token", "", -1, "/", "", false, true) // Delete cookie
-	c.Redirect(http.StatusFound, "/auth/login")
+	c.Redirect(http.StatusFound, "/login")
 }
 
 // verifyHandler checks if a request is authenticated and has permission for the requested service
@@ -317,7 +317,7 @@ func adminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		cookie, err := c.Cookie("token")
 		if err != nil {
-			c.Redirect(http.StatusFound, "/auth/login?redirect="+c.Request.URL.Path)
+			c.Redirect(http.StatusFound, "/login?redirect="+c.Request.URL.Path)
 			c.Abort()
 			return
 		}
@@ -333,7 +333,7 @@ func adminMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.Redirect(http.StatusFound, "/auth/login?redirect="+c.Request.URL.Path)
+			c.Redirect(http.StatusFound, "/login?redirect="+c.Request.URL.Path)
 			c.Abort()
 			return
 		}
@@ -341,7 +341,7 @@ func adminMiddleware() gin.HandlerFunc {
 		// Get user info
 		user, err := models.GetUserByID(claims.UserID)
 		if err != nil {
-			c.Redirect(http.StatusFound, "/auth/login?redirect="+c.Request.URL.Path)
+			c.Redirect(http.StatusFound, "/login?redirect="+c.Request.URL.Path)
 			c.Abort()
 			return
 		}
@@ -454,4 +454,25 @@ func getIconForService(service string) string {
 
 	// Default icon if no specific icon is defined
 	return "link"
+}
+
+// Exported handlers that main.go expects
+func HomeHandler(c *gin.Context) {
+	homeHandler(c)
+}
+
+func LoginPageHandler(c *gin.Context) {
+	loginPageHandler(c)
+}
+
+func LoginHandler(c *gin.Context) {
+	loginHandler(c)
+}
+
+func LogoutHandler(c *gin.Context) {
+	logoutHandler(c)
+}
+
+func VerifyHandler(c *gin.Context) {
+	verifyHandler(c)
 }

@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Policy Management</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            color: #343a40;
+        }
+        .service-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #2196f3;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 16px;
+            color: #6c757d;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+        .tab:hover {
+            color: #007bff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .roles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .role-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .role-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .role-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #343a40;
+            margin-bottom: 8px;
+        }
+        .role-display-name {
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+        .permissions-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .permissions-list li {
+            background: #e9ecef;
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #495057;
+        }
+        .role-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 8px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .create-role-form {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #dee2e6;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #343a40;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        .form-control:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+        }
+        .permissions-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 6px;
+            background: white;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .checkbox-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+        .permissions-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .permissions-table th,
+        .permissions-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .permissions-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: -10px;
+        }
+        .close:hover {
+            color: #333;
+        }
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            border-left: 4px solid;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left-color: #28a745;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Policy Management</h1>
+            <div class="service-info">
+                <strong>Service:</strong> <span id="current-service">All Services</span> | 
+                <strong>Total Roles:</strong> {{ len .Roles }} | 
+                <strong>Total Permissions:</strong> {{ len .Permissions }}
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('roles')">Roles Management</button>
+            <button class="tab" onclick="showTab('permissions')">Permissions Management</button>
+            <button class="tab" onclick="showTab('stats')">Statistics</button>
+        </div>
+
+        <!-- Roles Tab -->
+        <div id="roles-tab" class="tab-content active">
+            <h2>Service Roles</h2>
+            
+            <!-- Create Role Form -->
+            <div class="create-role-form">
+                <h3>Create New Role</h3>
+                <form id="create-role-form">
+                    <div class="form-group">
+                        <label for="role-name">Role Name:</label>
+                        <input type="text" id="role-name" name="name" class="form-control" 
+                               placeholder="e.g., manager, operator" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="role-display-name">Display Name:</label>
+                        <input type="text" id="role-display-name" name="display_name" class="form-control" 
+                               placeholder="e.g., Manager, Operator" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Permissions:</label>
+                        <div class="permissions-checkboxes" id="permissions-checkboxes">
+                            {{range .permissions}}
+                            <div class="checkbox-item">
+                                <input type="checkbox" name="permissions" value="{{.ID}}" id="perm-{{.ID}}">
+                                <label for="perm-{{.ID}}">{{.Description}} ({{.ID}})</label>
+                            </div>
+                            {{end}}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">Create Role</button>
+                </form>
+            </div>
+
+            <!-- Existing Roles -->
+            <div class="roles-grid">
+                {{range .roles}}
+                <div class="role-card" data-role-id="{{.ID}}">
+                    <div class="role-name">{{.Name}}</div>
+                    <div class="role-display-name">{{.DisplayName}}</div>
+                    <div>
+                        <strong>Permissions:</strong>
+                        <ul class="permissions-list">
+                            {{range .Permissions}}
+                            <li>{{.}}</li>
+                            {{end}}
+                        </ul>
+                    </div>
+                    <div class="role-actions">
+                        <button class="btn btn-primary" onclick="editRole('{{.ID}}')">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteRole('{{.ID}}')">Delete</button>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- Permissions Tab -->
+        <div id="permissions-tab" class="tab-content">
+            <h2>Service Permissions</h2>
+            
+            <!-- Create Permission Form -->
+            <div class="create-role-form">
+                <h3>Create New Permission</h3>
+                <form id="create-permission-form">
+                    <div class="form-group">
+                        <label for="perm-resource">Resource:</label>
+                        <input type="text" id="perm-resource" name="resource" class="form-control" 
+                               placeholder="e.g., reports, users, dashboard" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="perm-action">Action:</label>
+                        <select id="perm-action" name="action" class="form-control" required>
+                            <option value="">Select action...</option>
+                            <option value="view">View</option>
+                            <option value="create">Create</option>
+                            <option value="edit">Edit</option>
+                            <option value="delete">Delete</option>
+                            <option value="manage">Manage</option>
+                            <option value="access">Access</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="perm-scope">Scope:</label>
+                        <select id="perm-scope" name="scope" class="form-control">
+                            <option value="all">All</option>
+                            <option value="own">Own</option>
+                            <option value="limited">Limited</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="perm-description">Description:</label>
+                        <input type="text" id="perm-description" name="description" class="form-control" 
+                               placeholder="Human-readable description" required>
+                    </div>
+                    <button type="submit" class="btn btn-success">Create Permission</button>
+                </form>
+            </div>
+
+            <!-- Existing Permissions -->
+            <table class="permissions-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Resource</th>
+                        <th>Action</th>
+                        <th>Scope</th>
+                        <th>Description</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .permissions}}
+                    <tr>
+                        <td><code>{{.ID}}</code></td>
+                        <td>{{.Resource}}</td>
+                        <td>{{.Action}}</td>
+                        <td>{{.Scope}}</td>
+                        <td>{{.Description}}</td>
+                        <td>
+                            <button class="btn btn-danger" onclick="deletePermission('{{.ID}}')">Delete</button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Statistics Tab -->
+        <div id="stats-tab" class="tab-content">
+            <h2>Policy Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">{{ len .roles }}</div>
+                    <div class="stat-label">Total Roles</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ len .permissions }}</div>
+                    <div class="stat-label">Total Permissions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="cache-size">-</div>
+                    <div class="stat-label">Cache Entries</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="hit-rate">-</div>
+                    <div class="stat-label">Cache Hit Rate</div>
+                </div>
+            </div>
+            
+            <button class="btn btn-secondary" onclick="refreshStats()">Refresh Statistics</button>
+            <button class="btn btn-danger" onclick="clearCache()">Clear Cache</button>
+        </div>
+    </div>
+
+    <!-- Edit Role Modal -->
+    <div id="edit-role-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditModal()">&times;</span>
+            <h2>Edit Role</h2>
+            <form id="edit-role-form">
+                <input type="hidden" id="edit-role-id">
+                <div class="form-group">
+                    <label for="edit-role-name">Role Name:</label>
+                    <input type="text" id="edit-role-name" name="name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-role-display-name">Display Name:</label>
+                    <input type="text" id="edit-role-display-name" name="display_name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Permissions:</label>
+                    <div class="permissions-checkboxes" id="edit-permissions-checkboxes">
+                        <!-- Will be populated dynamically -->
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success">Update Role</button>
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Tab management
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+            
+            // Load stats if stats tab is selected
+            if (tabName === 'stats') {
+                refreshStats();
+            }
+        }
+
+        // Create role form submission
+        document.getElementById('create-role-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const permissions = Array.from(formData.getAll('permissions'));
+            
+            const roleData = {
+                name: formData.get('name'),
+                display_name: formData.get('display_name'),
+                permissions: permissions
+            };
+            
+            fetch('/api/v1/services/{{ .service }}/roles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(roleData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert('Role created successfully!');
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to create role');
+            });
+        });
+
+        // Create permission form submission
+        document.getElementById('create-permission-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const permissionData = {
+                resource: formData.get('resource'),
+                action: formData.get('action'),
+                scope: formData.get('scope') || 'all',
+                description: formData.get('description')
+            };
+            
+            fetch('/api/v1/services/{{ .service }}/permissions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(permissionData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert('Permission created successfully!');
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to create permission');
+            });
+        });
+
+        // Delete role
+        function deleteRole(roleId) {
+            if (confirm('Are you sure you want to delete this role?')) {
+                fetch('/api/v1/services/{{ .service }}/roles/' + roleId, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        alert('Role deleted successfully!');
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to delete role');
+                });
+            }
+        }
+
+        // Delete permission
+        function deletePermission(permissionId) {
+            if (confirm('Are you sure you want to delete this permission?')) {
+                // Note: You might want to implement permission deletion endpoint
+                alert('Permission deletion not implemented yet');
+            }
+        }
+
+        // Edit role (placeholder)
+        function editRole(roleId) {
+            alert('Edit functionality will be implemented');
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-role-modal').style.display = 'none';
+        }
+
+        // Refresh statistics
+        function refreshStats() {
+            fetch('/api/v1/cache/stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('cache-size').textContent = data.cache_stats.cache_size || 0;
+                    document.getElementById('hit-rate').textContent = 
+                        (data.cache_stats.hit_rate || 0).toFixed(1) + '%';
+                })
+                .catch(error => {
+                    console.error('Error fetching stats:', error);
+                });
+        }
+
+        // Clear cache
+        function clearCache() {
+            if (confirm('Are you sure you want to clear the policy cache?')) {
+                fetch('/api/v1/cache/clear', {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert('Cache cleared successfully!');
+                    refreshStats();
+                })
+                .catch(error => {
+                    console.error('Error clearing cache:', error);
+                    alert('Failed to clear cache');
+                });
+            }
+        }
+
+        // Load initial stats
+        refreshStats();
+    </script>
+</body>
+</html>

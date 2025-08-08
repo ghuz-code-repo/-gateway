@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Управление ролями сервиса {{ .service }}</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+      body {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity .05s ease-in-out;
+      }
+    </style>
+</head>
+<body>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+    
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        <h2>Управление ролями сервиса "{{ .service }}"</h2>
+        
+        <div class="admin-panel">
+            <div class="admin-section">
+                <h3>Роли сервиса {{ .service }}</h3>
+                <p>Управление ролями для сервиса {{ .service }}.</p>
+                
+                {{if .roles}}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название роли</th>
+                            <th>Описание</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .roles}}
+                        <tr>
+                            <td>{{.ID}}</td>
+                            <td>{{.Name}}</td>
+                            <td>{{.Description}}</td>
+                            <td>
+                                <a href="/admin/policies/{{ $.service }}/roles/{{.ID}}" class="btn small">Редактировать</a>
+                                <form method="post" action="/admin/policies/{{ $.service }}/roles/{{.ID}}/delete" style="display: inline;">
+                                    <button type="submit" class="btn small danger" onclick="return confirm('Удалить роль {{.Name}}?')">Удалить</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+                {{else}}
+                <p>Роли для сервиса {{ .service }} пока не созданы.</p>
+                {{end}}
+                
+                <div class="form-actions">
+                    <form method="post" action="/admin/policies/{{ .service }}/roles">
+                        <h4>Добавить новую роль</h4>
+                        <div class="form-group">
+                            <label for="name">Название роли:</label>
+                            <input type="text" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="description">Описание:</label>
+                            <textarea id="description" name="description" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn primary">Создать роль</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div>
+            <a href="/admin/policies/{{ .service }}" class="back-link">Назад к управлению сервисом</a>
+            <a href="/admin/policies" class="back-link">Назад к политикам</a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+    <script>
+    particlesJS('particles-js', {
+        "particles": {
+            "number": { "value": 80, "density": { "enable": true, "value_area": 800 } },
+            "color": { "value": var(--particles-color) },
+            "shape": { "type": "polygon", "stroke": { "width": 1, "color": var(--particles-color) }, "polygon": { "nb_sides": 6 } },
+            "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+            "size": { "value": 4, "random": true },
+            "line_linked": { "enable": true, "distance": 180, "color": var(--particles-color), "opacity": 0.15, "width": 1 },
+            "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": true, "mode": "bubble" } },
+            "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+        },
+        "retina_detect": true
+    });
+    </script>
+</body>
+</html>

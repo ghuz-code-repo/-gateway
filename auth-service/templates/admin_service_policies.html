@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f8f9fa;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 300;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .nav {
+            margin-bottom: 2rem;
+        }
+        
+        .nav a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            margin-right: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+        
+        .nav a:hover {
+            background-color: #f1f3f4;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e1e5e9;
+        }
+        
+        .card h2 {
+            color: #495057;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+        
+        .table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin: 0.125rem;
+        }
+        
+        .badge-success {
+            color: #155724;
+            background-color: #d4edda;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            margin: 0.25rem;
+        }
+        
+        .btn-primary {
+            background-color: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #5a67d8;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        
+        .test-form {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+        }
+        
+        .result {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+        
+        .result.allowed {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .result.denied {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{.title}}</h1>
+            <p>Управление политиками сервиса {{.service}}</p>
+        </div>
+        
+        <div class="nav">
+            <a href="/admin/policies">← Все сервисы</a>
+            <a href="/admin/policies/{{.service}}">Обзор</a>
+            <a href="/admin/policies/{{.service}}/roles">Роли</a>
+            <a href="/admin/policies/{{.service}}/permissions">Разрешения</a>
+        </div>
+        
+        <div class="card">
+            <h2>Роли сервиса {{.service}}</h2>
+            {{if .roles}}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                        <th>Отображаемое имя</th>
+                        <th>Разрешения</th>
+                        <th>Создана</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .roles}}
+                    <tr>
+                        <td><strong>{{.Name}}</strong></td>
+                        <td>{{.DisplayName}}</td>
+                        <td>
+                            {{range .Permissions}}
+                            <span class="badge badge-success">{{.}}</span>
+                            {{end}}
+                        </td>
+                        <td>{{.CreatedAt.Format "02.01.2006 15:04"}}</td>
+                        <td>
+                            <button class="btn btn-danger" onclick="deleteRole('{{.Service}}', '{{.ID.Hex}}')">
+                                Удалить
+                            </button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p>Роли для сервиса {{.service}} не найдены.</p>
+            {{end}}
+        </div>
+        
+        <div class="card">
+            <h2>Разрешения сервиса {{.service}}</h2>
+            {{if .permissions}}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                        <th>Отображаемое имя</th>
+                        <th>Описание</th>
+                        <th>Создано</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .permissions}}
+                    <tr>
+                        <td><strong>{{.Name}}</strong></td>
+                        <td>{{.DisplayName}}</td>
+                        <td>{{.Description}}</td>
+                        <td>{{.CreatedAt.Format "02.01.2006 15:04"}}</td>
+                        <td>
+                            <button class="btn btn-danger" onclick="deletePermission('{{.Service}}', '{{.ID.Hex}}')">
+                                Удалить
+                            </button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p>Разрешения для сервиса {{.service}} не найдены.</p>
+            {{end}}
+        </div>
+        
+        <div class="card">
+            <h2>Тестирование политик</h2>
+            <div class="test-form">
+                <div class="form-group">
+                    <label for="userRoles">Роли пользователя (через запятую):</label>
+                    <input type="text" id="userRoles" placeholder="admin,user">
+                </div>
+                <div class="form-group">
+                    <label for="resource">Ресурс:</label>
+                    <input type="text" id="resource" placeholder="document">
+                </div>
+                <div class="form-group">
+                    <label for="action">Действие:</label>
+                    <input type="text" id="action" placeholder="read">
+                </div>
+                <button class="btn btn-primary" onclick="testPolicy()">Проверить политику</button>
+                <div id="testResult"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Управление кэшем</h2>
+            <button class="btn btn-success" onclick="invalidateCache('{{.service}}')">
+                Сбросить кэш сервиса
+            </button>
+            <button class="btn btn-danger" onclick="clearAllCache()">
+                Очистить весь кэш
+            </button>
+        </div>
+    </div>
+
+<script>
+// Тестирование политики
+function testPolicy() {
+    const userRoles = document.getElementById('userRoles').value.split(',').map(r => r.trim()).filter(r => r);
+    const resource = document.getElementById('resource').value.trim();
+    const action = document.getElementById('action').value.trim();
+    
+    if (!userRoles.length || !resource || !action) {
+        alert('Заполните все поля');
+        return;
+    }
+    
+    const payload = {
+        service: '{{.service}}',
+        user_roles: userRoles,
+        resource: resource,
+        action: action
+    };
+    
+    fetch('/api/v1/evaluate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultDiv = document.getElementById('testResult');
+        const allowed = data.allowed;
+        resultDiv.className = `result ${allowed ? 'allowed' : 'denied'}`;
+        resultDiv.innerHTML = `
+            <strong>${allowed ? 'РАЗРЕШЕНО' : 'ЗАПРЕЩЕНО'}</strong><br>
+            Причина: ${data.reason}<br>
+            ${data.permissions ? 'Разрешения: ' + data.permissions.join(', ') : ''}
+        `;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при проверке политики');
+    });
+}
+
+// Сброс кэша сервиса
+function invalidateCache(service) {
+    if (!confirm(`Сбросить кэш для сервиса ${service}?`)) return;
+    
+    fetch(`/api/v1/cache/invalidate/${service}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message || 'Кэш сброшен');
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при сбросе кэша');
+    });
+}
+
+// Очистка всего кэша
+function clearAllCache() {
+    if (!confirm('Очистить весь кэш? Это может повлиять на производительность.')) return;
+    
+    fetch('/api/v1/cache/clear', {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message || 'Весь кэш очищен');
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при очистке кэша');
+    });
+}
+
+// Удаление роли
+function deleteRole(service, roleId) {
+    if (!confirm('Удалить эту роль?')) return;
+    
+    fetch(`/api/v1/services/${service}/roles/${roleId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message || 'Роль удалена');
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при удалении роли');
+    });
+}
+
+// Удаление разрешения
+function deletePermission(service, permissionId) {
+    if (!confirm('Удалить это разрешение?')) return;
+    
+    fetch(`/api/v1/services/${service}/permissions/${permissionId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message || 'Разрешение удалено');
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при удалении разрешения');
+    });
+}
+</script>
+
+<footer style="margin-top: 3rem; padding: 1rem; border-top: 1px solid #e0e0e0; text-align: center; color: #666;">
+    <p>&copy; 2025 Policy Management System. Powered by Gin + MongoDB.</p>
+</footer>
+
+</body>
+</html>

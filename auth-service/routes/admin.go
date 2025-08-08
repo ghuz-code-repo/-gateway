@@ -2,6 +2,7 @@ package routes
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -9,7 +10,7 @@ import (
 
 	"auth-service/models"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -36,9 +37,15 @@ func validateToken(tokenString string) (*models.Claims, bool) {
 func SetupAdminRoutes(router *gin.Engine) {
 	// Admin dashboard and CRUD operations
 	admin := router.Group("/admin")
-	admin.Use(adminAuthRequired())
-	{
-		admin.GET("/", adminDashboardHandler)
+	admin.Use(AdminAuthRequired())
+	
+	SetupAdminGroupRoutes(admin)
+}
+
+// SetupAdminGroupRoutes sets up admin routes on an existing group
+func SetupAdminGroupRoutes(admin *gin.RouterGroup) {
+	log.Println("Starting SetupAdminGroupRoutes...")
+	admin.GET("/", adminDashboardHandler)
 
 		// User management
 		admin.GET("/users", listUsersHandler)
@@ -58,23 +65,23 @@ func SetupAdminRoutes(router *gin.Engine) {
 		admin.POST("/roles/:id", updateRoleHandler)
 		admin.POST("/roles/:id/delete", deleteRoleHandler)
 
-		// Permission management
-		admin.GET("/permissions", listPermissionsHandler)
-		admin.GET("/permissions/new", showPermissionFormHandler)
-		admin.POST("/permissions", createPermissionHandler)
-		admin.GET("/permissions/:id", getPermissionHandler)
-		admin.POST("/permissions/:id", updatePermissionHandler)
-		admin.POST("/permissions/:id/delete", deletePermissionHandler)
-	}
+	// Permission management
+	admin.GET("/permissions", listPermissionsHandler)
+	admin.GET("/permissions/new", showPermissionFormHandler)
+	admin.POST("/permissions", createPermissionHandler)
+	admin.GET("/permissions/:id", getPermissionHandler)
+	admin.POST("/permissions/:id", updatePermissionHandler)
+	admin.POST("/permissions/:id/delete", deletePermissionHandler)
+	log.Println("SetupAdminGroupRoutes completed successfully.")
 }
 
-// adminAuthRequired middleware ensures the user is an admin
-func adminAuthRequired() gin.HandlerFunc {
+// AdminAuthRequired middleware ensures the user is an admin
+func AdminAuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get JWT token from cookie
 		cookie, err := c.Cookie("token")
 		if err != nil {
-			c.Redirect(http.StatusFound, "/auth/login?redirect="+c.Request.URL.Path) // Preserve original redirect
+			c.Redirect(http.StatusFound, "/login?redirect="+c.Request.URL.Path) // Preserve original redirect
 			c.Abort()
 			return
 		}
@@ -82,7 +89,7 @@ func adminAuthRequired() gin.HandlerFunc {
 		// Parse and validate token
 		claims, valid := validateToken(cookie)
 		if !valid {
-			c.Redirect(http.StatusFound, "/auth/login?redirect="+c.Request.URL.Path) // Preserve original redirect
+			c.Redirect(http.StatusFound, "/login?redirect="+c.Request.URL.Path) // Preserve original redirect
 			c.Abort()
 			return
 		}

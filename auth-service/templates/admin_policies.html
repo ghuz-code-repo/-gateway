@@ -1,0 +1,167 @@
+{{template "header" .}}
+
+<div class="admin-wrapper">
+    <h1>Управление политиками сервисов</h1>
+    
+    <div class="content-section">
+        <h2>Доступные сервисы</h2>
+        <div class="services-grid">
+            <div class="service-card">
+                <h3>referal</h3>
+                <p>Сервис реферальной системы</p>
+                <div class="service-actions">
+                    <a href="/admin/policies/referal" class="btn primary">Управление</a>
+                    <a href="/admin/policies/referal/roles" class="btn">Роли</a>
+                    <a href="/admin/policies/referal/permissions" class="btn">Разрешения</a>
+                </div>
+            </div>
+            
+            <div class="service-card">
+                <h3>gateway</h3>
+                <p>Шлюз авторизации</p>
+                <div class="service-actions">
+                    <a href="/admin/policies/gateway" class="btn primary">Управление</a>
+                    <a href="/admin/policies/gateway/roles" class="btn">Роли</a>
+                    <a href="/admin/policies/gateway/permissions" class="btn">Разрешения</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="content-section">
+        <h2>Управление кешем</h2>
+        <p>Кеш содержит результаты оценки политик для повышения производительности.</p>
+        <div class="cache-actions">
+            <a href="/admin/cache" class="btn">Статистика кеша</a>
+            <button onclick="clearCache()" class="btn warning">Очистить кеш</button>
+        </div>
+    </div>
+    
+    <div class="content-section">
+        <h2>API документация</h2>
+        <div class="api-endpoints">
+            <div class="endpoint">
+                <strong>POST /api/v1/evaluate</strong>
+                <p>Оценка политик доступа</p>
+            </div>
+            <div class="endpoint">
+                <strong>GET /api/v1/cache/stats</strong>
+                <p>Статистика кеширования</p>
+            </div>
+            <div class="endpoint">
+                <strong>GET /api/v1/health</strong>
+                <p>Состояние системы</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-wrapper {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.content-section {
+    margin-bottom: 40px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.service-card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.service-card h3 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.service-actions {
+    margin-top: 15px;
+}
+
+.service-actions .btn {
+    margin-right: 10px;
+    margin-bottom: 5px;
+}
+
+.cache-actions {
+    margin-top: 20px;
+}
+
+.api-endpoints {
+    margin-top: 20px;
+}
+
+.endpoint {
+    background: white;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border-left: 4px solid #3498db;
+}
+
+.endpoint strong {
+    color: #2c3e50;
+    font-family: monospace;
+}
+
+.btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #3498db;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn.primary {
+    background: #2980b9;
+}
+
+.btn.warning {
+    background: #e74c3c;
+}
+
+.btn:hover {
+    opacity: 0.9;
+}
+</style>
+
+<script>
+function clearCache() {
+    if (confirm('Очистить весь кеш политик?')) {
+        fetch('/api/v1/cache/clear', { method: 'DELETE' })
+            .then(response => response.json())
+            .then(data => {
+                alert('Кеш очищен: ' + data.message);
+            })
+            .catch(error => {
+                alert('Ошибка: ' + error);
+            });
+    }
+}
+</script>
+
+<footer style="margin-top: 3rem; padding: 1rem; border-top: 1px solid #e0e0e0; text-align: center; color: #666;">
+    <p>&copy; 2025 Policy Management System. Powered by Gin + MongoDB.</p>
+</footer>
+
+</body>
+</html>
