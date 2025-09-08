@@ -17,9 +17,11 @@
         (function() {
             const theme = localStorage.getItem('theme');
             if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
                 document.documentElement.classList.add('dark-theme');
             } else {
                 document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
             }
             requestAnimationFrame(() => {
                 document.body.style.visibility = 'visible';

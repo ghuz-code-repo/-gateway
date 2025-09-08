@@ -1,0 +1,869 @@
+/* Стили для вкладок в service form */
+.tabs {
+    margin-top: 20px;
+    border-bottom: 2px solid var(--border-color);
+  width: 100%;
+
+}
+
+.tabs-nav {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background-color: var(--card-background-color);
+    border-radius: 8px 8px 0 0;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+}
+
+.tabs-nav li {
+    margin: 0;
+}
+
+.tabs-nav button {
+    background: none;
+    border: none;
+    padding: 15px 25px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-color);
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+    border-radius: 8px 8px 0 0;
+}
+
+.tabs-nav button:hover {
+    background-color: var(--table-row-hover-background-color);
+    color: var(--text-color);
+}
+
+.tabs-nav button.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background-color: var(--card-background-color);
+    font-weight: 600;
+}
+
+.tab-content {
+    display: none;
+    padding: 30px;
+    background: var(--card-background-color);
+    border-radius: 0 0 8px 8px;
+    border: 1px solid var(--border-color);
+    border-top: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* ========== ЕДИНЫЕ СТИЛИ ПОИСКОВЫХ ПОЛЕЙ ========== */
+/* Переопределяем стили из admin-service-form.css для единообразия */
+
+/* Секции поиска - единообразные отступы */
+.search-section,
+.permissions-search-section,
+.roles-search-section,
+.users-search-section {
+    margin-top: 15px !important; /* 15px ниже кнопки добавления */
+    margin-bottom: 5px !important; /* 5px выше контейнера со списком */
+}
+
+/* Единый стиль всех поисковых полей */
+.search-box,
+.search-input {
+    width: 100% !important;
+    padding: 12px 16px !important;
+    border: 2px solid var(--light-border-color) !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    background-color: var(--input-background-color) !important;
+    color: var(--input-text-color) !important;
+    transition: border-color 0.2s ease !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+}
+
+.search-box:focus,
+.search-input:focus {
+    outline: none !important;
+    border-color: var(--modal-focus-color) !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+}
+
+.search-box::placeholder,
+.search-input::placeholder {
+    color: var(--lightest-text-color) !important;
+}
+
+/* ========== СТИЛИ ЭЛЕМЕНТОВ ========== */
+
+/* Улучшенные стили для карточек разрешений в модальных окнах */
+.service-permission-checkbox {
+    display: flex !important;
+    align-items: flex-start !important;
+    padding: 12px !important;
+    border: 2px solid var(--input-border-color) !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+    background-color: var(--input-background-color) !important;
+    user-select: none !important; /* Предотвращаем выделение текста при клике */
+}
+
+.service-permission-checkbox:hover {
+    border-color: var(--primary-color) !important;
+    background-color: var(--table-row-hover-background-color) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 8px rgba(var(--primary-color-rgb), 0.15) !important;
+}
+
+.service-permission-checkbox:active {
+    transform: translateY(0) !important;
+}
+
+.service-permission-checkbox input[type="checkbox"] {
+    margin-right: 10px !important;
+    margin-top: 2px !important;
+    width: auto !important;
+    pointer-events: none !important; /* Отключаем прямые клики по чекбоксу */
+}
+
+.service-permission-label {
+    flex: 1 !important;
+    pointer-events: none !important; /* Весь текст не кликабелен, клик идет через карточку */
+}
+
+.service-permission-label span {
+    font-weight: 600 !important;
+    color: var(--text-color) !important;
+    margin-bottom: 4px !important;
+    display: block !important;
+}
+
+.service-permission-label small {
+    font-size: 12px !important;
+    color: var(--text-color) !important;
+    opacity: 0.7 !important;
+    line-height: 1.4 !important;
+}
+
+/* Стили для элементов разрешений */
+.permission-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin: 10px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-background-color);
+    transition: all 0.3s ease;
+}
+
+.permission-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.15);
+}
+
+.permission-details {
+    flex-grow: 1;
+}
+
+.permission-name {
+    font-weight: 600;
+    color: var(--text-color);
+    font-size: 16px;
+}
+
+.permission-description {
+    font-size: 14px;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-top: 4px;
+}
+
+/* Стили для элементов пользователей */
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin: 10px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-background-color);
+    transition: all 0.3s ease;
+}
+
+.user-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.15);
+}
+
+.user-details {
+    flex-grow: 1;
+}
+
+.user-name {
+    font-weight: 600;
+    color: var(--text-color);
+    font-size: 16px;
+}
+
+.user-email {
+    font-size: 14px;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-top: 4px;
+}
+
+.user-roles {
+    font-size: 14px;
+    color: var(--text-color);
+    opacity: 1;
+    margin-top: 6px;
+}
+
+/* Стили для кнопок добавления */
+.add-role-section,
+.add-permission-section {
+    margin-top: 20px;
+    padding: 20px;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    background-color: var(--table-row-even-background-color);
+    text-align: center;
+}
+
+/* Модальные окна для service forms */
+.service-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+}
+
+.service-modal-content {
+    background-color: var(--card-background-color);
+    margin: 5% auto;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 900px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+    border: 1px solid var(--border-color);
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.service-modal-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 12px 12px 0 0;
+    background: var(--primary-color);
+    color: var(--primary-text-color);
+}
+
+.service-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.service-modal .close {
+    color: var(--primary-text-color);
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    line-height: 1;
+}
+
+.service-modal .close:hover,
+.service-modal .close:focus {
+    opacity: 0.7;
+}
+
+.service-modal-body {
+    padding: 20px;
+    background-color: var(--card-background-color);
+}
+
+.service-modal-actions {
+    padding: 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    border-radius: 0 0 12px 12px;
+    background-color: var(--table-row-even-background-color);
+}
+
+.service-modal .form-group {
+    margin-bottom: 20px;
+}
+
+.service-modal .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.service-modal .form-group input,
+.service-modal .form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid var(--input-border-color);
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    box-sizing: border-box;
+}
+
+.service-modal .form-group input:focus,
+.service-modal .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.service-permissions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.service-permission-checkbox {
+    display: flex;
+    align-items: flex-start;
+    padding: 12px;
+    border: 2px solid var(--input-border-color);
+    border-radius: 8px;
+    transition: all 0.2s;
+    cursor: pointer;
+    background-color: var(--input-background-color);
+}
+
+.service-permission-checkbox:hover {
+    border-color: var(--primary-color);
+    background-color: var(--table-row-hover-background-color);
+}
+
+.service-permission-checkbox input[type="checkbox"] {
+    margin-right: 10px;
+    margin-top: 2px;
+    width: auto;
+}
+
+.service-permission-label {
+    flex: 1;
+}
+
+.service-permission-label span {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 4px;
+    display: block;
+}
+
+.service-permission-label small {
+    font-size: 12px;
+    color: var(--text-color);
+    opacity: 0.7;
+    line-height: 1.4;
+}
+
+/* Улучшенные стили для модального окна редактирования роли */
+.edit-role-modal-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-height: 60vh;
+}
+
+.edit-role-form-fields {
+    display: flex;
+    flex-direction: column;
+}
+
+.edit-role-permissions {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+
+.permissions-search {
+    margin-bottom: 15px;
+}
+
+.permissions-search input {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid var(--input-border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    box-sizing: border-box;
+}
+
+.permissions-search input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--focus-ring-color);
+}
+
+.permissions-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+    background-color: var(--input-background-color);
+}
+
+.permissions-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.permissions-list::-webkit-scrollbar-track {
+    background: var(--table-row-even-background-color);
+    border-radius: 4px;
+}
+
+.permissions-list::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+
+.permissions-list::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+.edit-permission-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 12px;
+    margin-bottom: 8px;
+    border: 2px solid var(--input-border-color);
+    border-radius: 8px;
+    transition: all 0.2s;
+    cursor: pointer;
+    background-color: var(--card-background-color);
+}
+
+.edit-permission-item:hover {
+    border-color: var(--primary-color);
+    background-color: var(--table-row-hover-background-color);
+    transform: translateY(-1px);
+}
+
+.edit-permission-item.selected {
+    border-color: var(--primary-color);
+    background-color: var(--table-row-hover-background-color);
+    box-shadow: 0 2px 8px rgba(var(--primary-color-rgb), 0.2);
+}
+
+.edit-permission-item input[type="checkbox"] {
+    margin-right: 12px;
+    margin-top: 2px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.edit-permission-content {
+    flex: 1;
+    cursor: pointer;
+}
+
+.edit-permission-name {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.edit-permission-description {
+    font-size: 12px;
+    color: var(--text-color);
+    opacity: 0.7;
+    line-height: 1.4;
+}
+
+.permission-hidden {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .edit-role-modal-body {
+        grid-template-columns: 1fr;
+        max-height: 70vh;
+    }
+
+    .permissions-list {
+        max-height: 300px;
+    }
+}
+
+/* Стили для уведомлений */
+.notifications-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    max-width: 400px;
+}
+
+.notification {
+    background-color: var(--card-background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 12px var(--header-shadow-color);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    animation: slideInRight 0.3s ease-out;
+    max-width: 100%;
+    word-wrap: break-word;
+}
+
+.notification.success {
+    border-left: 4px solid #10b981;
+}
+
+.notification.error {
+    border-left: 4px solid var(--danger-color);
+}
+
+.notification.info {
+    border-left: 4px solid var(--primary-color);
+}
+
+.notification-icon {
+    font-size: 20px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.notification.success .notification-icon {
+    color: #10b981;
+}
+
+.notification.error .notification-icon {
+    color: var(--danger-color);
+}
+
+.notification.info .notification-icon {
+    color: var(--primary-color);
+}
+
+.notification-content {
+    flex: 1;
+}
+
+.notification-title {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.notification-message {
+    color: var(--text-color);
+    opacity: 0.8;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    opacity: 0.5;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.notification-close:hover {
+    opacity: 0.8;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.notification.removing {
+    animation: slideOutRight 0.3s ease-in forwards;
+}
+
+/* Стили для загрузки */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    z-index: 10;
+}
+
+.loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-color);
+    border-top: 3px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.modal-loading .service-modal-actions button {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+@media (max-width: 480px) {
+    .notifications-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+
+    .notification {
+        padding: 12px;
+        font-size: 12px;
+    }
+}
+
+/* Стили для поиска ролей */
+.roles-search-section {
+    margin: 10px 0;
+}
+
+.search-box {
+    position: relative;
+    /* max-width: 400px; */
+}
+
+.search-box input {
+    width: 100%;
+    padding: 12px 20px;
+    border: 2px solid var(--border-color);
+    border-radius: 25px;
+    font-size: 14px;
+    background-color: var(--input-background-color);
+    color: var(--text-color);
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.search-box input::placeholder {
+    color: var(--text-color-secondary);
+}
+
+/* Стили для прокручиваемого контейнера ролей */
+.roles-container {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: var(--card-background-color);
+    padding: 10px;
+    margin: 20px 0;
+}
+
+.roles-container:empty::after {
+    content: "Роли не найдены";
+    display: block;
+    text-align: center;
+    padding: 40px;
+    color: var(--text-color-secondary);
+    font-style: italic;
+}
+
+/* Улучшенные стили для элементов ролей */
+.role-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin: 8px 0;
+    background-color: var(--card-background-color);
+    border: 1px solid var(--border-color);
+    ;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.role-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px var(--header-shadow-color);
+    transform: translateY(-1px);
+}
+
+.role-item.role-hidden {
+    display: none;
+}
+
+.role-info {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+}
+
+
+.role-details {
+    flex: 1;
+    margin-right: 15px;
+}
+
+.role-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 5px;
+}
+
+.role-description {
+    font-size: 14px;
+    color: var(--text-color-secondary);
+    margin-bottom: 8px;
+    line-height: 1.4;
+
+}
+
+.role-permissions {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+    background-color: var(--table-row-hover-background-color);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.role-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Стили для сообщения об отсутствии ролей */
+.no-roles-message {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-color-secondary);
+}
+
+/* Скроллбар для контейнера ролей */
+.roles-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.roles-container::-webkit-scrollbar-track {
+    background: var(--table-row-even-background-color);
+    border-radius: 3px;
+}
+
+.roles-container::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 3px;
+}
+
+.roles-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .role-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .role-details {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+
+    .role-actions {
+        justify-content: center;
+    }
+
+    .search-box {
+        max-width: 100%;
+    }
+}

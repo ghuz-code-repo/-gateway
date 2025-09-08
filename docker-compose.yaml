@@ -1,6 +1,9 @@
 services:
   nginx:
-    build: ./nginx
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+
     ports:
       - "80:80"
       - "443:443"
@@ -16,7 +19,9 @@ services:
     restart: always
 
   auth-service:
-    build: ./auth-service
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
     env_file:
       - ./auth-service/.env
     depends_on:
@@ -27,6 +32,9 @@ services:
       - public_network
     volumes:
       - ./auth-service/data:/data
+      - ./auth-service/static:/static
+      - ./auth-service/templates:/templates
+
     restart: always
 
   mongo:

@@ -34,6 +34,32 @@
     --particles-color: "#c4a668";
     /* Gold color for particles */
     --focus-ring-color: rgba(var(--primary-color-rgb), 0.25); /* Added for input focus */
+    
+    /* Дополнительные переменные для админки */
+    --secondary-color: #6c757d;
+    --secondary-color-hover: #5a6268;
+    --light-text-color: #666;
+    --lighter-text-color: #7f8c8d;
+    --lightest-text-color: #95a5a6;
+    --dark-text-color: #2c3e50;
+    --light-border-color: #e1e8ed;
+    --light-background-color: #f8f9fa;
+    --lighter-background-color: #fafbfc;
+    --danger-light-color: #e53e3e;
+    --danger-light-background: #fff5f5;
+    --danger-light-border: #feb2b2;
+    --warning-background: #fff3cd;
+    --warning-border: #ffeaa7;
+    --modal-background: rgba(0,0,0,0.4);
+    --modal-content-background: #fefefe;
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-light: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    --gradient-card: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+    --shadow-light: 0 2px 4px rgba(0,0,0,0.05);
+    --shadow-medium: 0 4px 12px rgba(0,0,0,0.1);
+    --shadow-heavy: 0 10px 40px rgba(0,0,0,0.2);
+    --modal-focus-color: #667eea;
+    --modal-focus-background: #f8f9ff;
 }
 
 .dark-theme {
@@ -72,6 +98,32 @@
     --particles-color: "#b39150";
     /* Darker gold for dark theme particles */
     --focus-ring-color: rgba(var(--primary-color-rgb), 0.35); /* Adjusted opacity for dark theme if needed */
+    
+    /* Дополнительные переменные для темной темы админки */
+    --secondary-color: #6c757d;
+    --secondary-color-hover: #5a6268;
+    --light-text-color: #aaa;
+    --lighter-text-color: #888;
+    --lightest-text-color: #666;
+    --dark-text-color: #e0e0e0;
+    --light-border-color: #444;
+    --light-background-color: #2c2c2c;
+    --lighter-background-color: #252525;
+    --danger-light-color: #e57373;
+    --danger-light-background: #4a1c1f;
+    --danger-light-border: #a73c47;
+    --warning-background: #3d3516;
+    --warning-border: #5a4a00;
+    --modal-background: rgba(0,0,0,0.6);
+    --modal-content-background: #1e1e1e;
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-light: linear-gradient(135deg, #2c2c2c 0%, #383838 100%);
+    --gradient-card: linear-gradient(135deg, #1e1e1e 0%, #2c2c2c 100%);
+    --shadow-light: 0 2px 4px rgba(0,0,0,0.2);
+    --shadow-medium: 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-heavy: 0 10px 40px rgba(0,0,0,0.4);
+    --modal-focus-color: #8ab4f8;
+    --modal-focus-background: #1a2332;
 }
 
 html {
@@ -130,6 +182,9 @@ body {
     position: relative;
     z-index: 1;
     transition: background-color 0.3s;
+    box-sizing: border-box;
+    overflow-x: hidden; /* Предотвращает горизонтальный скролл */
+    max-width: calc(100vw - 40px); /* Гарантирует, что контейнер не превысит ширину экрана */
 }
 .header-buttons {
     display: flex;
@@ -448,7 +503,7 @@ form {
     flex-direction: column;
     padding: 20px;
     width: 100%;
-    max-width: 500px;
+    /* max-width: 500px; */
 }
 
 .form-group {
@@ -783,14 +838,15 @@ input[type="text"][name="password"] {
     justify-content: space-between; /* Pushes logo to left, controls to right */
     align-items: center;
     width: 100%;
-    padding: 10px 20px; 
+    height: 70px; /* Фиксированная высота для одностраничной архитектуры */
+    padding: 0 20px; /* Убираем вертикальные отступы из-за фиксированной высоты */
     background-color: var(--header-background-color);
     box-shadow: 0 2px 5px var(--primary-color);
     /* box-shadow: 0 0 8px 1px var(--primary-color);  */
     position: fixed;
     top: 0;
     left: 0;
-    z-index: 100;
+    z-index: 1000; /* Увеличиваем z-index для надежности */
     transition: background-color 0.3s, box-shadow 0.3s;
     box-sizing: border-box; 
 }
@@ -1008,7 +1064,8 @@ input[type="text"][name="password"] {
 /* Ensure existing media queries correctly hide/show burger vs desktop controls */
 @media (max-width: 768px) {
     .header-container {
-        padding: 10px 15px;
+        height: 60px; /* Меньшая высота на планшетах */
+        padding: 0 15px;
     }
 
     .header-logo-section {
@@ -1025,9 +1082,17 @@ input[type="text"][name="password"] {
 }
 
 @media (max-width: 600px) { /* Mobile phones */
+    .header-container {
+        height: 55px; /* Еще меньше на мобильных */
+        padding: 0 10px;
+    }
+    
     .container {
-        width: 100%;
+        width: calc(100% - 10px);
+        max-width: calc(100vw - 10px);
         border-radius: 0; 
+        margin: 5px auto;
+        padding: 15px 10px;
     }
 
     h1 {

@@ -2,9 +2,11 @@ package routes
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"auth-service/models"
@@ -13,6 +15,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+// getUserContext extracts username and full name from gin context
+func getUserContext(c *gin.Context) (string, string) {
+	username := c.GetString("username")
+	fullName := c.GetString("full_name")
+	return username, fullName
+}
 
 // validateToken parses and validates a JWT token string
 func validateToken(tokenString string) (*models.Claims, bool) {
@@ -65,6 +74,34 @@ func SetupAdminRoutes(router *gin.Engine) {
 		admin.GET("/permissions/:id", getPermissionHandler)
 		admin.POST("/permissions/:id", updatePermissionHandler)
 		admin.POST("/permissions/:id/delete", deletePermissionHandler)
+
+		// ADR-001: Service management
+		admin.GET("/services", listServicesHandler)
+		admin.GET("/services/new", showServiceFormHandler)
+		admin.POST("/services", createServiceHandler)
+		admin.GET("/services/:id", getServiceHandler)
+		admin.POST("/services/:id", updateServiceHandler)
+		admin.POST("/services/:id/delete", deleteServiceHandler)
+		admin.POST("/services/:id/permissions", addServicePermissionHandler)
+		admin.POST("/services/:id/permissions/:permName/delete", deleteServicePermissionHandler)
+		
+		// ADR-001: Service roles management
+		admin.POST("/services/:id/roles", createServiceRoleHandler)
+		admin.GET("/services/:id/roles/:roleId", getServiceRoleHandler)
+		admin.POST("/services/:id/roles/:roleId", updateServiceRoleHandler)
+		admin.POST("/services/:id/roles/:roleId/delete", deleteServiceRoleHandler)
+		admin.POST("/services/:id/assign-role", assignUserToServiceRoleHandler)
+
+		// User management for services
+		admin.GET("/services/:id/users", getServiceUsersHandler)
+		admin.POST("/services/:id/users", addUserToServiceHandler)
+		admin.PUT("/services/:id/users/:userId/roles", updateUserServiceRolesHandler)
+
+		// ADR-001: Migration management
+		admin.GET("/migration", migrationStatusHandler)
+		admin.POST("/migration/run", runMigrationHandler)
+		admin.POST("/migration/validate", validateMigrationHandler)
+		admin.POST("/migration/rollback", rollbackMigrationHandler)
 	}
 }
 
@@ -148,15 +185,35 @@ func listUsersHandler(c *gin.Context) {
 		return
 	}
 
+	// Prepare users with their service roles
+	type UserWithServiceRoles struct {
+		User         models.User
+		ServiceRoles []models.UserServiceRole
+	}
+
+	var usersWithRoles []UserWithServiceRoles
+	for _, user := range users {
+		serviceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
+		if err != nil {
+			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
+			serviceRoles = []models.UserServiceRole{} // Empty slice if error
+		}
+		
+		usersWithRoles = append(usersWithRoles, UserWithServiceRoles{
+			User:         user,
+			ServiceRoles: serviceRoles,
+		})
+	}
+
 	// Get 'imported' query parameter
 	importedCount := c.Query("imported")
 
 	c.HTML(http.StatusOK, "users_list.html", gin.H{
-		"title":     "Управление пользователями",
-		"users":     users,
-		"username":  username,
-		"full_name": fullName,
-		"imported":  importedCount, // Pass imported count to template
+		"title":           "Управление пользователями",
+		"usersWithRoles":  usersWithRoles,
+		"username":        username,
+		"full_name":       fullName,
+		"imported":        importedCount, // Pass imported count to template
 	})
 }
 
@@ -164,7 +221,7 @@ func listUsersHandler(c *gin.Context) {
 func showUserFormHandler(c *gin.Context) {
 	usernameCtx := c.GetString("username")
 	fullNameCtx := c.GetString("full_name")
-	roles, err := models.GetAllRoles()
+	roles, err := models.GetSystemRoles() // Changed from GetAllRoles to GetSystemRoles
 	if err != nil {
 		// error.html does not use the shared header
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
@@ -173,9 +230,20 @@ func showUserFormHandler(c *gin.Context) {
 		return
 	}
 
+	// Get all services with their roles
+	services, err := models.GetAllServicesWithRolesForTemplate()
+	if err != nil {
+		// error.html does not use the shared header
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось получить сервисы и их роли",
+		})
+		return
+	}
+
 	c.HTML(http.StatusOK, "user_form.html", gin.H{
 		"title":     "Создать пользователя",
 		"roles":     roles,
+		"services":  services,
 		"username":  usernameCtx, // For header
 		"full_name": fullNameCtx, // For header
 	})
@@ -186,7 +254,7 @@ func createUserHandler(c *gin.Context) {
 	fullNameCtx := c.GetString("full_name")
 
 	if c.Request.Method == "GET" { // Should be POST, but if GET, show form
-		roles, _ := models.GetAllRoles()
+		roles, _ := models.GetSystemRoles()
 		c.HTML(http.StatusOK, "user_form.html", gin.H{
 			"title":     "Создать пользователя",
 			"roles":     roles,
@@ -202,9 +270,11 @@ func createUserHandler(c *gin.Context) {
 	password := c.PostForm("password")
 	formFullName := c.PostForm("full_name") // Renamed to avoid conflict with fullNameCtx
 	roleNames := c.PostFormArray("roles")
+	serviceRoles := c.PostFormArray("service_roles") // Format: "serviceKey:roleName"
 
 	if username == "" || email == "" || password == "" || formFullName == "" {
-		roles, _ := models.GetAllRoles() // Fetch roles again for the form
+		roles, _ := models.GetSystemRoles() // Fetch roles again for the form
+		services, _ := models.GetAllServicesWithRolesForTemplate()
 		c.HTML(http.StatusBadRequest, "user_form.html", gin.H{
 			"title":          "Создать пользователя",
 			"error":          "Все поля обязательны для заполнения",
@@ -213,19 +283,44 @@ func createUserHandler(c *gin.Context) {
 			"full_name_val":  formFullName,
 			"selected_roles": roleNames,
 			"roles":          roles,
+			"services":       services,
 			"username":       usernameCtx, // For header
 			"full_name":      fullNameCtx, // For header
 		})
 		return
 	}
 
-	_, err := models.CreateUser(username, email, password, formFullName, roleNames)
+	user, err := models.CreateUser(username, email, password, formFullName, roleNames)
 	if err != nil {
 		// error.html does not use the shared header
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 			"error": "Не удалось создать пользователя: " + err.Error(),
 		})
 		return
+	}
+
+	// Assign service roles
+	for _, serviceRole := range serviceRoles {
+		parts := strings.Split(serviceRole, ":")
+		if len(parts) == 2 {
+			serviceKey := parts[0]
+			roleName := parts[1]
+			
+			userServiceRole := models.UserServiceRole{
+				UserID:     user, // user is primitive.ObjectID
+				ServiceKey: serviceKey,
+				RoleName:   roleName,
+				AssignedAt: time.Now(),
+				AssignedBy: user, // Self-assigned during creation
+				IsActive:   true,
+			}
+			
+			// Don't fail user creation if service role assignment fails
+			if err := models.CreateUserServiceRole(userServiceRole); err != nil {
+				log.Printf("Warning: Failed to assign service role %s:%s to user %s: %v", 
+					serviceKey, roleName, user.Hex(), err)
+			}
+		}
 	}
 
 	c.Redirect(http.StatusFound, "/admin/users")
@@ -250,19 +345,37 @@ func getUserHandler(c *gin.Context) {
 		return
 	}
 
-	roles, err := models.GetAllRoles()
+	roles, err := models.GetSystemRoles()
 	if err != nil {
 		// error.html
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить роли: " + err.Error()})
 		return
 	}
 
+	// Get all services with their roles
+	services, err := models.GetAllServicesWithRolesForTemplate()
+	if err != nil {
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить сервисы и их роли: " + err.Error()})
+		return
+	}
+
+	// Get user's current service roles
+	userServiceRoles, err := models.GetUserServiceRolesByUserID(objectID)
+	if err != nil {
+		// error.html
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось получить роли пользователя в сервисах: " + err.Error()})
+		return
+	}
+
 	c.HTML(http.StatusOK, "user_form.html", gin.H{
-		"title":     "Редактировать пользователя",
-		"user":      user,
-		"roles":     roles,
-		"username":  usernameCtx,
-		"full_name": fullNameCtx,
+		"title":            "Редактировать пользователя",
+		"user":             user,
+		"roles":            roles,
+		"services":         services,
+		"userServiceRoles": userServiceRoles,
+		"username":         usernameCtx,
+		"full_name":        fullNameCtx,
 	})
 }
 
@@ -290,6 +403,7 @@ func updateUserHandler(c *gin.Context) {
 	passwordForm := c.PostForm("password")
 	fullNameForm := c.PostForm("full_name")
 	roleNamesForm := c.PostFormArray("roles")
+	serviceRoles := c.PostFormArray("service_roles") // Format: "serviceKey:roleName"
 
 	// Use existing values if fields are empty (this logic is in models.UpdateUser, but good to be aware)
 	// For rendering the form back on error, we need to decide what to show.
@@ -297,17 +411,52 @@ func updateUserHandler(c *gin.Context) {
 
 	err = models.UpdateUser(objectID, usernameForm, emailForm, passwordForm, fullNameForm, roleNamesForm)
 	if err != nil {
-		roles, _ := models.GetAllRoles()
+		roles, _ := models.GetSystemRoles()
+		services, _ := models.GetAllServicesWithRolesForTemplate()
+		userServiceRoles, _ := models.GetUserServiceRolesByUserID(objectID)
 		// user_form.html needs header data
 		c.HTML(http.StatusInternalServerError, "user_form.html", gin.H{
-			"title":     "Редактировать пользователя",
-			"error":     "Не удалось обновить пользователя: " + err.Error(),
-			"user":      existingUser, // Show existing user data in form
-			"roles":     roles,
-			"username":  usernameCtx,
-			"full_name": fullNameCtx,
+			"title":            "Редактировать пользователя",
+			"error":            "Не удалось обновить пользователя: " + err.Error(),
+			"user":             existingUser, // Show existing user data in form
+			"roles":            roles,
+			"services":         services,
+			"userServiceRoles": userServiceRoles,
+			"username":         usernameCtx,
+			"full_name":        fullNameCtx,
 		})
 		return
+	}
+
+	// Update service roles
+	// First, remove all existing service roles for this user
+	err = models.RemoveAllUserServiceRoles(objectID)
+	if err != nil {
+		log.Printf("Warning: Failed to remove existing service roles for user %s: %v", objectID.Hex(), err)
+	}
+
+	// Then assign new service roles
+	for _, serviceRole := range serviceRoles {
+		parts := strings.Split(serviceRole, ":")
+		if len(parts) == 2 {
+			serviceKey := parts[0]
+			roleName := parts[1]
+			
+			userServiceRole := models.UserServiceRole{
+				UserID:     objectID,
+				ServiceKey: serviceKey,
+				RoleName:   roleName,
+				AssignedAt: time.Now(),
+				AssignedBy: objectID, // Self-assigned during update
+				IsActive:   true,
+			}
+			
+			// Don't fail user update if service role assignment fails
+			if err := models.CreateUserServiceRole(userServiceRole); err != nil {
+				log.Printf("Warning: Failed to assign service role %s:%s to user %s: %v", 
+					serviceKey, roleName, objectID.Hex(), err)
+			}
+		}
 	}
 
 	c.Redirect(http.StatusFound, "/admin/users")
@@ -368,16 +517,20 @@ func createRoleHandler(c *gin.Context) {
 
 	name := c.PostForm("name")
 	description := c.PostForm("description")
+	serviceKey := c.PostForm("service") // ADR-001: Service is required for roles
 	permissionNames := c.PostFormArray("permissions")
 
-	if name == "" || description == "" {
+	if name == "" || description == "" || serviceKey == "" {
 		permissions, _ := models.GetAllPermissions()
+		services, _ := models.GetAllServices() // ADR-001: Get services for dropdown
 		c.HTML(http.StatusBadRequest, "role_form.html", gin.H{
 			"title":           "Создать роль",
-			"error":           "Имя и описание обязательны для заполнения",
+			"error":           "Имя, описание и сервис обязательны для заполнения",
 			"name_val":        name,
 			"description_val": description,
+			"service_val":     serviceKey,
 			"permissions":     permissions, // For repopulating checkboxes
+			"services":        services,    // ADR-001: For service dropdown
 			"selected_perms":  permissionNames,
 			"username":        usernameCtx,
 			"full_name":       fullNameCtx,
@@ -385,7 +538,7 @@ func createRoleHandler(c *gin.Context) {
 		return
 	}
 
-	_, err := models.CreateRole(name, description, permissionNames)
+	_, err := models.CreateRole(serviceKey, name, description, permissionNames)
 	if err != nil {
 		// error.html
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось создать роль: " + err.Error()})
@@ -473,7 +626,12 @@ func updateRoleHandler(c *gin.Context) {
 		return
 	}
 
-	err = models.UpdateRole(objectID, nameForm, descriptionForm, permissionNamesForm)
+	serviceKeyForm := c.PostForm("service") // ADR-001: Get service key
+	if serviceKeyForm == "" {
+		serviceKeyForm = role.ServiceKey // Use existing service if not provided
+	}
+
+	err = models.UpdateRole(objectID, serviceKeyForm, nameForm, descriptionForm, permissionNamesForm)
 	if err != nil {
 		// error.html
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"error": "Не удалось обновить роль: " + err.Error()})
@@ -786,18 +944,879 @@ func importUsersHandler(c *gin.Context) {
 			"username":  usernameCtx,
 			"full_name": fullNameCtx,
 		})
+	} else {
+		c.HTML(http.StatusOK, "import_result.html", gin.H{
+			"title":     "Результаты импорта",
+			"success":   fmt.Sprintf("Успешно создано %d пользователей!", usersCreated),
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
+		})
+	}
+}
+
+// ADR-001: Service Management Handlers
+
+// listServicesHandler displays all services
+func listServicesHandler(c *gin.Context) {
+	usernameCtx, fullNameCtx := getUserContext(c)
+
+	services, err := models.GetAllServices()
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось получить список сервисов: " + err.Error(),
+		})
 		return
 	}
 
-	successMessage := fmt.Sprintf("Успешно создано %d пользователей.", usersCreated)
-	if usersCreated == 0 {
-		successMessage = "Новых пользователей не создано."
-	}
-
-	c.HTML(http.StatusOK, "import_result.html", gin.H{
-		"title":     "Результаты импорта",
-		"success":   successMessage,
+	c.HTML(http.StatusOK, "admin_services.html", gin.H{
+		"title":     "Управление сервисами",
+		"services":  services,
 		"username":  usernameCtx,
 		"full_name": fullNameCtx,
+	})
+}
+
+// showServiceFormHandler displays the service creation form
+func showServiceFormHandler(c *gin.Context) {
+	usernameCtx, fullNameCtx := getUserContext(c)
+
+	c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
+		"title":     "Создать сервис",
+		"username":  usernameCtx,
+		"full_name": fullNameCtx,
+	})
+}
+
+// createServiceHandler creates a new service
+func createServiceHandler(c *gin.Context) {
+	usernameCtx, fullNameCtx := getUserContext(c)
+
+	key := c.PostForm("key")
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+
+	if key == "" || name == "" {
+		c.HTML(http.StatusBadRequest, "admin_service_form.html", gin.H{
+			"title":     "Создать сервис",
+			"error":     "Ключ и название сервиса обязательны",
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
+		})
+		return
+	}
+
+	// Create service with empty permissions list initially
+	_, err := models.CreateService(key, name, description, []models.PermissionDef{})
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "admin_service_form.html", gin.H{
+			"title":     "Создать сервис",
+			"error":     "Не удалось создать сервис: " + err.Error(),
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services")
+}
+
+// getServiceHandler displays service details for editing
+func getServiceHandler(c *gin.Context) {
+	usernameCtx, fullNameCtx := getUserContext(c)
+
+	idStr := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID сервиса",
+		})
+		return
+	}
+
+	service, err := models.GetServiceByID(id)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	// Debug: log available permissions
+	log.Printf("Service %s has %d available permissions", service.Name, len(service.AvailablePermissions))
+	for i, perm := range service.AvailablePermissions {
+		log.Printf("Permission %d: %s (%s) - %s", i, perm.Name, perm.DisplayName, perm.Description)
+	}
+
+	// Get roles for this service
+	serviceRoles, err := models.GetRolesByService(service.Key)
+	if err != nil {
+		log.Printf("Warning: Failed to get roles for service %s: %v", service.Key, err)
+		serviceRoles = []models.Role{} // Set empty slice if error
+	}
+
+	// Get all users for the dropdown
+	allUsers, err := models.GetAllUsers()
+	if err != nil {
+		log.Printf("Warning: Failed to get all users: %v", err)
+		allUsers = []models.User{} // Set empty slice if error
+	}
+
+	// Get users with roles in this service using new ADR-001 approach
+	serviceUsersWithRoles, err := models.GetUsersWithServiceRolesNew(service.Key)
+	if err != nil {
+		log.Printf("Warning: Failed to get users with service roles for %s: %v", service.Key, err)
+		// Fallback to old approach for backward compatibility
+		oldUsers, oldErr := models.GetUsersWithServiceRoles(service.Key)
+		if oldErr != nil {
+			log.Printf("Warning: Failed to get users with old approach: %v", oldErr)
+			serviceUsersWithRoles = []models.UserWithServiceRoles{}
+		} else {
+			// Convert old users to new format
+			serviceUsersWithRoles = make([]models.UserWithServiceRoles, len(oldUsers))
+			for i, user := range oldUsers {
+				serviceUsersWithRoles[i] = models.UserWithServiceRoles{
+					User:         user,
+					ServiceRoles: []string{}, // No specific service roles in old format
+				}
+			}
+		}
+	}
+
+	c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
+		"title":        "Редактировать сервис",
+		"service":      service,
+		"serviceRoles": serviceRoles,
+		"allUsers":     allUsers,
+		"serviceUsers": serviceUsersWithRoles, // Now contains users with their service roles
+		"username":     usernameCtx,
+		"full_name":    fullNameCtx,
+	})
+}
+
+// updateServiceHandler updates an existing service
+func updateServiceHandler(c *gin.Context) {
+	usernameCtx, fullNameCtx := getUserContext(c)
+
+	idStr := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID сервиса",
+		})
+		return
+	}
+
+	key := c.PostForm("key")
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+
+	if key == "" || name == "" {
+		service, _ := models.GetServiceByID(id)
+		c.HTML(http.StatusBadRequest, "admin_service_form.html", gin.H{
+			"title":     "Редактировать сервис",
+			"service":   service,
+			"error":     "Ключ и название сервиса обязательны",
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
+		})
+		return
+	}
+
+	// Get current service to preserve permissions
+	service, err := models.GetServiceByID(id)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	err = models.UpdateService(id, key, name, description, service.AvailablePermissions)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "admin_service_form.html", gin.H{
+			"title":     "Редактировать сервис",
+			"service":   service,
+			"error":     "Не удалось обновить сервис: " + err.Error(),
+			"username":  usernameCtx,
+			"full_name": fullNameCtx,
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services")
+}
+
+// deleteServiceHandler deletes a service (soft delete)
+func deleteServiceHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID сервиса"})
+		return
+	}
+
+	// For now, implement as status change to "deleted"
+	service, err := models.GetServiceByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
+		return
+	}
+
+	err = models.UpdateService(id, service.Key, service.Name, service.Description, service.AvailablePermissions)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось удалить сервис"})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services")
+}
+
+// addServicePermissionHandler adds a permission to a service
+func addServicePermissionHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID сервиса",
+		})
+		return
+	}
+
+	permName := c.PostForm("name")
+	permDisplayName := c.PostForm("displayName")
+	permDescription := c.PostForm("description")
+
+	service, err := models.GetServiceByID(id)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	if permName == "" {
+		// Get service data for re-rendering the form with error
+		serviceRoles, _ := models.GetRolesByService(service.Key)
+		allUsers, _ := models.GetAllUsers()
+		serviceUsers, _ := models.GetUsersWithServiceRoles(service.Key)
+
+		c.HTML(http.StatusBadRequest, "admin_service_form.html", gin.H{
+			"title":        "Редактировать сервис",
+			"service":      service,
+			"serviceRoles": serviceRoles,
+			"allUsers":     allUsers,
+			"serviceUsers": serviceUsers,
+			"error":        "Название разрешения обязательно",
+		})
+		return
+	}
+
+	permissionDef := models.PermissionDef{
+		Name:        permName,
+		DisplayName: permDisplayName,
+		Description: permDescription,
+	}
+
+	err = models.AddPermissionToService(service.Key, permissionDef)
+	if err != nil {
+		// Get service data for re-rendering the form with error
+		serviceRoles, _ := models.GetRolesByService(service.Key)
+		allUsers, _ := models.GetAllUsers()
+		serviceUsers, _ := models.GetUsersWithServiceRoles(service.Key)
+
+		c.HTML(http.StatusInternalServerError, "admin_service_form.html", gin.H{
+			"title":        "Редактировать сервис",
+			"service":      service,
+			"serviceRoles": serviceRoles,
+			"allUsers":     allUsers,
+			"serviceUsers": serviceUsers,
+			"error":        "Ошибка добавления разрешения: " + err.Error(),
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services/"+idStr)
+}
+
+// deleteServicePermissionHandler removes a permission from a service
+func deleteServicePermissionHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	permName := c.Param("permName")
+
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID сервиса"})
+		return
+	}
+
+	service, err := models.GetServiceByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
+		return
+	}
+
+	err = models.RemovePermissionFromService(service.Key, permName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось удалить разрешение"})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services/"+idStr)
+}
+
+// ADR-001: Migration Management Handlers
+
+// migrationStatusHandler shows migration status
+func migrationStatusHandler(c *gin.Context) {
+	usernameCtx, fullNameCtx := getUserContext(c)
+
+	err := models.ValidateMigration()
+	migrationStatus := map[string]interface{}{
+		"completed": err == nil,
+		"error":     "",
+	}
+
+	if err != nil {
+		migrationStatus["error"] = err.Error()
+	}
+
+	c.HTML(http.StatusOK, "admin_migration.html", gin.H{
+		"title":           "Миграция ADR-001",
+		"migrationStatus": migrationStatus,
+		"username":        usernameCtx,
+		"full_name":       fullNameCtx,
+	})
+}
+
+// runMigrationHandler executes the migration
+func runMigrationHandler(c *gin.Context) {
+	result, err := models.MigrateToADR001Schema()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "Ошибка миграции: " + err.Error(),
+			"result": result,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Миграция завершена успешно",
+		"result":  result,
+	})
+}
+
+// validateMigrationHandler validates the migration
+func validateMigrationHandler(c *gin.Context) {
+	err := models.ValidateMigration()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Валидация миграции не пройдена: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Валидация миграции пройдена успешно",
+	})
+}
+
+// rollbackMigrationHandler rolls back the migration
+func rollbackMigrationHandler(c *gin.Context) {
+	err := models.RollbackMigration()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Ошибка отката миграции: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Откат миграции завершен успешно",
+	})
+}
+
+// createServiceRoleHandler creates a new role for a specific service
+func createServiceRoleHandler(c *gin.Context) {
+	serviceID := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(serviceID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID сервиса",
+		})
+		return
+	}
+
+	service, err := models.GetServiceByID(id)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+	permissions := c.PostFormArray("permissions")
+
+	if name == "" {
+		usernameCtx, fullNameCtx := getUserContext(c)
+		serviceRoles, _ := models.GetRolesByService(service.Key)
+		allUsers, _ := models.GetAllUsers()
+		serviceUsersWithRoles, _ := models.GetUsersWithServiceRolesNew(service.Key)
+		
+		c.HTML(http.StatusBadRequest, "admin_service_form.html", gin.H{
+			"title":        "Редактировать сервис",
+			"service":      service,
+			"serviceRoles": serviceRoles,
+			"allUsers":     allUsers,
+			"serviceUsers": serviceUsersWithRoles,
+			"username":     usernameCtx,
+			"full_name":    fullNameCtx,
+			"error":        "Название роли обязательно",
+		})
+		return
+	}
+
+	_, err = models.CreateRole(service.Key, name, description, permissions)
+	if err != nil {
+		usernameCtx, fullNameCtx := getUserContext(c)
+		serviceRoles, _ := models.GetRolesByService(service.Key)
+		allUsers, _ := models.GetAllUsers()
+		serviceUsersWithRoles, _ := models.GetUsersWithServiceRolesNew(service.Key)
+		
+		c.HTML(http.StatusInternalServerError, "admin_service_form.html", gin.H{
+			"title":        "Редактировать сервис",
+			"service":      service,
+			"serviceRoles": serviceRoles,
+			"allUsers":     allUsers,
+			"serviceUsers": serviceUsersWithRoles,
+			"username":     usernameCtx,
+			"full_name":    fullNameCtx,
+			"error":        "Ошибка создания роли: " + err.Error(),
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services/"+serviceID)
+}
+
+// getServiceRoleHandler displays role details for editing
+func getServiceRoleHandler(c *gin.Context) {
+	serviceID := c.Param("id")
+	roleIDStr := c.Param("roleId")
+
+	serviceOID, err := primitive.ObjectIDFromHex(serviceID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID сервиса",
+		})
+		return
+	}
+
+	roleOID, err := primitive.ObjectIDFromHex(roleIDStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID роли",
+		})
+		return
+	}
+
+	_, err = models.GetServiceByID(serviceOID)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	_, err = models.GetRoleByID(roleOID)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Роль не найдена",
+		})
+		return
+	}
+
+	// TODO: Create service_role_form.html template or redirect for now
+	c.Redirect(http.StatusFound, "/admin/services/"+serviceID)
+}
+
+// updateServiceRoleHandler updates an existing role for a service
+func updateServiceRoleHandler(c *gin.Context) {
+	serviceID := c.Param("id")
+	roleIDStr := c.Param("roleId")
+
+	serviceOID, err := primitive.ObjectIDFromHex(serviceID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID сервиса",
+		})
+		return
+	}
+
+	roleOID, err := primitive.ObjectIDFromHex(roleIDStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID роли",
+		})
+		return
+	}
+
+	service, err := models.GetServiceByID(serviceOID)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+	permissions := c.PostFormArray("permissions")
+
+	if name == "" {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Название роли обязательно",
+		})
+		return
+	}
+
+	err = models.UpdateRole(roleOID, service.Key, name, description, permissions)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Ошибка обновления роли: " + err.Error(),
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services/"+serviceID)
+}
+
+// deleteServiceRoleHandler removes a role from a service
+func deleteServiceRoleHandler(c *gin.Context) {
+	serviceID := c.Param("id")
+	roleIDStr := c.Param("roleId")
+
+	roleOID, err := primitive.ObjectIDFromHex(roleIDStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID роли",
+		})
+		return
+	}
+
+	err = models.DeleteRole(roleOID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Ошибка удаления роли: " + err.Error(),
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services/"+serviceID)
+}
+
+// assignUserToServiceRoleHandler assigns a role to a user within a service
+func assignUserToServiceRoleHandler(c *gin.Context) {
+	serviceID := c.Param("id")
+	userIDStr := c.PostForm("userId")
+	roleName := c.PostForm("roleName")
+
+	serviceOID, err := primitive.ObjectIDFromHex(serviceID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID сервиса",
+		})
+		return
+	}
+
+	userOID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID пользователя",
+		})
+		return
+	}
+
+	service, err := models.GetServiceByID(serviceOID)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	// Check if role exists for this service
+	roles, err := models.GetRolesByService(service.Key)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Ошибка получения ролей сервиса: " + err.Error(),
+		})
+		return
+	}
+
+	roleExists := false
+	for _, role := range roles {
+		if role.Name == roleName {
+			roleExists = true
+			break
+		}
+	}
+
+	if !roleExists {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Роль не найдена в данном сервисе",
+		})
+		return
+	}
+
+	// Add role to user
+	err = models.AssignRoleToUser(userOID, roleName)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Ошибка назначения роли: " + err.Error(),
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/services/"+serviceID)
+}
+
+// getServiceUsersHandler returns users with their roles for a specific service via API
+func getServiceUsersHandler(c *gin.Context) {
+	serviceID := c.Param("id")
+	
+	// Convert serviceID to ObjectID
+	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID"})
+		return
+	}
+	
+	// Get service to validate it exists
+	service, err := models.GetServiceByID(serviceObjectID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		return
+	}
+
+	// Get users with roles in this service
+	log.Printf("Getting users with roles for service: %s", service.Key)
+	serviceUsers, err := models.GetUsersWithServiceRolesNew(service.Key)
+	if err != nil {
+		log.Printf("Error getting users with service roles: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get service users"})
+		return
+	}
+	
+	log.Printf("Found %d users with roles in service %s", len(serviceUsers), service.Key)
+	for i, user := range serviceUsers {
+		log.Printf("User %d: %s (%s) with roles: %v", i+1, user.Username, user.Email, user.ServiceRoles)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"users":   serviceUsers,
+	})
+}
+
+// addUserToServiceHandler handles adding users to services via API
+func addUserToServiceHandler(c *gin.Context) {
+	serviceID := c.Param("id")
+	
+	// Convert serviceID to ObjectID
+	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID"})
+		return
+	}
+	
+	var request struct {
+		Email      string   `json:"email" binding:"required"`
+		ServiceKey string   `json:"service_key" binding:"required"`
+		Roles      []string `json:"roles" binding:"required"`
+	}
+	
+	if err := c.ShouldBindJSON(&request); err != nil {
+		log.Printf("Binding error: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	// Validate email format
+	if !strings.Contains(request.Email, "@") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email format"})
+		return
+	}
+
+	// Check if user exists
+	existingUser, err := models.GetUserByEmail(request.Email)
+	if err != nil {
+		log.Printf("Error checking user existence: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check user existence"})
+		return
+	}
+
+	var userID primitive.ObjectID
+
+	if existingUser == nil {
+		// User doesn't exist, create new user
+		password := models.GenerateSecurePassword()
+		
+		// Use email as username if no username provided
+		username := strings.Split(request.Email, "@")[0]
+		
+		newUserID, err := models.CreateUser(username, request.Email, password, request.Email, []string{})
+		if err != nil {
+			log.Printf("Error creating user: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user: " + err.Error()})
+			return
+		}
+
+		userID = newUserID
+		log.Printf("Created new user: %s with password: %s", request.Email, password)
+		
+		// TODO: Here you would typically send an email with the password
+		// For now, we'll just log it
+		
+	} else {
+		// User exists, use existing user ID
+		userID = existingUser.ID
+		log.Printf("Using existing user: %s", request.Email)
+	}
+
+	// Get current admin user ID (in real app, this would come from JWT token)
+	// For now, we'll use a placeholder admin ID
+	adminID := primitive.NewObjectID() // This should be the ID of the current admin user
+	
+	// Get service to validate it exists
+	service, err := models.GetServiceByID(serviceObjectID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		return
+	}
+
+	// Add user to service with specified roles
+	log.Printf("Adding user %s (%s) to service %s with %d roles: %v", request.Email, userID.Hex(), service.Key, len(request.Roles), request.Roles)
+	
+	addedRoles := 0
+	for _, roleName := range request.Roles {
+		// Create user service role assignment
+		userServiceRole := models.UserServiceRole{
+			UserID:     userID,
+			ServiceKey: service.Key,
+			RoleName:   roleName,
+			AssignedAt: time.Now(),
+			AssignedBy: adminID,
+			IsActive:   true,
+		}
+		
+		log.Printf("Attempting to add role %s to user %s in service %s", roleName, userID.Hex(), service.Key)
+		err = models.CreateUserServiceRole(userServiceRole)
+		if err != nil {
+			log.Printf("Error adding role %s to user %s: %v", roleName, userID.Hex(), err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to add role %s to user", roleName)})
+			return
+		} else {
+			log.Printf("Successfully added role %s to user %s", roleName, userID.Hex())
+			addedRoles++
+		}
+	}
+	
+	log.Printf("Successfully added %d/%d roles to user %s in service %s", addedRoles, len(request.Roles), userID.Hex(), service.Key)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("User %s successfully added to service %s", request.Email, service.Name),
+		"user_id": userID.Hex(),
+	})
+}
+
+// updateUserServiceRolesHandler handles updating user roles in services via API  
+func updateUserServiceRolesHandler(c *gin.Context) {
+	serviceID := c.Param("id")
+	userID := c.Param("userId")
+	
+	// Convert serviceID to ObjectID
+	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID"})
+		return
+	}
+	
+	var request struct {
+		Roles []string `json:"roles" binding:"required"`
+	}
+	
+	if err := c.ShouldBindJSON(&request); err != nil {
+		log.Printf("Binding error: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	// Convert user ID to ObjectID
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	// Check if user exists
+	user, err := models.GetUserByObjectID(userObjectID)
+	if err != nil {
+		log.Printf("Error checking user existence: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check user existence"})
+		return
+	}
+
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Get service to validate it exists
+	service, err := models.GetServiceByID(serviceObjectID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		return
+	}
+
+	// Get current admin user ID (in real app, this would come from JWT token)
+	adminID := primitive.NewObjectID() // This should be the ID of the current admin user
+
+	// Remove existing roles for this user in this service
+	log.Printf("Removing existing roles for user %s in service %s", userID, service.Key)
+	err = models.RemoveUserFromServiceRoles(userObjectID, service.Key)
+	if err != nil {
+		log.Printf("Error removing existing roles: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove existing roles"})
+		return
+	}
+
+	// Add new roles
+	log.Printf("Adding %d new roles for user %s in service %s: %v", len(request.Roles), userID, service.Key, request.Roles)
+	for _, roleName := range request.Roles {
+		userServiceRole := models.UserServiceRole{
+			UserID:     userObjectID,
+			ServiceKey: service.Key,
+			RoleName:   roleName,
+			AssignedAt: time.Now(),
+			AssignedBy: adminID,
+			IsActive:   true,
+		}
+		
+		err = models.CreateUserServiceRole(userServiceRole)
+		if err != nil {
+			log.Printf("Error adding role %s to user %s: %v", roleName, userID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to add role %s", roleName)})
+			return
+		} else {
+			log.Printf("Successfully added role %s to user %s", roleName, userID)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("User roles updated successfully for service %s", service.Name),
 	})
 }

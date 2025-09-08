@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
     <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/auth/static/css/admin-service-form.css">
+    <link rel="stylesheet" href="/auth/static/css/user-form.css">
     <style>
       body {
         visibility: hidden;
@@ -18,9 +20,11 @@
         (function() {
             const theme = localStorage.getItem('theme');
             if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
                 document.documentElement.classList.add('dark-theme');
             } else {
                 document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
             }
             requestAnimationFrame(() => {
                 document.body.style.visibility = 'visible';
@@ -64,14 +68,24 @@
                         Пароль:
                     {{ end }}
                 </label>
-                <input type="password" id="password" name="password" {{ if not .user }}required{{ end }}>
+                <div class="password-input-group">
+                    <input type="password" id="password" name="password" {{ if not .user }}required{{ end }}>
+                    <button type="button" id="generatePassword" class="btn small">Сгенерировать</button>
+                    <button type="button" id="togglePassword" class="btn small">👁</button>
+                </div>
+                <div class="password-strength-indicator" id="passwordStrength" style="display: none;">
+                    <div class="strength-bar">
+                        <div class="strength-fill" id="strengthFill"></div>
+                    </div>
+                    <div class="strength-text" id="strengthText"></div>
+                </div>
             </div>
             
             <div class="form-group">
-                <label>Роли:</label>
-                <div class="role-checkboxes">
+                <label>Системные роли:</label>
+                <div class="roles-grid">
                     {{ range .roles }}
-                    <div class="role-checkbox">
+                    <div class="role-checkbox-card">
                         <input type="checkbox" id="role-{{ .Name }}" name="roles" value="{{ .Name }}"
                         {{ if $.user }}
                             {{ $roleName := .Name }}
@@ -79,8 +93,45 @@
                                 {{ if eq . $roleName }}checked{{ end }}
                             {{ end }}
                         {{ end }}>
-                        <label for="role-{{ .Name }}">{{ .Name }}</label>
-                        <span class="role-description">{{ .Description }}</span>
+                        <label for="role-{{ .Name }}">
+                            <div class="role-info">
+                                <div class="role-name">{{ .Name }}</div>
+                                <div class="role-description">{{ .Description }}</div>
+                            </div>
+                        </label>
+                    </div>
+                    {{ end }}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Роли в сервисах:</label>
+                <div class="service-roles-section">
+                    {{ range .services }}
+                    <div class="service-role-group">
+                        <h4>{{ .Name }} ({{ .Key }})</h4>
+                        {{ $serviceKey := .Key }}
+                        {{ $userServiceRoles := $.userServiceRoles }}
+                        <div class="service-roles-grid">
+                            {{ range .Roles }}
+                            <div class="service-role-checkbox-card">
+                                <input type="checkbox" 
+                                       id="service-role-{{ $serviceKey }}-{{ .Name }}" 
+                                       name="service_roles" 
+                                       value="{{ $serviceKey }}:{{ .Name }}"
+                                       {{ $currentRoleName := .Name }}
+                                       {{ range $userServiceRoles }}
+                                           {{ if and (eq .ServiceKey $serviceKey) (eq .RoleName $currentRoleName) .IsActive }}checked{{ end }}
+                                       {{ end }}>
+                                <label for="service-role-{{ $serviceKey }}-{{ .Name }}">
+                                    <div class="service-role-info">
+                                        <div class="service-role-name">{{ .Name }}</div>
+                                        <div class="service-role-description">{{ .Description }}</div>
+                                    </div>
+                                </label>
+                            </div>
+                            {{ end }}
+                        </div>
                     </div>
                     {{ end }}
                 </div>
@@ -99,6 +150,111 @@
     <script src="/auth/static/js/layout-adjust.js"></script>
     <script src="/auth/static/js/mobile-menu.js"></script>
     <script>
+    // Password generation and management
+    document.addEventListener('DOMContentLoaded', function() {
+        const passwordInput = document.getElementById('password');
+        const generateBtn = document.getElementById('generatePassword');
+        const toggleBtn = document.getElementById('togglePassword');
+        const strengthIndicator = document.getElementById('passwordStrength');
+        const strengthFill = document.getElementById('strengthFill');
+        const strengthText = document.getElementById('strengthText');
+
+        // Generate secure password
+        generateBtn.addEventListener('click', function() {
+            const password = generateSecurePassword();
+            passwordInput.value = password;
+            checkPasswordStrength(password);
+        });
+
+        // Toggle password visibility
+        toggleBtn.addEventListener('click', function() {
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.textContent = '🙈';
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.textContent = '👁';
+            }
+        });
+
+        // Check password strength on input
+        passwordInput.addEventListener('input', function() {
+            checkPasswordStrength(this.value);
+        });
+
+        function generateSecurePassword() {
+            const length = 12;
+            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
+            let password = "";
+            
+            // Ensure at least one character from each required set
+            const lower = "abcdefghijklmnopqrstuvwxyz";
+            const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const numbers = "0123456789";
+            const symbols = "!@#$%^&*()";
+            
+            password += lower[Math.floor(Math.random() * lower.length)];
+            password += upper[Math.floor(Math.random() * upper.length)];
+            password += numbers[Math.floor(Math.random() * numbers.length)];
+            password += symbols[Math.floor(Math.random() * symbols.length)];
+            
+            // Fill the rest
+            for (let i = 4; i < length; i++) {
+                password += charset[Math.floor(Math.random() * charset.length)];
+            }
+            
+            // Shuffle the password
+            return password.split('').sort(() => Math.random() - 0.5).join('');
+        }
+
+        function checkPasswordStrength(password) {
+            if (!password) {
+                strengthIndicator.style.display = 'none';
+                return;
+            }
+
+            strengthIndicator.style.display = 'block';
+            
+            let score = 0;
+            let feedback = [];
+
+            // Length check
+            if (password.length >= 8) score += 20;
+            else feedback.push('не менее 8 символов');
+
+            // Lowercase check
+            if (/[a-z]/.test(password)) score += 20;
+            else feedback.push('строчные буквы');
+
+            // Uppercase check
+            if (/[A-Z]/.test(password)) score += 20;
+            else feedback.push('заглавные буквы');
+
+            // Number check
+            if (/[0-9]/.test(password)) score += 20;
+            else feedback.push('цифры');
+
+            // Special character check
+            if (/[^A-Za-z0-9]/.test(password)) score += 20;
+            else feedback.push('специальные символы');
+
+            // Update strength bar
+            strengthFill.style.width = score + '%';
+            
+            if (score < 40) {
+                strengthFill.style.backgroundColor = '#ff4444';
+                strengthText.textContent = 'Слабый пароль. Добавьте: ' + feedback.join(', ');
+            } else if (score < 80) {
+                strengthFill.style.backgroundColor = '#ffaa00';
+                strengthText.textContent = 'Средний пароль. Добавьте: ' + feedback.join(', ');
+            } else {
+                strengthFill.style.backgroundColor = '#44ff44';
+                strengthText.textContent = 'Сильный пароль';
+            }
+        }
+    });
+
+    // Particles.js configuration
     particlesJS('particles-js', {
         "particles": {
             "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120

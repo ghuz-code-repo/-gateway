@@ -6,11 +6,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
     <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/auth/static/css/user-cards.css">
     <style>
       body {
         visibility: hidden;
         opacity: 0;
         transition: opacity .05s ease-in-out;
+      }
+      
+      .service-role-badge {
+        display: inline-block;
+        background-color: var(--light-background-color);
+        color: var(--text-color);
+        padding: 2px 6px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+        margin: 1px;
+        border: 1px solid var(--light-border-color);
+      }
+      
+      .data-table th:nth-child(5),
+      .data-table td:nth-child(5) {
+        max-width: 200px;
+        word-wrap: break-word;
       }
     </style>
 </head>
@@ -48,35 +67,116 @@
         </div>
         
         <div class="data-table-wrapper"> <!-- Added wrapper -->
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Имя пользователя</th>
-                        <th>ФИО</th>
-                        <th>Email</th>
-                        <th>Роли</th>
-                        <th class="actions-column">Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{ range .users }}
-                    <tr>
-                        <td>{{ .Username }}</td>
-                        <td>{{ .FullName }}</td>
-                        <td>{{ .Email }}</td>
-                        <td>{{ range $index, $role := .Roles }}{{ if $index }}, {{ end }}{{ $role }}{{ end }}</td>
-                        <td class="actions">
-                            <a href="/admin/users/{{ .ID.Hex }}" class="btn small">Изменить</a>
-                            {{ if ne .Username "admin" }}
-                            <form action="/admin/users/{{ .ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
+            <!-- Переключатель вида -->
+            <div class="view-toggle">
+                <button type="button" class="btn small secondary active" id="table-view-btn">
+                    <i class="fas fa-table"></i> Таблица
+                </button>
+                <button type="button" class="btn small secondary" id="cards-view-btn">
+                    <i class="fas fa-th-large"></i> Карточки
+                </button>
+            </div>
+
+            <!-- Таблица пользователей -->
+            <div id="table-view" class="view-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Имя пользователя</th>
+                            <th>ФИО</th>
+                            <th>Email</th>
+                            <th>Системные роли</th>
+                            <th>Роли в сервисах</th>
+                            <th class="actions-column">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range .usersWithRoles }}
+                        <tr>
+                            <td>{{ .User.Username }}</td>
+                            <td>{{ .User.FullName }}</td>
+                            <td>{{ .User.Email }}</td>
+                            <td>{{ range $index, $role := .User.Roles }}{{ if $index }}, {{ end }}{{ $role }}{{ end }}</td>
+                            <td>
+                                {{ range $index, $serviceRole := .ServiceRoles }}
+                                    {{ if $serviceRole.IsActive }}
+                                        {{ if $index }}, {{ end }}
+                                        <span class="service-role-badge" title="{{ $serviceRole.ServiceKey }}">
+                                            {{ $serviceRole.ServiceKey }}:{{ $serviceRole.RoleName }}
+                                        </span>
+                                    {{ end }}
+                                {{ end }}
+                            </td>
+                            <td class="actions">
+                                <a href="/admin/users/{{ .User.ID.Hex }}" class="btn small">Изменить</a>
+                                {{ if ne .User.Username "admin" }}
+                                <form action="/admin/users/{{ .User.ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
+                                    <button type="submit" class="btn small danger">Удалить</button>
+                                </form>
+                                {{ end }}
+                            </td>
+                        </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Карточки пользователей -->
+            <div id="cards-view" class="view-container" style="display: none;">
+                <div class="users-grid">
+                    {{ range .usersWithRoles }}
+                    <div class="user-card">
+                        <div class="user-card-header">
+                            <div class="user-info">
+                                <div class="user-name">{{ .User.FullName }}</div>
+                                <div class="user-username">@{{ .User.Username }}</div>
+                                <div class="user-email">{{ .User.Email }}</div>
+                            </div>
+                        </div>
+                        <div class="user-card-body">
+                            <div class="user-roles-section">
+                                <div class="roles-label">Системные роли:</div>
+                                <div class="system-roles">
+                                    {{ if .User.Roles }}
+                                        {{ range $index, $role := .User.Roles }}
+                                            {{ if $index }}, {{ end }}
+                                            <span class="system-role-badge">{{ $role }}</span>
+                                        {{ end }}
+                                    {{ else }}
+                                        <span class="no-roles">Нет ролей</span>
+                                    {{ end }}
+                                </div>
+                            </div>
+                            <div class="user-roles-section">
+                                <div class="roles-label">Роли в сервисах:</div>
+                                <div class="service-roles">
+                                    {{ $hasActiveRoles := false }}
+                                    {{ range $serviceRole := .ServiceRoles }}
+                                        {{ if $serviceRole.IsActive }}
+                                            {{ $hasActiveRoles = true }}
+                                            <span class="service-role-badge" title="{{ $serviceRole.ServiceKey }}">
+                                                {{ $serviceRole.ServiceKey }}:{{ $serviceRole.RoleName }}
+                                            </span>
+                                        {{ end }}
+                                    {{ end }}
+                                    {{ if not $hasActiveRoles }}
+                                        <span class="no-roles">Нет ролей</span>
+                                    {{ end }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-card-actions">
+                            <a href="/admin/users/{{ .User.ID.Hex }}" class="btn small primary">Изменить</a>
+                            {{ if ne .User.Username "admin" }}
+                            <form action="/admin/users/{{ .User.ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
                                 <button type="submit" class="btn small danger">Удалить</button>
                             </form>
                             {{ end }}
-                        </td>
-                    </tr>
+                        </div>
+                    </div>
                     {{ end }}
-                </tbody>
-            </table>
+                </div>
+            </div>
         </div> <!-- Closed wrapper -->
         
         <div>
@@ -88,6 +188,44 @@
 <script src="/auth/static/js/layout-adjust.js"></script>
 <script src="/auth/static/js/mobile-menu.js"></script>
 <script>
+    // Переключение между видами
+    document.addEventListener('DOMContentLoaded', function() {
+        const tableViewBtn = document.getElementById('table-view-btn');
+        const cardsViewBtn = document.getElementById('cards-view-btn');
+        const tableView = document.getElementById('table-view');
+        const cardsView = document.getElementById('cards-view');
+
+        // Сохраненный режим просмотра
+        const savedView = localStorage.getItem('users-view-mode') || 'table';
+
+        function showTableView() {
+            tableView.style.display = 'block';
+            cardsView.style.display = 'none';
+            tableViewBtn.classList.add('active');
+            cardsViewBtn.classList.remove('active');
+            localStorage.setItem('users-view-mode', 'table');
+        }
+
+        function showCardsView() {
+            tableView.style.display = 'none';
+            cardsView.style.display = 'block';
+            cardsViewBtn.classList.add('active');
+            tableViewBtn.classList.remove('active');
+            localStorage.setItem('users-view-mode', 'cards');
+        }
+
+        // Установить сохраненный режим
+        if (savedView === 'cards') {
+            showCardsView();
+        } else {
+            showTableView();
+        }
+
+        // Обработчики событий
+        tableViewBtn.addEventListener('click', showTableView);
+        cardsViewBtn.addEventListener('click', showCardsView);
+    });
+
     particlesJS('particles-js', {
         "particles": { "number": { "value": 50, "density": { "enable": true, "value_area": 800 } }, "color": { "value": "#c4a668" }, "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } }, "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } }, "size": { "value": 4, "random": true }, "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 }, "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" } }, "interactivity": { "detect_on": "canvas", "events": { "onhover": { "enable": true, "mode": "bubble" } }, "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } } }, "retina_detect": true
     });

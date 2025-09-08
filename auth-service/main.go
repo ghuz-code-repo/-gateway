@@ -3,6 +3,7 @@ package main
 import (
 	"auth-service/models"
 	"auth-service/routes"
+	"encoding/json"
 	"html/template"
 	"log"
 	"os"
@@ -15,6 +16,13 @@ import (
 func setupTemplateFunc() template.FuncMap {
 	return template.FuncMap{
 		"join": strings.Join, // Add join function that calls strings.Join
+		"jsonify": func(v interface{}) (string, error) {
+			b, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return string(b), nil
+		},
 	}
 }
 
@@ -47,6 +55,30 @@ func main() {
 	// After database initialization
 	models.InitializeDefaultPermissions()
 	models.InitializeDefaultDisplayNames()
+
+	// ADR-001: Perform migration to new schema
+	log.Println("Checking for ADR-001 schema migration...")
+	migrationResult, err := models.MigrateToADR001Schema()
+	if err != nil {
+		log.Printf("Migration failed: %v", err)
+		if len(migrationResult.Errors) > 0 {
+			log.Println("Migration errors:")
+			for _, errMsg := range migrationResult.Errors {
+				log.Printf("  - %s", errMsg)
+			}
+		}
+		// Don't fail startup on migration errors, just log them
+	} else {
+		log.Printf("Migration completed successfully: %d services, %d roles updated", 
+			migrationResult.ServicesUpdated, migrationResult.RolesUpdated)
+	}
+
+	// Validate migration
+	if err := models.ValidateMigration(); err != nil {
+		log.Printf("Migration validation failed: %v", err)
+	} else {
+		log.Println("Migration validation passed")
+	}
 
 	// Setup router
 	router := gin.Default()

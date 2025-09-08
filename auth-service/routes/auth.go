@@ -36,15 +36,21 @@ func homeHandler(c *gin.Context) {
 }
 
 // getServiceDisplayName returns a user-friendly name for a service
-func getServiceDisplayName(service string) string {
-	// Only try to get the display name from the database
-	permission, err := models.GetPermissionByService(service)
+func getServiceDisplayName(serviceKey string) string {
+	// Try to get the display name from services collection
+	service, err := models.GetServiceByKey(serviceKey)
+	if err == nil && service != nil && service.Name != "" {
+		return service.Name
+	}
+
+	// Fallback to permissions collection for backward compatibility
+	permission, err := models.GetPermissionByService(serviceKey)
 	if err == nil && permission.DisplayName != "" {
 		return permission.DisplayName
 	}
 
-	// Default to the original service name if not found
-	return service
+	// Default to the original service key if not found
+	return serviceKey
 }
 
 // menuHandler shows the list of accessible services
@@ -80,54 +86,40 @@ func menuHandler(c *gin.Context) {
 		return
 	}
 
-	// Get all roles and permissions from the database
-	roles, err := models.GetAllRoles()
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось получить роли",
-		})
-		return
-	}
-
-	// Get all permissions for diagnostic purposes
-	allPermissions, err := models.GetAllPermissions()
-	if err != nil {
-		fmt.Println("Ошибка при получении всех разрешений:", err)
-	} else {
-		fmt.Println("Все доступные сервисы в базе данных:")
-		for _, perm := range allPermissions {
-			fmt.Println("- " + perm.Service)
-		}
-	}
-
-	// Extract services from permissions based on the user's roles
+	// Get user's accessible services based on their service roles
 	accessibleServices := []string{}
 
-	// Debug output
-	fmt.Printf("Пользователь %s имеет роли: %v\n", user.Username, user.Roles)
-
-	// Admin users can access all services
-	if hasAdminRole(user) {
+	// Check if user is admin (has admin role in old system or system service)
+	isAdmin := hasAdminRole(user)
+	
+	if isAdmin {
 		fmt.Println("Пользователь является администратором. Добавление всех сервисов.")
-
-		for _, perm := range allPermissions {
-			if !contains(accessibleServices, perm.Service) {
-				accessibleServices = append(accessibleServices, perm.Service)
+		// Admin users can access all services
+		services, err := models.GetAllServices()
+		if err != nil {
+			fmt.Printf("Ошибка получения сервисов для админа: %v\n", err)
+		} else {
+			for _, service := range services {
+				accessibleServices = append(accessibleServices, service.Key)
 			}
 		}
 	} else {
-		// For non-admin users, collect services from their roles
-		for _, userRole := range user.Roles {
-			fmt.Printf("Проверка роли: %s\n", userRole)
-
-			for _, role := range roles {
-				if role.Name == userRole {
-					fmt.Printf("Найдена роль %s с разрешениями: %v\n", role.Name, role.Permissions)
-
-					for _, perm := range role.Permissions {
-						if !contains(accessibleServices, perm) {
-							accessibleServices = append(accessibleServices, perm)
-							fmt.Printf("Добавлен сервис: %s\n", perm)
+		// For regular users, get services where they have roles
+		userAccessibleServices, err := models.GetUserAccessibleServices(user.ID)
+		if err != nil {
+			fmt.Printf("Ошибка получения доступных сервисов для пользователя %s: %v\n", user.Username, err)
+		} else {
+			accessibleServices = userAccessibleServices
+		}
+		
+		// Also include services from old role system for backward compatibility
+		roles, err := models.GetAllRoles()
+		if err == nil {
+			for _, userRole := range user.Roles {
+				for _, role := range roles {
+					if role.Name == userRole && role.ServiceKey != "" {
+						if !contains(accessibleServices, role.ServiceKey) {
+							accessibleServices = append(accessibleServices, role.ServiceKey)
 						}
 					}
 				}
@@ -267,48 +259,50 @@ func verifyHandler(c *gin.Context) {
 		return
 	}
 
-	// Admin role always has access to all services
-	if hasAdminRole(user) {
-		// Set user information in response headers
-		c.Header("X-User-Name", user.Username)
-		c.Header("X-User-ID", claims.UserID)
-
-		// Base64 encode the full name to preserve non-ASCII characters
-		encodedFullName := base64.StdEncoding.EncodeToString([]byte(user.FullName))
-		c.Header("X-User-Full-Name", encodedFullName)
-		c.Header("X-User-Full-Name-Encoding", "base64") // Add flag to indicate encoding
-		c.Header("X-User-Roles", strings.Join(user.Roles, ","))
-		c.Header("X-User-Admin", "true")
-		c.Status(http.StatusOK)
-		return
+	// Get user's roles and permissions for this service according to ADR-001
+	serviceRoles, err := models.GetUserServiceRoles(claims.UserID, service)
+	if err != nil {
+		serviceRoles = []string{} // Default to empty if error
 	}
 
-	// For non-admin users, check permission using MongoDB
-	hasPermission := models.CheckPermission(claims.UserID, service)
-
-	if !hasPermission {
-		c.AbortWithStatus(http.StatusForbidden)
-		return
+	servicePermissions, err := models.GetUserServicePermissions(claims.UserID, service)
+	if err != nil {
+		servicePermissions = []string{} // Default to empty if error
 	}
 
-	// Set user information in response headers with Base64 encoding for full name
-	c.Header("X-User-Name", user.Username)
-	c.Header("X-User-ID", claims.UserID)
-	encodedFullName := base64.StdEncoding.EncodeToString([]byte(user.FullName))
-	c.Header("X-User-Full-Name", encodedFullName)
-	c.Header("X-User-Full-Name-Encoding", "base64")
-	c.Header("X-User-Roles", strings.Join(user.Roles, ","))
-	// Check if user has admin role and set appropriate header
-	isAdmin := "false"
-	for _, roleName := range user.Roles {
-		if roleName == "admin" {
-			isAdmin = "true"
-			break
+	// Check if user has any access to this service
+	if len(serviceRoles) == 0 && len(servicePermissions) == 0 {
+		// Admin role always has access to all services (legacy support)
+		if hasAdminRole(user) {
+			serviceRoles = []string{"admin"}
+			// For admin, get all available permissions for the service
+			adminPermissions, _ := models.GetUserServicePermissions(claims.UserID, service)
+			servicePermissions = adminPermissions
+		} else {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
 		}
 	}
-	c.Header("X-User-Admin", isAdmin)
 
-	// User is authenticated and has permission
+	// Set user information in response headers according to ADR-001
+	c.Header("X-User-Name", user.Username)
+	c.Header("X-User-ID", claims.UserID)
+
+	// Base64 encode the full name to preserve non-ASCII characters
+	encodedFullName := base64.StdEncoding.EncodeToString([]byte(user.FullName))
+	c.Header("X-User-Full-Name", encodedFullName)
+	c.Header("X-User-Full-Name-Encoding", "base64") // Add flag to indicate encoding
+
+	// ADR-001: New service-scoped headers
+	c.Header("X-User-Service-Roles", strings.Join(serviceRoles, ","))
+	c.Header("X-User-Service-Permissions", strings.Join(servicePermissions, ","))
+
+	// Legacy headers for backward compatibility
+	c.Header("X-User-Roles", strings.Join(user.Roles, ","))
+	if hasAdminRole(user) {
+		c.Header("X-User-Admin", "true")
+	}
+
 	c.Status(http.StatusOK)
 }
 

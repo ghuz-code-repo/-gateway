@@ -170,7 +170,8 @@ func InitializeDefaultPermissions() {
 	if err != nil || len(adminRoles) == 0 {
 		// Create admin role if it doesn't exist
 		fmt.Println("Creating admin role...")
-		_, err := CreateRole("admin", "Administrator with full access", []string{})
+		// Admin role should be a system-wide role (not tied to a specific service)
+		_, err := CreateRole("system", "admin", "Administrator with full access", []string{})
 		if err != nil {
 			fmt.Printf("Error creating admin role: %v\n", err)
 		} else {
