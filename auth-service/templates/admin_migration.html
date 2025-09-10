@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <style>
       body {
         visibility: hidden;
@@ -138,8 +138,8 @@ Role {
 }
         </div>
         
-        <a href="/admin/services" class="btn">Управление сервисами</a>
-        <a href="/admin/" class="btn secondary">Вернуться в админ-панель</a>
+        <a href="/services" class="btn">Управление сервисами</a>
+        <a href="/admin-menu" class="btn secondary">Вернуться в админ-панель</a>
     </div>
 
     <script>
@@ -149,7 +149,7 @@ Role {
             resultDiv.innerHTML = '<p>Выполняется миграция...</p>';
             
             try {
-                const response = await fetch('/admin/migration/run', { method: 'POST' });
+                const response = await fetch('/migration/run', { method: 'POST' });
                 const result = await response.json();
                 
                 if (response.ok) {
@@ -186,7 +186,7 @@ Role {
             resultDiv.innerHTML = '<p>Проверка миграции...</p>';
             
             try {
-                const response = await fetch('/admin/migration/validate', { method: 'POST' });
+                const response = await fetch('/migration/validate', { method: 'POST' });
                 const result = await response.json();
                 
                 if (response.ok) {
@@ -224,7 +224,7 @@ Role {
             resultDiv.innerHTML = '<p>Выполняется откат миграции...</p>';
             
             try {
-                const response = await fetch('/admin/migration/rollback', { method: 'POST' });
+                const response = await fetch('/migration/rollback', { method: 'POST' });
                 const result = await response.json();
                 
                 if (response.ok) {
@@ -254,8 +254,9 @@ Role {
         }
     </script>
 
-    <script src="/auth/static/js/particles.min.js"></script>
-    <script src="/auth/static/js/main.js"></script>
+    <script src="/static/js/particles.min.js"></script>
+    <script src="/static/js/main.js"></script>
 </body>
 </html>
 {{ end }}
+

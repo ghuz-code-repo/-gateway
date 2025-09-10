@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
-    <link rel="stylesheet" href="/auth/static/css/user-cards.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/user-cards.css">
     <style>
       body {
         visibility: hidden;
@@ -62,8 +62,8 @@
         {{ end }}
         
         <div class="action-buttons">
-            <a href="/admin/users/new" class="btn primary">Добавить нового пользователя</a>
-            <a href="/admin/users/import" class="btn">Импорт пользователей из Excel</a>
+            <a href="/users/new" class="btn primary">Добавить нового пользователя</a>
+            <a href="/users/import" class="btn">Импорт пользователей из Excel</a>
         </div>
         
         <div class="data-table-wrapper"> <!-- Added wrapper -->
@@ -108,9 +108,9 @@
                                 {{ end }}
                             </td>
                             <td class="actions">
-                                <a href="/admin/users/{{ .User.ID.Hex }}" class="btn small">Изменить</a>
+                                <a href="/users/{{ .User.ID.Hex }}" class="btn small">Изменить</a>
                                 {{ if ne .User.Username "admin" }}
-                                <form action="/admin/users/{{ .User.ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
+                                <form action="/users/{{ .User.ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
                                     <button type="submit" class="btn small danger">Удалить</button>
                                 </form>
                                 {{ end }}
@@ -166,9 +166,9 @@
                             </div>
                         </div>
                         <div class="user-card-actions">
-                            <a href="/admin/users/{{ .User.ID.Hex }}" class="btn small primary">Изменить</a>
+                            <a href="/users/{{ .User.ID.Hex }}" class="btn small primary">Изменить</a>
                             {{ if ne .User.Username "admin" }}
-                            <form action="/admin/users/{{ .User.ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
+                            <form action="/users/{{ .User.ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?');">
                                 <button type="submit" class="btn small danger">Удалить</button>
                             </form>
                             {{ end }}
@@ -180,13 +180,13 @@
         </div> <!-- Closed wrapper -->
         
         <div>
-            <a href="/admin" class="back-link">Назад к панели управления</a>
+            <a href="/admin-menu" class="back-link">Назад к панели управления</a>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-<script src="/auth/static/js/theme-switcher.js"></script>
-<script src="/auth/static/js/layout-adjust.js"></script>
-<script src="/auth/static/js/mobile-menu.js"></script>
+<script src="/static/js/theme-switcher.js"></script>
+<script src="/static/js/layout-adjust.js"></script>
+<script src="/static/js/mobile-menu.js"></script>
 <script>
     // Переключение между видами
     document.addEventListener('DOMContentLoaded', function() {
@@ -233,3 +233,4 @@
 </body>
 </html>
 {{ end }}
+

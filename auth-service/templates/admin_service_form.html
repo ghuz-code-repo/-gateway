@@ -5,10 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="/auth/static/css/admin-service-form.css">
-    <link rel="stylesheet" href="/auth/static/css/service-tabs.css">
+    <link rel="stylesheet" href="/static/css/admin-service-form.css">
+    <link rel="stylesheet" href="/static/css/service-tabs.css">
 </head>
 <body>
     <!-- Контейнер для уведомлений -->
@@ -54,13 +54,27 @@
                 </div>
         
         {{ if .service }}
+        
         <!-- Вкладки для настроек сервиса -->
         <div class="tabs">
             <ul class="tabs-nav">
-                <li><button type="button" class="tab-btn active" data-tab="settings">
+                {{ if .manageMode }}
+                <!-- Режим управления - показываем только нужные вкладки -->
+                <li><button type="button" class="tab-btn active" data-tab="roles">
+                    <i class="fas fa-users"></i> Роли
+                </button></li>
+                <li><button type="button" class="tab-btn" data-tab="permissions">
+                    <i class="fas fa-key"></i> Разрешения
+                </button></li>
+                <li><button type="button" class="tab-btn" data-tab="users">
+                    <i class="fas fa-user"></i> Пользователи
+                </button></li>
+                {{ else }}
+                <!-- Обычный режим редактирования - по умолчанию активна вкладка "Роли" -->
+                <li><button type="button" class="tab-btn" data-tab="settings">
                     <i class="icon-cog"></i> Основные настройки
                 </button></li>
-                <li><button type="button" class="tab-btn" data-tab="roles">
+                <li><button type="button" class="tab-btn active" data-tab="roles">
                     <i class="icon-users"></i> Роли
                 </button></li>
                 <li><button type="button" class="tab-btn" data-tab="permissions">
@@ -69,10 +83,12 @@
                 <li><button type="button" class="tab-btn" data-tab="users">
                     <i class="icon-user"></i> Пользователи
                 </button></li>
+                {{ end }}
             </ul>
             
-            <!-- Вкладка "Основные настройки" -->
-            <div id="settings" class="tab-content active">
+            {{ if not .manageMode }}
+            <!-- Вкладка "Основные настройки" - только в режиме редактирования -->
+            <div id="settings" class="tab-content">
                 <h3>Основные настройки сервиса</h3>
                 <form method="post" class="form">
                     <div class="form-group">
@@ -97,22 +113,23 @@
                     
                     <div class="form-actions">
                         <button type="submit" class="btn primary">Обновить сервис</button>
-                        <a href="/admin/services" class="btn secondary">Назад к списку</a>
+                        <a href="/services" class="btn secondary">Назад к списку</a>
                     </div>
                 </form>
 
                 <div class="danger-zone">
                     <h4>Опасная зона</h4>
                     <p>Удаление сервиса приведет к удалению всех связанных разрешений и ролей. Это действие необратимо.</p>
-                    <form method="post" action="/admin/services/{{ .service.ID.Hex }}/delete" 
+                    <form method="post" action="/services/{{ .service.ID.Hex }}/delete" 
                           onsubmit="return confirm('Вы уверены, что хотите удалить сервис {{ .service.Name }}? Это действие необратимо!')">
                         <button type="submit" class="btn danger">Удалить сервис</button>
                     </form>
                 </div>
             </div>
+            {{ end }}
             
             <!-- Вкладка "Роли" -->
-            <div id="roles" class="tab-content">
+            <div id="roles" class="tab-content active">
                 <div class="roles-section">
                     <h3>Роли сервиса "{{ .service.Name }}"</h3>
                     <p>Управляйте ролями, специфичными для данного сервиса. Роли группируют разрешения и назначаются пользователям.</p>
@@ -150,6 +167,8 @@
                                             {{ end }}
                                         </div>
                                 </div>
+                                {{ if not (and $.manageMode (eq .Name "admin")) }}
+                                <!-- Кнопки действий скрыты для роли admin у админов сервиса -->
                                 <div class="role-actions">
                                     <button type="button" class="btn small secondary" 
                                             onclick="openEditRoleModal('{{ .ID.Hex }}', '{{ .Name }}', '{{ .Description }}', [{{ range $index, $perm := .Permissions }}{{ if $index }},{{ end }}'{{ $perm }}'{{ end }}])">
@@ -160,6 +179,7 @@
                                         Удалить
                                     </button>
                                 </div>
+                                {{ end }}
                             </div>
                             {{ end }}
                         {{ else }}
@@ -179,9 +199,16 @@
                     <p>Управляйте доступными разрешениями для данного сервиса. Разрешения определяют, какие действия могут выполнять пользователи.</p>
                     
                     <div class="add-permission-section">
+                        {{ if not .manageMode }}
                         <button type="button" class="add-button" onclick="openCreatePermissionModal()">
                             + Добавить новое разрешение
                         </button>
+                        {{ else }}
+                        <div class="info-message">
+                            <i class="fas fa-info-circle"></i>
+                            Только системный администратор может добавлять разрешения
+                        </div>
+                        {{ end }}
                     </div>
                     
                     <!-- Поиск разрешений -->
@@ -205,12 +232,19 @@
                                         {{ end }}
                                         <div class="permission-code">Код: {{ .Name }}</div>
                                     </div>
+                                    {{ if not $.manageMode }}
+                                    <!-- Кнопки действий только для системного администратора -->
                                     <div class="permission-actions">
+                                        <button type="button" class="btn small secondary" 
+                                                onclick="openEditPermissionModal('{{ .Name }}', '{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}', '{{ .Description }}')">
+                                            Изменить
+                                        </button>
                                         <button type="button" class="btn small danger" 
                                                 onclick="deletePermission('{{ $.service.ID.Hex }}', '{{ .Name }}')">
                                             Удалить
                                         </button>
                                     </div>
+                                    {{ end }}
                                 </div>
                                 {{ end }}
                             {{ end }}
@@ -265,16 +299,18 @@
                                     {{ range .serviceUsers }}
                                     <div class="user-item" data-username="{{ .Username }}" data-email="{{ .Email }}">
                                         <div class="user-details">
-                                            <div class="user-name">{{ .Username }}</div>
+                                            <div class="user-name">
+                                                {{ if .FullName }}{{ .FullName }} ({{ .Username }}){{ else }}{{ .Username }}{{ end }}
+                                            </div>
                                             <div class="user-email">{{ .Email }}</div>
                                             <div class="user-roles">
                                                 Роли: 
                                                 {{ if .ServiceRoles }}
                                                     {{ range $index, $role := .ServiceRoles }}
-                                                        {{ if $index }}, {{ end }}<span class="role-badge">{{ $role }}</span>
+                                                        {{ if $index }}, {{ end }}{{ $role }}
                                                     {{ end }}
                                                 {{ else }}
-                                                    <span class="no-roles">нет ролей</span>
+                                                    нет ролей
                                                 {{ end }}
                                             </div>
                                         </div>
@@ -282,6 +318,7 @@
                                             <button type="button" class="btn small secondary" 
                                                     data-user-id="{{ .ID.Hex }}" 
                                                     data-username="{{ .Username }}"
+                                                    data-fullname="{{ .FullName }}"
                                                     data-roles="{{ jsonify .ServiceRoles }}"
                                                     onclick="editUserRolesFromButton(this)">
                                                 <i class="fas fa-edit"></i> Управлять ролями
@@ -327,7 +364,7 @@
             
             <div class="form-actions">
                 <button type="submit" class="btn primary">Создать сервис</button>
-                <a href="/admin/services" class="btn secondary">Отмена</a>
+                <a href="/services" class="btn secondary">Отмена</a>
             </div>
         </form>
         {{ end }}
@@ -335,8 +372,8 @@
         </div>
     </div>
 
-    <script src="/auth/static/js/layout-adjust.js"></script>
-    <script src="/auth/static/js/mobile-menu.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
     
     <!-- Простой тестовый скрипт -->
     <script>
@@ -518,6 +555,11 @@
     <!-- Скрипт для переключения вкладок -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM Content Loaded - checking modal header elements:');
+            console.log('editRoleNameDisplay:', document.getElementById('editRoleNameDisplay'));
+            console.log('editUserName:', document.getElementById('editUserName'));
+            console.log('editPermissionNameDisplay:', document.getElementById('editPermissionNameDisplay'));
+            
             const tabButtons = document.querySelectorAll('.tab-btn');
             const tabContents = document.querySelectorAll('.tab-content');
             
@@ -603,13 +645,40 @@
                 }
                 
                 // Обработчик для других модальных окон
-                const modals = ['createRoleModal', 'createPermissionModal', 'editRoleModal'];
+                const modals = ['createRoleModal', 'createPermissionModal', 'editRoleModal', 'editPermissionModal'];
                 modals.forEach(modalId => {
                     const modal = document.getElementById(modalId);
                     if (event.target === modal) {
                         closeModal(modalId);
                     }
                 });
+            });
+            
+            // Обработчик нажатия ESC для закрытия модальных окон
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    // Проверяем, какие модальные окна открыты, и закрываем их
+                    const addUserModal = document.getElementById('addUserModal');
+                    if (addUserModal && addUserModal.style.display === 'block') {
+                        closeAddUserModal();
+                        return;
+                    }
+                    
+                    const editUserRolesModal = document.getElementById('editUserRolesModal');
+                    if (editUserRolesModal && editUserRolesModal.style.display === 'block') {
+                        closeEditUserRolesModal();
+                        return;
+                    }
+                    
+                    // Проверяем другие модальные окна
+                    const modals = ['createRoleModal', 'createPermissionModal', 'editRoleModal', 'editPermissionModal'];
+                    modals.forEach(modalId => {
+                        const modal = document.getElementById(modalId);
+                        if (modal && modal.style.display === 'block') {
+                            closeModal(modalId);
+                        }
+                    });
+                }
             });
         });
     </script>
@@ -624,13 +693,247 @@
         // Открыть модальное окно добавления пользователя
         function openAddUserModal() {
             document.getElementById('addUserModal').style.display = 'block';
-            document.getElementById('userEmail').focus();
+            document.getElementById('userIdentifier').focus();
+            // Сбросить индикаторы при открытии
+            resetUserIndicators();
         }
         
         // Закрыть модальное окно добавления пользователя
         function closeAddUserModal() {
             document.getElementById('addUserModal').style.display = 'none';
             document.getElementById('addUserForm').reset();
+            resetUserIndicators();
+        }
+
+        // Сбросить индикаторы пользователя
+        function resetUserIndicators() {
+            resetUserStates(); // Используем новую функцию
+        }
+
+        // Проверить существование пользователя (с debounce)
+        let checkUserTimeout;
+        function checkUserExists(identifier) {
+            console.log('checkUserExists called with:', identifier);
+            clearTimeout(checkUserTimeout);
+            
+            if (!identifier || identifier.trim().length < 2) {
+                console.log('Identifier too short, resetting states');
+                resetUserStates();
+                return;
+            }
+
+            checkUserTimeout = setTimeout(async () => {
+                console.log('Making API request for identifier:', identifier.trim());
+                try {
+                    const response = await fetch(`/check-user-exists?identifier=${encodeURIComponent(identifier.trim())}&serviceId=${SERVICE_ID}`, {
+                        method: 'GET',
+                        credentials: 'include', // Включаем куки для авторизации
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    console.log('API response status:', response.status);
+                    
+                    if (!response.ok) {
+                        if (response.status === 401 || response.status === 403) {
+                            console.error('Нет доступа к проверке пользователей');
+                            resetUserStates();
+                            return;
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('API response data:', data);
+                    
+                    if (data.exists) {
+                        // Пользователь найден, проверяем есть ли у него доступ к сервису
+                        if (data.hasServiceAccess) {
+                            // Состояние 4: Пользователь уже имеет доступ к сервису
+                            console.log('User already has service access, showing existing state');
+                            showUserExistingInServiceState(data.user, data.serviceRoles);
+                        } else {
+                            // Состояние 1: Пользователь найден, но нет доступа к сервису
+                            console.log('User exists but no service access, showing found state');
+                            showUserFoundState(data.user);
+                        }
+                    } else {
+                        // Проверяем формат введенного идентификатора
+                        const isEmail = identifier.includes('@') && identifier.includes('.');
+                        console.log('User not found, isEmail:', isEmail);
+                        
+                        if (isEmail) {
+                            // Состояние 3: Новый пользователь (email формат)
+                            console.log('Showing new user state');
+                            showUserNewState();
+                        } else {
+                            // Состояние 2: Некорректный формат
+                            console.log('Showing invalid user state');
+                            showUserInvalidState();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Ошибка проверки пользователя:', error);
+                    resetUserStates();
+                }
+            }, 500); // Задержка 500мс для избежания слишком частых запросов
+        }
+        
+        // Показать состояние: пользователь найден
+        function showUserFoundState(user) {
+            console.log('showUserFoundState called with user:', user);
+            resetUserStates();
+            
+            const foundState = document.getElementById('userFoundState');
+            if (foundState) {
+                foundState.style.display = 'block';
+                console.log('userFoundState элемент найден и показан');
+            } else {
+                console.error('userFoundState элемент не найден!');
+            }
+            
+            document.getElementById('newUserFields').style.display = 'none';
+            
+            // Заполнить информацию о пользователе
+            const nameEl = document.getElementById('existingUserName');
+            const emailEl = document.getElementById('existingUserEmail');
+            const avatarEl = document.getElementById('userAvatarText');
+            
+            if (nameEl) {
+                const displayName = user.fullName && user.fullName.trim() ? `${user.fullName} (${user.username})` : user.username;
+                nameEl.textContent = displayName;
+            }
+            if (emailEl) emailEl.textContent = user.email;
+            
+            // Создать аватар с инициалами
+            if (avatarEl) {
+                const name = user.fullName || user.username;
+                const initials = name.split(' ').map(word => word.charAt(0).toUpperCase()).slice(0, 2).join('');
+                avatarEl.textContent = initials;
+            }
+            
+            // Убрать обязательность поля полного имени
+            const fullNameField = document.getElementById('userFullName');
+            if (fullNameField) fullNameField.removeAttribute('required');
+        }
+        
+        // Показать состояние: некорректный формат
+        function showUserInvalidState() {
+            console.log('showUserInvalidState called');
+            resetUserStates();
+            
+            const invalidState = document.getElementById('userNotFoundInvalidState');
+            if (invalidState) {
+                invalidState.style.display = 'block';
+                console.log('userNotFoundInvalidState элемент найден и показан');
+            } else {
+                console.error('userNotFoundInvalidState элемент не найден!');
+            }
+            
+            document.getElementById('newUserFields').style.display = 'none';
+            
+            // Поле полного имени не обязательно
+            const fullNameField = document.getElementById('userFullName');
+            if (fullNameField) fullNameField.removeAttribute('required');
+        }
+        
+        // Показать состояние: новый пользователь
+        function showUserNewState() {
+            console.log('showUserNewState called');
+            resetUserStates();
+            
+            const newState = document.getElementById('userNotFoundEmailState');
+            if (newState) {
+                newState.style.display = 'block';
+                console.log('userNotFoundEmailState элемент найден и показан');
+            } else {
+                console.error('userNotFoundEmailState элемент не найден!');
+            }
+            
+            document.getElementById('newUserFields').style.display = 'block';
+            
+            // Поле полного имени обязательно для новых пользователей
+            const fullNameField = document.getElementById('userFullName');
+            if (fullNameField) fullNameField.setAttribute('required', 'required');
+        }
+        
+        // Показать состояние: пользователь уже в сервисе
+        function showUserExistingInServiceState(user, serviceRoles) {
+            console.log('showUserExistingInServiceState called with user:', user, 'roles:', serviceRoles);
+            resetUserStates();
+            
+            const existingState = document.getElementById('userAlreadyHasAccessState');
+            if (existingState) {
+                existingState.style.display = 'block';
+                console.log('userAlreadyHasAccessState элемент найден и показан');
+            } else {
+                console.error('userAlreadyHasAccessState элемент не найден!');
+            }
+            
+            document.getElementById('newUserFields').style.display = 'none';
+            
+            // Заполнить информацию о пользователе
+            const nameEl = document.getElementById('existingServiceUserName');
+            const emailEl = document.getElementById('existingServiceUserEmail');
+            const avatarEl = document.getElementById('existingServiceUserAvatarText');
+            const rolesEl = document.getElementById('existingServiceUserRoles');
+            
+            if (nameEl) {
+                const displayName = user.fullName && user.fullName.trim() ? `${user.fullName} (${user.username})` : user.username;
+                nameEl.textContent = displayName;
+            }
+            if (emailEl) emailEl.textContent = user.email;
+            if (rolesEl) rolesEl.textContent = serviceRoles.join(', ');
+            
+            // Создать аватар с инициалами
+            if (avatarEl) {
+                const name = user.fullName || user.username;
+                const initials = name.split(' ').map(word => word.charAt(0).toUpperCase()).slice(0, 2).join('');
+                avatarEl.textContent = initials;
+            }
+            
+            // Убрать обязательность поля полного имени
+            const fullNameField = document.getElementById('userFullName');
+            if (fullNameField) fullNameField.removeAttribute('required');
+        }
+        
+        // Сбросить все состояния
+        function resetUserStates() {
+            console.log('resetUserStates called');
+            const foundState = document.getElementById('userFoundState');
+            const invalidState = document.getElementById('userNotFoundInvalidState');
+            const newState = document.getElementById('userNotFoundEmailState');
+            const existingState = document.getElementById('userAlreadyHasAccessState');
+            const newFields = document.getElementById('newUserFields');
+            
+            if (foundState) foundState.style.display = 'none';
+            if (invalidState) invalidState.style.display = 'none';
+            if (newState) newState.style.display = 'none';
+            if (existingState) existingState.style.display = 'none';
+            if (newFields) newFields.style.display = 'none';
+            
+            // Очистить поля найденного пользователя
+            const nameEl = document.getElementById('existingUserName');
+            const emailEl = document.getElementById('existingUserEmail');
+            const avatarEl = document.getElementById('userAvatarText');
+            
+            if (nameEl) nameEl.textContent = '';
+            if (emailEl) emailEl.textContent = '';
+            if (avatarEl) avatarEl.textContent = '';
+            
+            // Очистить поля пользователя уже в сервисе
+            const serviceNameEl = document.getElementById('existingServiceUserName');
+            const serviceEmailEl = document.getElementById('existingServiceUserEmail');
+            const serviceAvatarEl = document.getElementById('existingServiceUserAvatarText');
+            const serviceRolesEl = document.getElementById('existingServiceUserRoles');
+            
+            if (serviceNameEl) serviceNameEl.textContent = '';
+            if (serviceEmailEl) serviceEmailEl.textContent = '';
+            if (serviceAvatarEl) serviceAvatarEl.textContent = '';
+            if (serviceRolesEl) serviceRolesEl.textContent = '';
+            
+            console.log('All states reset');
         }
         
         // Отправить форму добавления пользователя
@@ -638,12 +941,29 @@
             const form = document.getElementById('addUserForm');
             const formData = new FormData(form);
             
-            const email = formData.get('email');
+            const identifier = formData.get('identifier');
             const fullName = formData.get('fullName');
             const roles = formData.getAll('roles');
             
-            if (!email) {
-                showNotification('Укажите email пользователя', 'error');
+            if (!identifier) {
+                showNotification('Укажите email или логин пользователя', 'error');
+                return;
+            }
+            
+            // Проверяем состояния UI
+            const userFoundVisible = document.getElementById('userFoundState').style.display !== 'none';
+            const userInvalidVisible = document.getElementById('userNotFoundInvalidState').style.display !== 'none';
+            const userNewVisible = document.getElementById('userNotFoundEmailState').style.display !== 'none';
+            
+            // Блокируем отправку если показано состояние "некорректный формат"
+            if (userInvalidVisible) {
+                showNotification('Пользователь не найден. Введите корректный email или логин существующего пользователя', 'error');
+                return;
+            }
+            
+            // Для новых пользователей требуем полное имя
+            if (userNewVisible && (!fullName || fullName.trim().length === 0)) {
+                showNotification('Укажите полное имя для нового пользователя', 'error');
                 return;
             }
             
@@ -653,13 +973,14 @@
             }
             
             try {
-                const response = await fetch(`/admin/services/${serviceId}/users`, {
+                const response = await fetch(`/services/${serviceId}/users`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        email: email,
+                        identifier: identifier,
+                        full_name: fullName,
                         service_key: serviceKey,
                         roles: roles
                     })
@@ -684,6 +1005,7 @@
         function editUserRolesFromButton(button) {
             const userId = button.getAttribute('data-user-id');
             const username = button.getAttribute('data-username');
+            const fullName = button.getAttribute('data-fullname');
             const rolesJson = button.getAttribute('data-roles');
             
             console.log('Raw roles JSON:', rolesJson);
@@ -697,14 +1019,24 @@
                 console.error('Failed to parse roles JSON:', e, rolesJson);
             }
             
-            editUserRoles(userId, username, currentRoles);
+            // Формируем отображаемое имя: "ФИО (username)" или просто "username"
+            const displayName = fullName && fullName.trim() ? `${fullName} (${username})` : username;
+            
+            editUserRoles(userId, displayName, currentRoles);
         }
 
-        function editUserRoles(userId, username, currentRoles) {
-            console.log('editUserRoles called:', { userId, username, currentRoles });
+        function editUserRoles(userId, displayName, currentRoles) {
+            console.log('editUserRoles called:', { userId, displayName, currentRoles });
             
             document.getElementById('editUserId').value = userId;
-            document.getElementById('editUserName').textContent = username;
+            const editUserNameElement = document.getElementById('editUserName');
+            console.log('editUserName element:', editUserNameElement);
+            if (editUserNameElement) {
+                editUserNameElement.textContent = displayName;
+                console.log('Set editUserName to:', displayName);
+            } else {
+                console.error('editUserName element not found!');
+            }
             
             // Сбросить все чекбоксы
             const checkboxes = document.querySelectorAll('#editUserRolesGrid input[type="checkbox"]');
@@ -776,7 +1108,7 @@
             }
             
             try {
-                const response = await fetch(`/admin/services/${serviceId}/users/${userId}/roles`, {
+                const response = await fetch(`/services/${serviceId}/users/${userId}/roles`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -915,13 +1247,25 @@
         }
         
         function openEditRoleModal(roleId, roleName, roleDescription, rolePermissions) {
+            console.log('openEditRoleModal called:', { roleId, roleName, roleDescription, rolePermissions });
+            
             // Устанавливаем действие формы для редактирования конкретной роли
             const form = document.getElementById('editRoleForm');
-            form.action = '/admin/services/{{ .service.ID.Hex }}/roles/' + roleId;
+            form.action = '/services/{{ .service.ID.Hex }}/roles/' + roleId;
             
             // Заполняем поля формы
             document.getElementById('edit-role-name').value = roleName;
             document.getElementById('edit-role-desc').value = roleDescription;
+            
+            // Заполняем название роли в заголовке
+            const editRoleNameDisplay = document.getElementById('editRoleNameDisplay');
+            console.log('editRoleNameDisplay element:', editRoleNameDisplay);
+            if (editRoleNameDisplay) {
+                editRoleNameDisplay.textContent = roleName;
+                console.log('Set editRoleNameDisplay to:', roleName);
+            } else {
+                console.error('editRoleNameDisplay element not found!');
+            }
             
             // Очищаем все чекбоксы
             const checkboxes = document.querySelectorAll('#editRoleModal input[type="checkbox"]');
@@ -1008,6 +1352,35 @@
                     item.classList.add('permission-hidden');
                 }
             });
+        }
+        
+        // Функция для открытия модального окна редактирования разрешения
+        function openEditPermissionModal(permissionName, displayName, description) {
+            console.log('openEditPermissionModal called', permissionName);
+            
+            // Заполняем поля формы
+            document.getElementById('edit-perm-original-name').value = permissionName;
+            document.getElementById('edit-modal-perm-name').value = permissionName;
+            document.getElementById('edit-modal-perm-display').value = displayName || '';
+            document.getElementById('edit-modal-perm-desc').value = description || '';
+            
+            // Обновляем заголовок модального окна
+            const editPermissionNameDisplay = document.getElementById('editPermissionNameDisplay');
+            console.log('editPermissionNameDisplay element:', editPermissionNameDisplay);
+            if (editPermissionNameDisplay) {
+                editPermissionNameDisplay.textContent = displayName || permissionName;
+                console.log('Set editPermissionNameDisplay to:', displayName || permissionName);
+            } else {
+                console.error('editPermissionNameDisplay element not found!');
+            }
+            
+            // Устанавливаем URL для формы
+            const form = document.getElementById('editPermissionForm');
+            const serviceId = '{{ .service.ID.Hex }}';
+            form.action = `/services/${serviceId}/permissions/${permissionName}`;
+            
+            // Показываем модальное окно
+            document.getElementById('editPermissionModal').style.display = 'block';
         }
         
         // Функция поиска ролей на главной вкладке
@@ -1451,12 +1824,44 @@
             });
         }
         
+        function submitEditPermission() {
+            const form = document.getElementById('editPermissionForm');
+            const formData = new FormData(form);
+            
+            showModalLoading('editPermissionModal');
+            
+            fetch(form.action, {
+                method: 'PUT',
+                body: formData
+            })
+            .then(response => {
+                hideModalLoading('editPermissionModal');
+                closeModal('editPermissionModal');
+                
+                // Принимаем как успех коды 200-299 и 300-399 (редиректы)
+                if (response.status >= 200 && response.status < 400) {
+                    showNotification('Успех', 'Разрешение успешно обновлено', 'success');
+                    // Перезагружаем страницу для получения актуальных данных
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showNotification('Ошибка', 'Не удалось обновить разрешение', 'error');
+                }
+            })
+            .catch(error => {
+                hideModalLoading('editPermissionModal');
+                showNotification('Ошибка', 'Произошла ошибка при обновлении разрешения', 'error');
+                console.error('Error:', error);
+            });
+        }
+        
         function deleteRole(serviceId, roleId, roleName) {
             if (!confirm(`Удалить роль "${roleName}"?`)) {
                 return;
             }
             
-            fetch(`/admin/services/${serviceId}/roles/${roleId}/delete`, {
+            fetch(`/services/${serviceId}/roles/${roleId}/delete`, {
                 method: 'POST'
             })
             .then(response => {
@@ -1482,7 +1887,7 @@
                 return;
             }
             
-            fetch(`/admin/services/${serviceId}/permissions/${permissionName}/delete`, {
+            fetch(`/services/${serviceId}/permissions/${permissionName}/delete`, {
                 method: 'POST'
             })
             .then(response => {
@@ -1571,12 +1976,12 @@
     <div id="createRoleModal" class="service-modal">
         <div class="service-modal-content">
             <div class="service-modal-header">
-                <h3>Создать новую роль</h3>
+                <h3>Добавление роли</h3>
                 <span class="close" onclick="closeModal('createRoleModal')">&times;</span>
             </div>
             <div class="edit-role-modal-body">
                 <div class="edit-role-form-fields">
-                    <form method="post" action="/admin/services/{{ .service.ID.Hex }}/roles" id="createRoleForm">
+                    <form method="post" action="/services/{{ .service.ID.Hex }}/roles" id="createRoleForm">
                         <div class="form-group">
                             <label for="modal-role-name">Название роли *</label>
                             <input type="text" id="modal-role-name" name="name" required 
@@ -1634,11 +2039,11 @@
     <div id="createPermissionModal" class="service-modal">
         <div class="service-modal-content">
             <div class="service-modal-header">
-                <h3>Добавить новое разрешение</h3>
+                <h3>Добавление разрешения</h3>
                 <span class="close" onclick="closeModal('createPermissionModal')">&times;</span>
             </div>
             <div class="service-modal-body">
-                <form method="post" action="/admin/services/{{ .service.ID.Hex }}/permissions" id="createPermissionForm">
+                <form method="post" action="/services/{{ .service.ID.Hex }}/permissions" id="createPermissionForm">
                     <div class="form-group">
                         <label for="modal-perm-name">Название *</label>
                         <input type="text" id="modal-perm-name" name="name" required 
@@ -1664,11 +2069,46 @@
         </div>
     </div>
 
+    <!-- Модальное окно для редактирования разрешения -->
+    <div id="editPermissionModal" class="service-modal">
+        <div class="service-modal-content">
+            <div class="service-modal-header">
+                <h3>Редактирование разрешения '<span id="editPermissionNameDisplay">...</span>'</h3>
+                <span class="close" onclick="closeModal('editPermissionModal')">&times;</span>
+            </div>
+            <div class="service-modal-body">
+                <form method="post" action="" id="editPermissionForm">
+                    <input type="hidden" id="edit-perm-original-name" name="originalName">
+                    <div class="form-group">
+                        <label for="edit-modal-perm-name">Название *</label>
+                        <input type="text" id="edit-modal-perm-name" name="name" required 
+                               pattern="[a-z0-9._\-]+" title="Только строчные буквы, цифры, точки, дефисы и подчеркивания"
+                               placeholder="например: users.read">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-modal-perm-display">Отображаемое название</label>
+                        <input type="text" id="edit-modal-perm-display" name="displayName" 
+                               placeholder="например: Просмотр пользователей">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-modal-perm-desc">Описание</label>
+                        <input type="text" id="edit-modal-perm-desc" name="description" 
+                               placeholder="например: Разрешение на просмотр списка пользователей">
+                    </div>
+                </form>
+            </div>
+            <div class="service-modal-actions">
+                <button type="button" class="btn secondary" onclick="closeModal('editPermissionModal')">Отмена</button>
+                <button type="button" class="btn primary" onclick="submitEditPermission()">Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Модальное окно для редактирования роли -->
     <div id="editRoleModal" class="service-modal">
         <div class="service-modal-content">
             <div class="service-modal-header">
-                <h3>Редактировать роль</h3>
+                <h3>Редактирование роли "<span id="editRoleNameDisplay">...</span>"</h3>
                 <span class="close" onclick="closeModal('editRoleModal')">&times;</span>
             </div>
             <div class="edit-role-modal-body">
@@ -1732,22 +2172,89 @@
     <div id="addUserModal" class="service-modal">
         <div class="service-modal-content">
             <div class="service-modal-header">
-                <h3>Добавить пользователя в сервис</h3>
+                <h3>Добавление пользователя в сервис "{{ .service.Name }}"</h3>
                 <button type="button" class="close" onclick="closeAddUserModal()">&times;</button>
             </div>
             <div class="service-modal-body">
                 <form id="addUserForm">
                     <div class="form-group">
-                        <label for="userEmail">Email пользователя *</label>
-                        <input type="email" id="userEmail" name="email" required 
-                               placeholder="user@example.com">
-                        <small>Если пользователь не существует, будет создан новый аккаунт</small>
+                        <label for="userIdentifier">Email или логин пользователя *</label>
+                        <div class="user-search-container">
+                            <input type="text" id="userIdentifier" name="identifier" required 
+                                   placeholder="user@example.com или username"
+                                   oninput="checkUserExists(this.value)"
+                                   autocomplete="off">
+                            
+                            <!-- Состояние 1: Пользователь найден -->
+                            <div id="userFoundState" class="user-state-card user-found" style="display: none;">
+                                <div class="state-header">
+                                    <i class="fas fa-user-check state-icon"></i>
+                                    <span class="state-title">Пользователь найден</span>
+                                </div>
+                                <div class="existing-user-card">
+                                    <div class="user-avatar">
+                                        <span id="userAvatarText"></span>
+                                    </div>
+                                    <div class="user-details">
+                                        <div class="user-name" id="existingUserName"></div>
+                                        <div class="user-email" id="existingUserEmail"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Состояние 2: Пользователь не найден, некорректный формат -->
+                            <div id="userNotFoundInvalidState" class="user-state-card user-invalid" style="display: none;">
+                                <div class="state-header">
+                                    <i class="fas fa-exclamation-triangle state-icon"></i>
+                                    <span class="state-title">Пользователь не найден</span>
+                                </div>
+                                <div class="state-content">
+                                    <p>Введите корректный email или логин существующего пользователя</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Состояние 3: Пользователь не найден, будет создан новый -->
+                            <div id="userNotFoundEmailState" class="user-state-card user-new" style="display: none;">
+                                <div class="state-header">
+                                    <i class="fas fa-envelope state-icon"></i>
+                                    <span class="state-title">Новый пользователь</span>
+                                </div>
+                                <div class="state-content">
+                                    <p>Будет создан новый аккаунт и выслано приглашение по email</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Состояние 4: Пользователь уже имеет доступ к сервису -->
+                            <div id="userAlreadyHasAccessState" class="user-state-card user-existing" style="display: none;">
+                                <div class="state-header">
+                                    <i class="fas fa-user-check state-icon"></i>
+                                    <span class="state-title">Уже в сервисе</span>
+                                </div>
+                                <div class="state-content">
+                                    <div class="existing-service-user-card">
+                                        <div class="user-avatar">
+                                            <span id="existingServiceUserAvatarText">?</span>
+                                        </div>
+                                        <div class="user-details">
+                                            <div class="user-name" id="existingServiceUserName">-</div>
+                                            <div class="user-email" id="existingServiceUserEmail">-</div>
+                                            <div class="user-current-roles">
+                                                Текущие роли: <span id="existingServiceUserRoles">-</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p><strong>Пользователь уже имеет доступ к этому сервису.</strong><br>
+                                    Вы можете изменить его роли через список пользователей.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="userFullName">Полное имя</label>
+                    <div class="form-group" id="newUserFields" style="display: none;">
+                        <label for="userFullName">Полное имя *</label>
                         <input type="text" id="userFullName" name="fullName" 
-                               placeholder="Иван Иванов (только для новых пользователей)">
+                               placeholder="Иван Иванов">
+                        <small>Обязательно для новых пользователей</small>
                     </div>
                     
                     <div class="form-group">
@@ -1755,6 +2262,8 @@
                         <div class="service-permissions-grid" id="userRolesGrid">
                             {{ if .serviceRoles }}
                                 {{ range .serviceRoles }}
+                                {{ if not (and $.manageMode (eq .Name "admin")) }}
+                                <!-- Показываем роль только если это не admin для service admin'а -->
                                 <div class="service-permission-checkbox">
                                     <input type="checkbox" id="role_{{ .Name }}" name="roles" value="{{ .Name }}">
                                     <div class="service-permission-label">
@@ -1762,6 +2271,7 @@
                                         {{ if .Description }}<small>{{ .Description }}</small>{{ end }}
                                     </div>
                                 </div>
+                                {{ end }}
                                 {{ end }}
                             {{ end }}
                         </div>
@@ -1779,7 +2289,7 @@
     <div id="editUserRolesModal" class="service-modal">
         <div class="service-modal-content">
             <div class="service-modal-header">
-                <h3>Управление ролями: <span id="editUserName"></span></h3>
+                <h3>Редактирование ролей пользователя "<span id="editUserName">...</span>"</h3>
                 <button type="button" class="close" onclick="closeEditUserRolesModal()">&times;</button>
             </div>
             <div class="service-modal-body">
@@ -1791,6 +2301,8 @@
                         <div class="service-permissions-grid" id="editUserRolesGrid">
                             {{ if .serviceRoles }}
                                 {{ range .serviceRoles }}
+                                {{ if not (and $.manageMode (eq .Name "admin")) }}
+                                <!-- Показываем роль только если это не admin для service admin'а -->
                                 <div class="service-permission-checkbox">
                                     <input type="checkbox" id="edit_role_{{ .Name }}" name="roles" value="{{ .Name }}">
                                     <div class="service-permission-label">
@@ -1798,6 +2310,7 @@
                                         {{ if .Description }}<small>{{ .Description }}</small>{{ end }}
                                     </div>
                                 </div>
+                                {{ end }}
                                 {{ end }}
                             {{ end }}
                         </div>
@@ -1816,9 +2329,9 @@
 
     <!-- Подключение скриптов для частиц и функциональности -->
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-    <script src="/auth/static/js/theme-switcher.js"></script>
-    <script src="/auth/static/js/layout-adjust.js"></script>
-    <script src="/auth/static/js/mobile-menu.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
     
     <!-- Инициализация частиц -->
     <script>
@@ -1843,3 +2356,4 @@
 </body>
 </html>
 {{ end }}
+

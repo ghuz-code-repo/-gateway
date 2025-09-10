@@ -20,23 +20,99 @@ import (
 )
 
 var (
-	client          *mongo.Client
-	db              *mongo.Database
-	usersCol        *mongo.Collection
-	rolesCol        *mongo.Collection
-	permsCol        *mongo.Collection
-	servicesCol     *mongo.Collection
+	client              *mongo.Client
+	db                  *mongo.Database
+	usersCol            *mongo.Collection
+	rolesCol            *mongo.Collection
+	permsCol            *mongo.Collection
+	servicesCol         *mongo.Collection
 	userServiceRolesCol *mongo.Collection
+	documentTypesCol    *mongo.Collection
 )
+
+// DocumentType represents a document type configuration
+type DocumentType struct {
+	ID          string            `bson:"_id" json:"id"`
+	Name        string            `bson:"name" json:"name"`
+	Description string            `bson:"description" json:"description"`
+	Fields      []DocumentField   `bson:"fields" json:"fields"`
+	IsActive    bool              `bson:"is_active" json:"is_active"`
+	Order       int               `bson:"order" json:"order"`
+	CreatedAt   time.Time         `bson:"created_at" json:"created_at"`
+	UpdatedAt   time.Time         `bson:"updated_at" json:"updated_at"`
+}
+
+// DocumentField represents a field in a document type
+type DocumentField struct {
+	Name         string                 `bson:"name" json:"name"`
+	Label        string                 `bson:"label" json:"label"`
+	Type         string                 `bson:"type" json:"type"` // text, number, date, select, textarea
+	Required     bool                   `bson:"required" json:"required"`
+	Options      []string               `bson:"options,omitempty" json:"options,omitempty"` // for select fields
+	Validation   map[string]interface{} `bson:"validation,omitempty" json:"validation,omitempty"`
+	Placeholder  string                 `bson:"placeholder,omitempty" json:"placeholder,omitempty"`
+}
+
+// DocumentAttachment represents an attached file to a document
+type DocumentAttachment struct {
+	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	FileName     string             `bson:"file_name" json:"file_name"`
+	OriginalName string             `bson:"original_name" json:"original_name"`
+	FilePath     string             `bson:"file_path" json:"file_path"`
+	ContentType  string             `bson:"content_type" json:"content_type"`
+	Size         int64              `bson:"size" json:"size"`
+	UploadedAt   time.Time          `bson:"uploaded_at" json:"uploaded_at"`
+}
+
+// UserDocument represents a user document with dynamic fields
+type UserDocument struct {
+	ID          primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
+	DocumentType string                      `bson:"document_type" json:"document_type"`
+	Title       string                       `bson:"title" json:"title"`
+	Fields      map[string]interface{}       `bson:"fields" json:"fields"`
+	Attachments []DocumentAttachment         `bson:"attachments" json:"attachments"`
+	Status      string                       `bson:"status" json:"status"` // draft, completed, archived
+	CreatedAt   time.Time                    `bson:"created_at" json:"created_at"`
+	UpdatedAt   time.Time                    `bson:"updated_at" json:"updated_at"`
+}
+
+// Document represents a user document (legacy - will be replaced by UserDocument)
+type Document struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	FileName    string             `bson:"file_name" json:"file_name"`
+	OriginalName string            `bson:"original_name" json:"original_name"`
+	FilePath    string             `bson:"file_path" json:"file_path"`
+	ContentType string             `bson:"content_type" json:"content_type"`
+	Size        int64              `bson:"size" json:"size"`
+	UploadedAt  time.Time          `bson:"uploaded_at" json:"uploaded_at"`
+}
+
+// CropCoords represents the crop coordinates for avatar
+type CropCoords struct {
+	X      float64 `bson:"x" json:"x"`           // X position relative to original image (0-1)
+	Y      float64 `bson:"y" json:"y"`           // Y position relative to original image (0-1)  
+	Width  float64 `bson:"width" json:"width"`   // Width relative to original image (0-1)
+	Height float64 `bson:"height" json:"height"` // Height relative to original image (0-1)
+}
 
 // User struct represents a user in the system
 type User struct {
-	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Username string             `bson:"username" json:"username"`
-	Email    string             `bson:"email" json:"email"`
-	Password string             `bson:"password" json:"-"`          // Never return password in JSON
-	Roles    []string           `bson:"roles" json:"roles"`         // Store role names
-	FullName string             `bson:"full_name" json:"full_name"` // Add full name field
+	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Username   string             `bson:"username" json:"username"`
+	Email      string             `bson:"email" json:"email"`
+	Password   string             `bson:"password" json:"-"`          // Never return password in JSON
+	Roles      []string           `bson:"roles" json:"roles"`         // Store role names
+	FullName   string             `bson:"full_name" json:"full_name"` // Add full name field
+	Phone      string             `bson:"phone,omitempty" json:"phone,omitempty"`
+	Position   string             `bson:"position,omitempty" json:"position,omitempty"`
+	Department string             `bson:"department,omitempty" json:"department,omitempty"`
+	AvatarPath string             `bson:"avatar_path,omitempty" json:"avatar_path,omitempty"`
+	OriginalAvatarPath string     `bson:"original_avatar_path,omitempty" json:"original_avatar_path,omitempty"`
+	CropCoordinates    *CropCoords `bson:"crop_coordinates,omitempty" json:"crop_coordinates,omitempty"`
+	Documents  []UserDocument     `bson:"documents,omitempty" json:"documents,omitempty"`      // New document system
+	LegacyDocs []Document         `bson:"legacy_docs,omitempty" json:"legacy_docs,omitempty"` // Legacy documents
+	CreatedAt  time.Time          `bson:"created_at,omitempty" json:"created_at,omitempty"`
+	UpdatedAt  time.Time          `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
 }
 
 // UserServiceRole represents a user's role assignment in a specific service
@@ -127,6 +203,7 @@ func InitDB(uri, dbName string) error {
 	permsCol = db.Collection("permissions")
 	servicesCol = db.Collection("services")
 	userServiceRolesCol = db.Collection("user_service_roles")
+	documentTypesCol = db.Collection("document_types")
 
 	// Create indexes for unique fields
 	_, err = usersCol.Indexes().CreateOne(ctx, mongo.IndexModel{
@@ -188,6 +265,15 @@ func InitDB(uri, dbName string) error {
 		log.Printf("Warning: Failed to create user_service_roles user_id index: %v", err)
 	}
 
+	// Create unique index for document_types collection
+	_, err = documentTypesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{"id", 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create document_types id index: %v", err)
+	}
+
 	// Create default services
 	if err := CreateDefaultServices(); err != nil {
 		log.Printf("Warning: Failed to create default services: %v", err)
@@ -195,6 +281,11 @@ func InitDB(uri, dbName string) error {
 
 	// Create default permissions
 	CreateDefaultPermissions()
+
+	// Create default document types
+	if err := CreateDefaultDocumentTypes(); err != nil {
+		log.Printf("Warning: Failed to create default document types: %v", err)
+	}
 
 	return nil
 }
@@ -357,6 +448,214 @@ func EnsureAdminExists() {
 			log.Println("Reset admin user password to: admin")
 		}
 	}
+}
+
+// CreateDefaultDocumentTypes creates default document types
+func CreateDefaultDocumentTypes() error {
+	ctx := context.Background()
+	
+	documentTypes := []DocumentType{
+		{
+			ID:          "passport",
+			Name:        "Паспорт",
+			Description: "Паспорт гражданина РФ",
+			IsActive:    true,
+			Order:       1,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Fields: []DocumentField{
+				{
+					Name:        "series",
+					Label:       "Серия",
+					Type:        "text",
+					Required:    true,
+					Placeholder: "1234",
+					Validation: map[string]interface{}{
+						"maxLength": 4,
+						"pattern":   "^[0-9]{4}$",
+					},
+				},
+				{
+					Name:        "number",
+					Label:       "Номер",
+					Type:        "text",
+					Required:    true,
+					Placeholder: "123456",
+					Validation: map[string]interface{}{
+						"maxLength": 6,
+						"pattern":   "^[0-9]{6}$",
+					},
+				},
+				{
+					Name:        "issued_by",
+					Label:       "Кем выдан",
+					Type:        "textarea",
+					Required:    true,
+					Placeholder: "УМВД России по городу Москве",
+				},
+				{
+					Name:        "issue_date",
+					Label:       "Дата выдачи",
+					Type:        "date",
+					Required:    true,
+				},
+				{
+					Name:        "birth_place",
+					Label:       "Место рождения",
+					Type:        "text",
+					Required:    false,
+					Placeholder: "г. Москва",
+				},
+			},
+		},
+		{
+			ID:          "contract",
+			Name:        "Трудовой договор",
+			Description: "Трудовой договор сотрудника",
+			IsActive:    true,
+			Order:       2,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Fields: []DocumentField{
+				{
+					Name:        "contract_number",
+					Label:       "Номер договора",
+					Type:        "text",
+					Required:    true,
+					Placeholder: "ТД-001/2024",
+				},
+				{
+					Name:        "start_date",
+					Label:       "Дата начала работы",
+					Type:        "date",
+					Required:    true,
+				},
+				{
+					Name:        "position",
+					Label:       "Должность",
+					Type:        "text",
+					Required:    true,
+					Placeholder: "Менеджер по продажам",
+				},
+				{
+					Name:        "department",
+					Label:       "Отдел",
+					Type:        "text",
+					Required:    false,
+					Placeholder: "Отдел продаж",
+				},
+				{
+					Name:        "salary",
+					Label:       "Оклад (руб.)",
+					Type:        "number",
+					Required:    false,
+					Placeholder: "50000",
+				},
+			},
+		},
+		{
+			ID:          "education",
+			Name:        "Документ об образовании",
+			Description: "Диплом, аттестат или иной документ об образовании",
+			IsActive:    true,
+			Order:       3,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Fields: []DocumentField{
+				{
+					Name:     "document_type",
+					Label:    "Тип документа",
+					Type:     "select",
+					Required: true,
+					Options:  []string{"Диплом ВУЗ", "Диплом колледж", "Аттестат", "Сертификат", "Удостоверение"},
+				},
+				{
+					Name:        "institution",
+					Label:       "Учебное заведение",
+					Type:        "text",
+					Required:    true,
+					Placeholder: "Московский государственный университет",
+				},
+				{
+					Name:        "specialization",
+					Label:       "Специальность/направление",
+					Type:        "text",
+					Required:    false,
+					Placeholder: "Экономика и управление",
+				},
+				{
+					Name:        "graduation_year",
+					Label:       "Год окончания",
+					Type:        "number",
+					Required:    true,
+					Placeholder: "2020",
+					Validation: map[string]interface{}{
+						"min": 1950,
+						"max": time.Now().Year() + 10,
+					},
+				},
+			},
+		},
+		{
+			ID:          "medical",
+			Name:        "Медицинская справка",
+			Description: "Медицинские документы и справки",
+			IsActive:    true,
+			Order:       4,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Fields: []DocumentField{
+				{
+					Name:     "medical_type",
+					Label:    "Тип медицинского документа",
+					Type:     "select",
+					Required: true,
+					Options:  []string{"Справка 086/у", "Медицинская книжка", "Справка о прививках", "Справка о состоянии здоровья", "Другое"},
+				},
+				{
+					Name:        "clinic_name",
+					Label:       "Медицинское учреждение",
+					Type:        "text",
+					Required:    true,
+					Placeholder: "Городская поликлиника №1",
+				},
+				{
+					Name:        "issue_date",
+					Label:       "Дата выдачи",
+					Type:        "date",
+					Required:    true,
+				},
+				{
+					Name:        "valid_until",
+					Label:       "Действительна до",
+					Type:        "date",
+					Required:    false,
+				},
+				{
+					Name:        "doctor_name",
+					Label:       "ФИО врача",
+					Type:        "text",
+					Required:    false,
+					Placeholder: "Иванов И.И.",
+				},
+			},
+		},
+	}
+
+	for _, docType := range documentTypes {
+		var existingType DocumentType
+		err := documentTypesCol.FindOne(ctx, bson.M{"_id": docType.ID}).Decode(&existingType)
+		if err == mongo.ErrNoDocuments {
+			_, err = documentTypesCol.InsertOne(ctx, docType)
+			if err != nil {
+				log.Printf("Failed to insert document type %s: %v", docType.ID, err)
+				return err
+			}
+			log.Printf("Created document type: %s", docType.Name)
+		}
+	}
+
+	return nil
 }
 
 // ValidateUser checks if user credentials are valid
@@ -920,6 +1219,30 @@ func GetUserByUsername(username string) (*User, error) {
 	return &user, nil
 }
 
+// GetUserByEmailOrUsername retrieves a user by email or username
+func GetUserByEmailOrUsername(identifier string) (*User, error) {
+	ctx := context.Background()
+	var user User
+
+	// Search by email or username using $or operator
+	filter := bson.M{
+		"$or": []bson.M{
+			{"email": identifier},
+			{"username": identifier},
+		},
+	}
+
+	err := usersCol.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil // User not found
+		}
+		return nil, err // Other error
+	}
+
+	return &user, nil
+}
+
 // GetRolesByName retrieves roles by their name
 // func GetRolesByName(name string) ([]*Role, error) {
 // 	ctx := context.Background()
@@ -1283,5 +1606,202 @@ func RemoveAllUserServiceRoles(userID primitive.ObjectID) error {
 		"user_id": userID,
 	})
 	
+	return err
+}
+
+// UpdateUserProfile updates user profile information
+func UpdateUserProfile(userID primitive.ObjectID, email, fullName, phone, position, department string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"email":      email,
+			"full_name":  fullName,
+			"phone":      phone,
+			"position":   position,
+			"department": department,
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	return err
+}
+
+// UpdateUserAvatar updates user avatar path
+func UpdateUserAvatar(userID primitive.ObjectID, avatarPath string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"avatar_path": avatarPath,
+			"updated_at":  time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	return err
+}
+
+// UpdateUserAvatarWithCrop updates user avatar paths and crop coordinates
+func UpdateUserAvatarWithCrop(userID primitive.ObjectID, avatarPath, originalAvatarPath string, cropCoords *CropCoords) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"avatar_path":          avatarPath,
+			"original_avatar_path": originalAvatarPath,
+			"crop_coordinates":     cropCoords,
+			"updated_at":           time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	return err
+}
+
+// GetUsersWithAvatars получает всех пользователей, у которых есть путь к аватарке
+func GetUsersWithAvatars() ([]User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Ищем пользователей с непустым avatar_path
+	filter := bson.M{
+		"avatar_path": bson.M{
+			"$exists": true,
+			"$ne":     "",
+		},
+	}
+
+	cursor, err := usersCol.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []User
+	if err = cursor.All(ctx, &users); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+// AddUserDocument adds a document to user's document list
+func AddUserDocument(userID primitive.ObjectID, doc Document) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	doc.ID = primitive.NewObjectID()
+	doc.UploadedAt = time.Now()
+
+	update := bson.M{
+		"$push": bson.M{
+			"legacy_docs": doc,
+		},
+		"$set": bson.M{
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	return err
+}
+
+// RemoveUserDocument removes a document from user's document list
+func RemoveUserDocument(userID, docID primitive.ObjectID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$pull": bson.M{
+			"legacy_docs": bson.M{"_id": docID},
+		},
+		"$set": bson.M{
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	return err
+}
+
+// ChangeUserPassword changes user password
+func ChangeUserPassword(userID primitive.ObjectID, newPassword string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"password":   string(hashedPassword),
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err = usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	return err
+}
+
+// AddDocumentAttachment adds an attachment to a user document
+func AddDocumentAttachment(userID, docID primitive.ObjectID, attachment DocumentAttachment) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	attachment.ID = primitive.NewObjectID()
+	attachment.UploadedAt = time.Now()
+
+	update := bson.M{
+		"$push": bson.M{
+			"documents.$.attachments": attachment,
+		},
+		"$set": bson.M{
+			"documents.$.updated_at": time.Now(),
+			"updated_at":             time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(
+		ctx,
+		bson.M{
+			"_id":          userID,
+			"documents.id": docID,
+		},
+		update,
+	)
+	return err
+}
+
+// RemoveDocumentAttachment removes an attachment from a user document
+func RemoveDocumentAttachment(userID, docID, attachmentID primitive.ObjectID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// First, we need to pull the attachment from the specific document
+	update := bson.M{
+		"$pull": bson.M{
+			"documents.$.attachments": bson.M{"_id": attachmentID},
+		},
+		"$set": bson.M{
+			"documents.$.updated_at": time.Now(),
+			"updated_at":             time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(
+		ctx,
+		bson.M{
+			"_id":          userID,
+			"documents.id": docID,
+		},
+		update,
+	)
 	return err
 }

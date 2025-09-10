@@ -23,6 +23,59 @@ func setupTemplateFunc() template.FuncMap {
 			}
 			return string(b), nil
 		},
+		"div": func(a, b float64) float64 {
+			if b == 0 {
+				return 0
+			}
+			return a / b
+		},
+	}
+}
+
+// checkAndCleanupAvatars проверяет существование файлов аватарок и очищает недействительные пути
+func checkAndCleanupAvatars() {
+	log.Println("Проверка файлов аватарок...")
+	
+	// Создаем папку для аватарок если её нет
+	avatarDir := "./data/avatars"
+	if err := os.MkdirAll(avatarDir, 0755); err != nil {
+		log.Printf("Ошибка создания папки аватарок: %v", err)
+		return
+	}
+	
+	// Получаем всех пользователей с аватарками
+	users, err := models.GetUsersWithAvatars()
+	if err != nil {
+		log.Printf("Ошибка получения пользователей с аватарками: %v", err)
+		return
+	}
+	
+	cleaned := 0
+	for _, user := range users {
+		if user.AvatarPath != "" {
+			// Конвертируем путь из URL в абсолютный файловый путь
+			filePath := strings.Replace(user.AvatarPath, "/data/avatars/", "/data/avatars/", 1)
+			
+			log.Printf("Проверяем файл аватарки: %s для пользователя %s", filePath, user.Email)
+			
+			// Проверяем существование файла
+			if _, err := os.Stat(filePath); os.IsNotExist(err) {
+				log.Printf("Файл аватарки не найден: %s для пользователя %s", filePath, user.Email)
+				// Очищаем путь к аватарке в базе данных
+				if err := models.UpdateUserAvatar(user.ID, ""); err != nil {
+					log.Printf("Ошибка очистки пути аватарки для пользователя %s: %v", user.Email, err)
+				} else {
+					cleaned++
+					log.Printf("Очищен путь аватарки для пользователя %s", user.Email)
+				}
+			}
+		}
+	}
+	
+	if cleaned > 0 {
+		log.Printf("Очищено %d недействительных путей к аватаркам", cleaned)
+	} else {
+		log.Println("Все пути к аватаркам действительны")
 	}
 }
 
@@ -80,11 +133,17 @@ func main() {
 		log.Println("Migration validation passed")
 	}
 
+	// Check and cleanup avatar files
+	checkAndCleanupAvatars()
+
 	// Setup router
 	router := gin.Default()
 
 	// Set up static file serving
 	router.Static("/static", "./static")
+	router.Static("/data/avatars", "/data/avatars")
+	router.Static("/data/documents", "/data/documents")
+	router.Static("/data/attachments", "/data/attachments")
 
 	// Set up custom template functions
 	router.SetFuncMap(setupTemplateFunc())

@@ -216,6 +216,41 @@ func AddPermissionToService(serviceKey string, permissionDef PermissionDef) erro
 	return err
 }
 
+// UpdateServicePermission updates a permission in a service
+func UpdateServicePermission(serviceKey string, originalPermName string, newPermissionDef PermissionDef) error {
+	ctx := context.Background()
+
+	// Сначала удаляем старое разрешение
+	_, err := servicesCol.UpdateOne(
+		ctx,
+		bson.M{"key": serviceKey},
+		bson.M{
+			"$pull": bson.M{
+				"availablePermissions": bson.M{"name": originalPermName},
+			},
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Затем добавляем новое разрешение
+	_, err = servicesCol.UpdateOne(
+		ctx,
+		bson.M{"key": serviceKey},
+		bson.M{
+			"$addToSet": bson.M{
+				"availablePermissions": newPermissionDef,
+			},
+			"$set": bson.M{
+				"updated_at": time.Now(),
+			},
+		},
+	)
+
+	return err
+}
+
 // AddPermissionToServiceLegacy adds a permission using legacy format (for migration)
 func AddPermissionToServiceLegacy(serviceKey string, permission string) error {
 	ctx := context.Background()
@@ -427,6 +462,37 @@ func GetUserServiceRoles(userID, serviceKey string) ([]string, error) {
 	}
 
 	return userServiceRoles, nil
+}
+
+// GetUserServiceRolesFromCollection returns all role names a user has for a specific service from user_service_roles collection
+func GetUserServiceRolesFromCollection(userID, serviceKey string) ([]string, error) {
+	objID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	filter := bson.M{
+		"user_id":     objID,
+		"service_key": serviceKey,
+		"is_active":   true,
+	}
+
+	cursor, err := userServiceRolesCol.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+
+	var roles []string
+	for cursor.Next(context.Background()) {
+		var userServiceRole UserServiceRole
+		if err := cursor.Decode(&userServiceRole); err != nil {
+			continue
+		}
+		roles = append(roles, userServiceRole.RoleName)
+	}
+
+	return roles, nil
 }
 
 // CreateDefaultServices creates default services if they don't exist

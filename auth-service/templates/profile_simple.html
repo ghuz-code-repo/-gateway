@@ -1,0 +1,30 @@
+{{ define "profile_simple.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/profile.css">
+</head>
+<body>
+    <div class="header">
+        <nav class="navigation">
+            <a href="/dashboard" class="nav-link">Главная</a>
+            <a href="/profile" class="nav-link active">Профиль</a>
+            <a href="/logout" class="nav-link logout">Выход</a>
+        </nav>
+    </div>
+
+    <div class="container">
+        <div class="profile-container">
+            <h1>Профиль пользователя</h1>
+            <p>Имя: {{ .user.FullName }}</p>
+            <p>Email: {{ .user.Email }}</p>
+        </div>
+    </div>
+</body>
+</html>
+{{ end }}
+

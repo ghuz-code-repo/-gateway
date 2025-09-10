@@ -24,8 +24,6 @@ COPY --from=builder /app/auth-service .
 COPY --from=builder /app/templates/ ./templates/
 COPY --from=builder /app/static/ ./static/
 
-RUN mkdir -p /data
-
 EXPOSE 8080
 
 CMD ["./auth-service"]

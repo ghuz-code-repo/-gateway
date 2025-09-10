@@ -453,9 +453,13 @@ body {
 
 .role-permissions,
 .user-roles {
-    font-size: 14px;
-    color: var(--lightest-text-color);
-    margin-top: 6px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background-color: var(--table-row-hover-background-color);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
 }
 
 .permission-code {
@@ -752,8 +756,10 @@ body {
 .roles-search-section,
 .users-search-section {
     flex-shrink: 0;
-    margin-top: 15px; /* 15px ниже кнопки добавления */
-    margin-bottom: 5px; /* 5px выше контейнера со списком */
+    margin-top: 15px;
+    /* 15px ниже кнопки добавления */
+    margin-bottom: 5px;
+    /* 5px выше контейнера со списком */
 }
 
 
@@ -1100,13 +1106,6 @@ body {
     margin-top: 4px;
 }
 
-.user-roles {
-    font-size: 14px;
-    color: var(--text-color);
-    opacity: 1;
-    margin-top: 6px;
-}
-
 /* Стили для кнопок добавления */
 .add-role-section,
 .add-permission-section {
@@ -1162,13 +1161,18 @@ body {
     align-items: center;
     border-radius: 12px 12px 0 0;
     background: var(--primary-color);
-    color: var(--primary-text-color);
+    color: white !important; /* Принудительно белый цвет */
 }
 
 .service-modal-header h3 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
+    color: white !important; /* Принудительно белый цвет для заголовка */
+}
+
+.service-modal-header h3 span {
+    color: white !important; /* Принудительно белый цвет для span элементов */
 }
 
 .service-modal .close {
@@ -1364,6 +1368,7 @@ body {
 .edit-permission-item {
     display: flex;
     align-items: flex-start;
+    width: 100%;
     padding: 12px;
     margin-bottom: 8px;
     border: 2px solid var(--light-border-color);
@@ -1594,7 +1599,7 @@ body {
 
 .role-info {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     align-items: baseline;
 }
 
@@ -1697,24 +1702,6 @@ body {
     margin-bottom: 8px;
 }
 
-.user-roles {
-    font-size: 14px;
-    color: var(--text-color-secondary);
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.role-badge {
-    background-color: var(--primary-color);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-}
-
 .no-roles {
     color: var(--danger-color);
     font-style: italic;
@@ -1813,20 +1800,23 @@ body {
     overflow-x: hidden !important;
     overflow: visible !important;
     height: auto !important;
-    max-height: calc(100vh - 200px) !important; /* Ограничиваем максимальную высоту */
+    max-height: calc(100vh - 200px) !important;
+    /* Ограничиваем максимальную высоту */
 }
 
 #users .list-section {
     overflow-y: visible !important;
     overflow-x: hidden !important;
     height: auto !important;
-    max-height: 450px !important; /* Устанавливаем максимальную высоту для секции списка */
+    max-height: 450px !important;
+    /* Устанавливаем максимальную высоту для секции списка */
 }
 
 #users .users-container {
     height: 400px !important;
     max-height: 400px !important;
-    min-height: 400px !important; /* Добавляем минимальную высоту */
+    min-height: 400px !important;
+    /* Добавляем минимальную высоту */
     overflow-y: auto !important;
     overflow-x: hidden !important;
     /* border: 2px solid var(--primary-color) !important; Временная видимая граница для отладки - УБРАНО */

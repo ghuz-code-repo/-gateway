@@ -170,8 +170,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center; /* This centers content *within* the container if it's narrower than the container */
-    width: 90%; 
-    max-width: 1200px;
+    /* width: 90%;  */
+    /* max-width: 1200px; */
     margin: auto; /* Centers the container horizontally */
     padding: 20px; /* Base padding for left/right/bottom. JS adjusts padding-top. */
     background: rgba(255, 255, 255, 0.1); 
@@ -184,7 +184,7 @@ body {
     transition: background-color 0.3s;
     box-sizing: border-box;
     overflow-x: hidden; /* Предотвращает горизонтальный скролл */
-    max-width: calc(100vw - 40px); /* Гарантирует, что контейнер не превысит ширину экрана */
+    /* max-width: calc(100vw - 40px); Гарантирует, что контейнер не превысит ширину экрана */
 }
 .header-buttons {
     display: flex;
@@ -225,6 +225,35 @@ body {
 
 /* Added active state for logout button */
 .logout-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 0 8px 1px var(--primary-color);
+}
+
+/* Profile button styles */
+.profile-btn {
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    margin-left: 10px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+    text-align: center;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.profile-btn:hover {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    border-color: var(--primary-color-hover);
+    transform: scale(1.05);
+}
+
+.profile-btn:active {
     transform: scale(0.98);
     box-shadow: 0 0 8px 1px var(--primary-color);
 }
@@ -829,6 +858,7 @@ input[type="text"][name="password"] {
     color: var(--text-color);
     /* Ensure description color adapts */
     opacity: 0.7;
+    
     /* Slightly muted */
 }
 
@@ -843,7 +873,7 @@ input[type="text"][name="password"] {
     background-color: var(--header-background-color);
     box-shadow: 0 2px 5px var(--primary-color);
     /* box-shadow: 0 0 8px 1px var(--primary-color);  */
-    position: fixed;
+    /* position: fixed; */
     top: 0;
     left: 0;
     z-index: 1000; /* Увеличиваем z-index для надежности */
@@ -1242,6 +1272,35 @@ input[type="text"][name="password"] {
     margin-bottom: 15px;
     color: var(--primary-color);
     transition: color 0.3s;
+}
+
+.service-manage-btn {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--light-border-color);
+}
+
+.manage-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    background-color: var(--secondary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 15px;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.manage-btn:hover {
+    background-color: var(--secondary-color-hover);
+    transform: translateY(-1px);
+    color: white;
+}
+
+.manage-btn i {
+    font-size: 10px;
 }
 
 /* Logo SVG specific styles */

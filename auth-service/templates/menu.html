@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Портал Golden House</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
       body {
@@ -69,12 +69,29 @@
                     </div>
                     <h3>{{ .displayName }}</h3>
                 </a>
+                {{ if .canManage }}
+                <div class="service-manage-btn">
+                    <a href="/services/{{ .serviceId }}" class="btn manage-btn" title="Управлять сервисом">
+                        <i class="fas fa-cog"></i> Управлять
+                    </a>
+                </div>
+                {{ end }}
             </div>
             {{ end }}
             
+            <!-- Личный кабинет - всегда доступен -->
+            <div class="service-card">
+                <a href="/profile">
+                    <div class="service-icon">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <h3>Личный кабинет</h3>
+                </a>
+            </div>
+            
             {{ if .isAdmin }}
             <div class="service-card">
-                <a href="/admin">
+                <a href="/admin-menu">
                     <div class="service-icon">
                         <i class="fas fa-cogs"></i>
                     </div>
@@ -86,9 +103,9 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-<script src="/auth/static/js/theme-switcher.js"></script>
-<script src="/auth/static/js/layout-adjust.js"></script>
-<script src="/auth/static/js/mobile-menu.js"></script>
+<script src="/static/js/theme-switcher.js"></script>
+<script src="/static/js/layout-adjust.js"></script>
+<script src="/static/js/mobile-menu.js"></script>
 <script>
     particlesJS('particles-js', {
         "particles": {
@@ -144,3 +161,4 @@
     </script>
 </body>
 </html>
+

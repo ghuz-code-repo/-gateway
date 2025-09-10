@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
       body {
@@ -39,8 +39,8 @@
         <h1>{{ .title }}</h1>
         
         <div class="action-buttons">
-            <a href="/admin/services/new" class="btn primary">Добавить новый сервис</a>
-            <a href="/admin/migration" class="btn secondary">Управление миграцией</a>
+            <a href="/services/new" class="btn primary">Добавить новый сервис</a>
+            <a href="/migration" class="btn secondary">Управление миграцией</a>
         </div>
         
         <div class="data-table-wrapper">
@@ -78,8 +78,8 @@
                         </td>
                         <td>{{ .CreatedAt.Format "02.01.2006 15:04" }}</td>
                         <td class="actions">
-                            <a href="/admin/services/{{ .ID.Hex }}" class="btn small">Редактировать</a>
-                            <form method="post" action="/admin/services/{{ .ID.Hex }}/delete" style="display: inline;" 
+                            <a href="/services/{{ .ID.Hex }}" class="btn small">Редактировать</a>
+                            <form method="post" action="/services/{{ .ID.Hex }}/delete" style="display: inline;" 
                                   onsubmit="return confirm('Вы уверены, что хотите удалить этот сервис?')">
                                 <button type="submit" class="btn small danger">Удалить</button>
                             </form>
@@ -96,8 +96,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-    <script src="/auth/static/js/main.js"></script>
-    <script src="/auth/static/js/theme-switcher.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
     
     <!-- Инициализация частиц -->
     <script>
@@ -122,3 +122,4 @@
 </body>
 </html>
 {{ end }}
+

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <style>
       body {
         visibility: hidden;
@@ -38,36 +38,36 @@
             <div class="admin-section">
                 <h2>Управление пользователями</h2>
                 <p>Создание, редактирование и удаление пользователей системы.</p>
-                <a href="/admin/users" class="btn primary">Пользователи</a>
+                <a href="/users" class="btn primary">Пользователи</a>
             </div>
             
             <div class="admin-section">
                 <h2>Управление ролями</h2>
                 <p>Настройка ролей и их разрешений.</p>
-                <a href="/admin/roles" class="btn primary">Роли</a>
+                <a href="/roles" class="btn primary">Роли</a>
             </div>
             
             <div class="admin-section">
                 <h2>Управление сервисами</h2>
                 <p>Управление сервисами и их разрешениями (ADR-001).</p>
-                <a href="/admin/services" class="btn primary">Сервисы</a>
+                <a href="/services" class="btn primary">Сервисы</a>
             </div>
             
             <div class="admin-section">
                 <h2>Устаревшие разрешения</h2>
                 <p>Управление разрешениями (устаревший формат).</p>
-                <a href="/admin/permissions" class="btn secondary">Разрешения (Legacy)</a>
+                <a href="/permissions" class="btn secondary">Разрешения (Legacy)</a>
             </div>
         </div>
         <div>
-            <a href="/auth/menu" class="back-link">Назад к меню</a>
+            <a href="/menu" class="back-link">Назад к меню</a>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-    <script src="/auth/static/js/theme-switcher.js"></script>
-    <script src="/auth/static/js/layout-adjust.js"></script>
-    <script src="/auth/static/js/mobile-menu.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
     <script>
     particlesJS('particles-js', {
         "particles": {
@@ -89,3 +89,4 @@
     </script>
 </body>
 </html>
+

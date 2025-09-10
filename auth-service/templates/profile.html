@@ -1,0 +1,346 @@
+{{ define "profile.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/profile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+      body {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity .05s ease-in-out;
+      }
+    </style>
+</head>
+<body>
+    <script>
+        (function() {
+            // Cookie function
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+
+            const cookieTheme = getCookie('gh_theme');
+            const theme = cookieTheme || localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+
+    <div class="container">
+        <!-- Breadcrumb navigation -->
+        <nav class="breadcrumb-nav">
+            <a href="/menu" class="breadcrumb-link">
+                <i class="fas fa-home"></i>
+                Главная
+            </a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">Профиль</span>
+        </nav>
+
+        <div class="profile-container">
+            <div class="profile-header">
+                <div class="avatar-section">
+                    <div class="avatar" id="avatarContainer">
+                        {{ if .user.AvatarPath }}
+                            <img src="{{ .user.AvatarPath }}" alt="Аватар" id="avatarImage">
+                        {{ else }}
+                            <i class="fas fa-user-circle" id="defaultAvatar"></i>
+                        {{ end }}
+                        <div class="avatar-overlay" id="avatarOverlay">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                    </div>
+                    <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                </div>
+                <div class="user-info">
+                    <h1>{{ .user.FullName }}</h1>
+                    <p class="user-email">{{ .user.Email }}</p>
+                    <p class="user-role">
+                        {{ if .userRoles }}
+                            {{ range $serviceIndex, $serviceRole := .userRoles }}
+                                {{ if $serviceIndex }} | {{ end }}
+                                {{ $serviceRole.ServiceName }}:
+                                {{ range $roleIndex, $role := $serviceRole.Roles }}
+                                    {{ if $roleIndex }}, {{ end }}
+                                    {{ if eq $role "admin" }}Администратор{{ else if eq $role "user" }}Пользователь{{ else }}{{ $role }}{{ end }}
+                                {{ end }}
+                            {{ end }}
+                        {{ else }}
+                            Пользователь
+                        {{ end }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-button active" data-tab="personal-info">
+                    <i class="fas fa-user"></i>
+                    Личная информация
+                </button>
+                <button class="tab-button" data-tab="documents">
+                    <i class="fas fa-file-alt"></i>
+                    Документы
+                </button>
+                <button class="tab-button" data-tab="security">
+                    <i class="fas fa-shield-alt"></i>
+                    Безопасность
+                </button>
+            </div>
+
+            <div id="personal-info" class="tab-content active">
+                <h2>Персональная информация</h2>
+                <form class="profile-form" id="profileForm">
+                    <div class="form-group">
+                        <label for="fullName">Полное имя</label>
+                        <input type="text" id="fullName" name="fullName" value="{{ .user.FullName }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" value="{{ .user.Email }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Телефон</label>
+                        <input type="tel" id="phone" name="phone" value="{{ .user.Phone }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="position">Должность</label>
+                        <input type="text" id="position" name="position" value="{{ .user.Position }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="department">Отдел</label>
+                        <input type="text" id="department" name="department" value="{{ .user.Department }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        Сохранить изменения
+                    </button>
+                </form>
+            </div>
+
+            <div id="documents" class="tab-content">
+                <div class="documents-header">
+                    <h2>Мои документы</h2>
+                    <button class="btn btn-primary" id="addDocumentBtn">
+                        <i class="fas fa-plus"></i>
+                        Добавить документ
+                    </button>
+                </div>
+                <div class="documents-grid" id="documentsGrid">
+                    <!-- Документы будут загружены через JavaScript -->
+                </div>
+            </div>
+
+            <div id="security" class="tab-content">
+                <h2>Безопасность</h2>
+                <form class="profile-form" id="passwordForm">
+                    <div class="form-group">
+                        <label for="currentPassword">Текущий пароль</label>
+                        <input type="password" id="currentPassword" name="currentPassword" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newPassword">Новый пароль</label>
+                        <input type="password" id="newPassword" name="newPassword" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Подтвердите новый пароль</label>
+                        <input type="password" id="confirmPassword" name="confirmPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-key"></i>
+                        Изменить пароль
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для добавления документа -->
+    <div id="documentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Добавить документ</h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="documentForm" class="modal-form">
+                <div class="form-group">
+                    <label for="documentTypeSelect">Тип документа</label>
+                    <select id="documentTypeSelect" name="documentType" required>
+                        <option value="">Выберите тип документа</option>
+                    </select>
+                </div>
+                <div id="documentFields" class="document-fields">
+                    <!-- Поля документа будут загружены динамически -->
+                </div>
+                <div class="form-group">
+                    <label for="documentFile">Файл документа (PDF, DOC, DOCX, JPG, PNG)</label>
+                    <input type="file" id="documentFile" name="documentFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelDocumentBtn">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить документ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для кропа аватарки -->
+    <div id="cropModal" class="modal crop-modal">
+        <div class="modal-content crop-modal-content">
+            <div class="modal-header">
+                <h3>Обрезать изображение</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="file-selection" id="fileSelection">
+                    <div class="file-upload-area" id="newAvatarArea">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Выберите изображение для аватара</p>
+                        <button type="button" class="btn btn-primary" id="selectFileBtn">
+                            <i class="fas fa-folder-open"></i> Выбрать файл
+                        </button>
+                        <p class="file-info">Поддерживаются: JPG, PNG, GIF (до 5MB)</p>
+                    </div>
+                </div>
+                <div class="crop-container" id="cropContainer" style="display: none;">
+                    <div class="crop-area">
+                        <img id="cropImage" src="" alt="Изображение для обрезки">
+                        <div class="crop-overlay">
+                            <div class="crop-box" id="cropBox">
+                                <div class="crop-handle crop-handle-nw"></div>
+                                <div class="crop-handle crop-handle-ne"></div>
+                                <div class="crop-handle crop-handle-sw"></div>
+                                <div class="crop-handle crop-handle-se"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="crop-preview">
+                        <h4>Предпросмотр</h4>
+                        <div class="preview-container">
+                            <div class="preview-item">
+                                <span>Квадратная</span>
+                                <div class="preview-square">
+                                    <canvas id="previewSquare" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                            <div class="preview-item">
+                                <span>Круглая</span>
+                                <div class="preview-circle">
+                                    <canvas id="previewCircle" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancelCropBtn">Отмена</button>
+                <button type="button" class="btn btn-danger" id="removeAvatarModalBtn" style="display: none;">
+                    <i class="fas fa-trash"></i> Удалить аватар
+                </button>
+                <button type="button" class="btn btn-outline" id="changeFileBtn" style="display: none;">
+                    <i class="fas fa-exchange-alt"></i> Выбрать другой файл
+                </button>
+                <button type="button" class="btn btn-primary" id="saveCropBtn" style="display: none;">
+                    <i class="fas fa-upload"></i> Загрузить аватар
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Уведомления -->
+    <div id="notification" class="notification"></div>
+
+    <script>
+        // Данные пользователя для JavaScript
+        window.userData = {
+            id: {{ .user.ID }},
+            fullName: "{{ .user.FullName }}",
+            email: "{{ .user.Email }}",
+            phone: "{{ .user.Phone }}",
+            position: "{{ .user.Position }}",
+            department: "{{ .user.Department }}",
+            avatarPath: "{{ .user.AvatarPath }}"
+        };
+    </script>
+
+    <!-- Particles.js -->
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script src="/static/js/particles-config.js"></script>
+    
+    <!-- Theme switcher and layout adjustments -->
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+    <script src="/static/js/profile.js"></script>
+    <script src="/static/js/avatar-crop.js"></script>
+    
+    <!-- Initialize Avatar Crop -->
+    <script>
+        // Initialize after all scripts are loaded
+        window.addEventListener('load', function() {
+            console.log('Window loaded, checking if AvatarCrop is already initialized');
+            
+            // Check if AvatarCrop is already initialized
+            if (window.avatarCropInstance) {
+                console.log('AvatarCrop already initialized, skipping...');
+                return;
+            }
+            
+            // Test if elements exist
+            const avatarContainer = document.getElementById('avatarContainer');
+            const avatarInput = document.getElementById('avatarInput');
+            const cropModal = document.getElementById('cropModal');
+            
+            console.log('Elements check:');
+            console.log('- avatarContainer:', avatarContainer);
+            console.log('- avatarInput:', avatarInput);
+            console.log('- cropModal:', cropModal);
+            
+            if (!avatarContainer) {
+                console.error('avatarContainer not found!');
+                return;
+            }
+            
+            if (!avatarInput) {
+                console.error('avatarInput not found!');
+                return;
+            }
+            
+            if (!cropModal) {
+                console.error('cropModal not found!');
+                return;
+            }
+            
+            // Only initialize if not already done
+            console.log('Initializing AvatarCrop from template...');
+            const avatarCrop = new AvatarCrop();
+            window.avatarCrop = avatarCrop; // Make it globally accessible for debugging
+            
+            console.log('AvatarCrop initialized successfully');
+        });
+    </script>
+</body>
+</html>
+{{ end }}
+
