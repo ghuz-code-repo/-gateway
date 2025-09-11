@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -525,6 +527,67 @@ func updateProfileHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Профиль успешно обновлен"})
 }
 
+// createUserDirectoryStructure creates the directory structure for a user
+func createUserDirectoryStructure(userID primitive.ObjectID) (string, error) {
+	userDir := filepath.Join("/data", userID.Hex())
+	documentsDir := filepath.Join(userDir, "documents")
+	
+	// Create user directory
+	if err := os.MkdirAll(userDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create user directory: %v", err)
+	}
+	
+	// Create documents directory
+	if err := os.MkdirAll(documentsDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create documents directory: %v", err)
+	}
+	
+	return userDir, nil
+}
+
+// createDocumentTypeDirectory creates a directory for a specific document type
+func createDocumentTypeDirectory(userID primitive.ObjectID, documentType string) (string, error) {
+	userDir := filepath.Join("/data", userID.Hex())
+	documentsDir := filepath.Join(userDir, "documents")
+	typeDir := filepath.Join(documentsDir, documentType)
+	
+	// Create the document type directory
+	if err := os.MkdirAll(typeDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create document type directory: %v", err)
+	}
+	
+	return typeDir, nil
+}
+
+// sanitizeFilename удаляет небезопасные символы из имени файла
+func sanitizeFilename(filename string) string {
+	// Убираем расширение
+	ext := filepath.Ext(filename)
+	name := filename[:len(filename)-len(ext)]
+	
+	// Заменяем небезопасные символы на подчеркивания
+	reg := regexp.MustCompile(`[<>:"/\\|?*\s]+`)
+	name = reg.ReplaceAllString(name, "_")
+	
+	// Убираем лишние подчеркивания
+	reg = regexp.MustCompile(`_+`)
+	name = reg.ReplaceAllString(name, "_")
+	
+	// Убираем подчеркивания в начале и конце
+	name = strings.Trim(name, "_")
+	
+	// Ограничиваем длину
+	if len(name) > 50 {
+		name = name[:50]
+	}
+	
+	if name == "" {
+		name = "file"
+	}
+	
+	return name + ext
+}
+
 // uploadAvatarHandler handles avatar upload with crop coordinates
 func uploadAvatarHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
@@ -557,18 +620,21 @@ func uploadAvatarHandler(c *gin.Context) {
 		return
 	}
 
-	// Generate unique filename for original
+	// Create user directory structure
+	userDir, err := createUserDirectoryStructure(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать директорию пользователя"})
+		return
+	}
+	
+	// Generate filenames - теперь просто avatar.jpg и original.jpg
 	ext := filepath.Ext(file.Filename)
-	timestamp := time.Now().UnixNano()
-	originalFilename := fmt.Sprintf("original_%s_%d%s", user.ID.Hex(), timestamp, ext)
-	croppedFilename := fmt.Sprintf("avatar_%s_%d%s", user.ID.Hex(), timestamp, ext)
+	if ext == "" {
+		ext = ".jpg" // default extension
+	}
 	
-	// Create directory if it doesn't exist
-	avatarDir := "/data/avatars"
-	os.MkdirAll(avatarDir, 0755)
-	
-	originalPath := filepath.Join(avatarDir, originalFilename)
-	croppedPath := filepath.Join(avatarDir, croppedFilename)
+	originalPath := filepath.Join(userDir, "original"+ext)
+	croppedPath := filepath.Join(userDir, "avatar"+ext)
 
 	// Save original file
 	if err := c.SaveUploadedFile(file, originalPath); err != nil {
@@ -609,9 +675,9 @@ func uploadAvatarHandler(c *gin.Context) {
 		}
 	}
 
-	// Update user avatar paths and crop coordinates
-	fullOriginalPath := "/data/avatars/" + originalFilename
-	fullCroppedPath := "/data/avatars/" + croppedFilename
+	// Update user avatar paths and crop coordinates - использем новые пути
+	fullOriginalPath := filepath.Join("/data", user.ID.Hex(), "original"+ext)
+	fullCroppedPath := filepath.Join("/data", user.ID.Hex(), "avatar"+ext)
 	
 	err = models.UpdateUserAvatarWithCrop(user.ID, fullCroppedPath, fullOriginalPath, cropCoords)
 	if err != nil {
@@ -666,15 +732,49 @@ func handleCropUpdate(c *gin.Context, user *models.User) {
 		ext = ".jpg"
 	}
 	
-	newCroppedFilename := fmt.Sprintf("avatar_%s_%d%s", user.ID.Hex(), time.Now().UnixNano(), ext)
-	avatarDir := "/data/avatars"
-	newCroppedPath := filepath.Join(avatarDir, newCroppedFilename)
+	// Create user directory if it doesn't exist
+	userDir, err := createUserDirectoryStructure(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать директорию пользователя"})
+		return
+	}
+	
+	newCroppedPath := filepath.Join(userDir, "avatar"+ext)
 
-	fmt.Printf("Generated new cropped filename: %s\n", newCroppedFilename)
+	fmt.Printf("Generated new cropped path: %s\n", newCroppedPath)
 	fmt.Printf("New cropped path: %s\n", newCroppedPath)
 	fmt.Printf("Cropped image data length: %d\n", len(croppedImageData))
 
-	// Save new cropped image
+	// FIRST: Remove old cropped file if it exists (before creating new one)
+	oldAvatarPath := user.AvatarPath
+	if oldAvatarPath != "" && oldAvatarPath != user.OriginalAvatarPath {
+		// Convert DB path to actual filesystem path
+		var oldCroppedPath string
+		
+		if strings.HasPrefix(oldAvatarPath, "/data/avatars/") {
+			// Legacy path format - convert to new format
+			oldCroppedPath = filepath.Join(userDir, "avatar"+ext)
+		} else if strings.HasPrefix(oldAvatarPath, "/data/") {
+			// New path format - use as is
+			oldCroppedPath = oldAvatarPath
+		} else {
+			// Fallback - assume it's already a filesystem path
+			oldCroppedPath = oldAvatarPath
+		}
+		
+		fmt.Printf("Removing old cropped file BEFORE creating new one: %s\n", oldCroppedPath)
+		if _, err := os.Stat(oldCroppedPath); err == nil {
+			if removeErr := os.Remove(oldCroppedPath); removeErr != nil {
+				fmt.Printf("Warning: Could not remove old cropped file %s: %v\n", oldCroppedPath, removeErr)
+			} else {
+				fmt.Printf("Successfully removed old cropped file: %s\n", oldCroppedPath)
+			}
+		} else {
+			fmt.Printf("Old cropped file does not exist: %s (error: %v)\n", oldCroppedPath, err)
+		}
+	}
+
+	// SECOND: Save new cropped image
 	if err := saveBase64Image(croppedImageData, newCroppedPath); err != nil {
 		fmt.Printf("Error saving base64 image: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сохранить кропнутое изображение"})
@@ -700,12 +800,9 @@ func handleCropUpdate(c *gin.Context, user *models.User) {
 		Height: cropHeight,
 	}
 
-	// Store old avatar path for deletion AFTER successful update
-	oldAvatarPath := user.AvatarPath
-
-	// Update user with new cropped avatar and coordinates
-	fullCroppedPath := "/data/avatars/" + newCroppedFilename
-	err := models.UpdateUserAvatarWithCrop(user.ID, fullCroppedPath, user.OriginalAvatarPath, cropCoords)
+	// Update user with new cropped avatar and coordinates - используем новый путь
+	fullCroppedPath := filepath.Join("/data", user.ID.Hex(), "avatar"+ext)
+	err = models.UpdateUserAvatarWithCrop(user.ID, fullCroppedPath, user.OriginalAvatarPath, cropCoords)
 	if err != nil {
 		// If update failed, remove the newly created file
 		os.Remove(newCroppedPath)
@@ -714,21 +811,7 @@ func handleCropUpdate(c *gin.Context, user *models.User) {
 		return
 	}
 
-	// Only after successful database update, remove old cropped file
-	if oldAvatarPath != "" && oldAvatarPath != user.OriginalAvatarPath {
-		// Convert DB path to filesystem path
-		oldCroppedPath := oldAvatarPath
-		if strings.HasPrefix(oldCroppedPath, "/data/avatars/") {
-			// Convert from DB path (/data/avatars/file.jpg) to filesystem path
-			filename := strings.TrimPrefix(oldCroppedPath, "/data/avatars/")
-			oldCroppedPath = filepath.Join(avatarDir, filename)
-		}
-		
-		if _, err := os.Stat(oldCroppedPath); err == nil {
-			fmt.Printf("Removing old cropped file after successful update: %s\n", oldCroppedPath)
-			os.Remove(oldCroppedPath)
-		}
-	}
+	fmt.Printf("Avatar crop update completed successfully\n")
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -1025,20 +1108,102 @@ func downloadDocumentHandler(c *gin.Context) {
 
 // getDocumentTypesHandler returns all available document types
 func getDocumentTypesHandler(c *gin.Context) {
+	log.Println("Fetching document types...")
 	documentTypes, err := models.GetAllDocumentTypes()
 	if err != nil {
+		log.Printf("Error fetching document types: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить типы документов"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"document_types": documentTypes,
-	})
+	log.Printf("Found %d document types", len(documentTypes))
+	for i, dt := range documentTypes {
+		log.Printf("Document type %d: ID=%s, Name=%s, Fields=%d", i, dt.ID, dt.Name, len(dt.Fields))
+	}
+	c.JSON(http.StatusOK, documentTypes)
+}
+
+// getUserDocumentsHandler returns all documents for the current user
+func getUserDocumentsHandler(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+	log.Printf("Getting documents for user: %s", user.ID.Hex())
+
+	// Get updated user data to get documents
+	updatedUser, err := models.GetUserByID(user.ID.Hex())
+	if err != nil {
+		log.Printf("Error getting user: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
+		return
+	}
+
+	// Convert UserDocument to response format
+	var documents []map[string]interface{}
+	for i, doc := range updatedUser.Documents {
+		docResponse := map[string]interface{}{
+			"id":            fmt.Sprintf("%d", i), // Use index as ID since documents don't have separate IDs
+			"document_type": doc.DocumentType,
+			"title":         doc.Title,
+			"fields":        doc.Fields,
+			"status":        doc.Status,
+			"created_at":    doc.CreatedAt,
+			"updated_at":    doc.UpdatedAt,
+		}
+		documents = append(documents, docResponse)
+	}
+
+	log.Printf("Found %d documents for user %s", len(documents), user.ID.Hex())
+	c.JSON(http.StatusOK, documents)
+}
+
+// getUserDocumentHandler returns a specific document by ID for the current user
+func getUserDocumentHandler(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+	docIdStr := c.Param("id")
+	
+	log.Printf("Getting document %s for user: %s", docIdStr, user.ID.Hex())
+
+	// Parse document index
+	docIndex, err := strconv.Atoi(docIdStr)
+	if err != nil {
+		log.Printf("Invalid document ID: %s", docIdStr)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
+		return
+	}
+
+	// Get updated user data to get documents
+	updatedUser, err := models.GetUserByID(user.ID.Hex())
+	if err != nil {
+		log.Printf("Error getting user: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
+		return
+	}
+
+	// Check if document exists
+	if docIndex < 0 || docIndex >= len(updatedUser.Documents) {
+		log.Printf("Document %d not found for user %s", docIndex, user.ID.Hex())
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
+		return
+	}
+
+	doc := updatedUser.Documents[docIndex]
+	docResponse := map[string]interface{}{
+		"id":            docIdStr,
+		"document_type": doc.DocumentType,
+		"title":         doc.Title,
+		"data":          doc.Fields, // Use 'data' instead of 'fields' for frontend compatibility
+		"status":        doc.Status,
+		"created_at":    doc.CreatedAt,
+		"updated_at":    doc.UpdatedAt,
+	}
+
+	log.Printf("Found document %s: type=%s, title=%s", docIdStr, doc.DocumentType, doc.Title)
+	c.JSON(http.StatusOK, docResponse)
 }
 
 // createUserDocumentHandler creates a new user document
 func createUserDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
+	log.Printf("Creating document for user: %s", user.ID.Hex())
 
 	var requestData struct {
 		DocumentType string                 `json:"document_type" binding:"required"`
@@ -1047,9 +1212,12 @@ func createUserDocumentHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestData); err != nil {
+		log.Printf("Error binding JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверные данные запроса"})
 		return
 	}
+	
+	log.Printf("Request data: %+v", requestData)
 
 	// Validate that document type exists
 	docType, err := models.GetDocumentTypeByID(requestData.DocumentType)
@@ -1073,40 +1241,119 @@ func createUserDocumentHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message":  "Документ успешно создан",
-		"document": userDoc,
-	})
+	// Return document with ID for frontend
+	// Find the document index (it's the last one added)
+	updatedUser, err := models.GetUserByID(user.ID.Hex())
+	if err == nil && len(updatedUser.Documents) > 0 {
+		lastIndex := len(updatedUser.Documents) - 1
+		c.JSON(http.StatusOK, gin.H{
+			"success":     true,
+			"message":     "Документ успешно создан",
+			"document_id": fmt.Sprintf("%d", lastIndex),
+			"document":    userDoc,
+		})
+	} else {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "Документ успешно создан",
+			"document": userDoc,
+		})
+	}
 }
 
 // updateUserDocumentHandler updates an existing user document
 func updateUserDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
+	docIdStr := c.Param("id")
+	
+	log.Printf("Updating document %s for user: %s", docIdStr, user.ID.Hex())
 
-	docIDStr := c.Param("id")
-	docID, err := primitive.ObjectIDFromHex(docIDStr)
+	// Parse document index
+	docIndex, err := strconv.Atoi(docIdStr)
 	if err != nil {
+		log.Printf("Invalid document ID: %s", docIdStr)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	var requestData struct {
-		Title  string                 `json:"title" binding:"required"`
-		Fields map[string]interface{} `json:"fields" binding:"required"`
+		Data map[string]interface{} `json:"data"`
 	}
 
 	if err := c.ShouldBindJSON(&requestData); err != nil {
+		log.Printf("Error binding JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверные данные запроса"})
 		return
 	}
+	
+	log.Printf("Request data: %+v", requestData)
 
-	err = models.UpdateUserDocumentNew(user.ID, docID, requestData.Fields, requestData.Title)
+	// Get updated user data to get documents
+	updatedUser, err := models.GetUserByID(user.ID.Hex())
 	if err != nil {
+		log.Printf("Error getting user: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
+		return
+	}
+
+	// Check if document exists
+	if docIndex < 0 || docIndex >= len(updatedUser.Documents) {
+		log.Printf("Document %d not found for user %s", docIndex, user.ID.Hex())
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
+		return
+	}
+
+	// Update document data in the user's documents array
+	err = models.UpdateUserDocumentByIndex(user.ID, docIndex, requestData.Data)
+	if err != nil {
+		log.Printf("Error updating document: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить документ"})
 		return
 	}
 
+	log.Printf("Document %d updated successfully for user %s", docIndex, user.ID.Hex())
 	c.JSON(http.StatusOK, gin.H{"message": "Документ успешно обновлен"})
+}
+
+// getDocumentAttachmentsHandler returns attachments for a document by index
+func getDocumentAttachmentsHandler(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+
+	// Get document index from URL parameter
+	docIndexStr := c.Param("id")
+	docIndex, err := strconv.Atoi(docIndexStr)
+	if err != nil {
+		log.Printf("Invalid document index: %s", docIndexStr)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный индекс документа"})
+		return
+	}
+
+	// Validate document index
+	if docIndex < 0 || docIndex >= len(user.Documents) {
+		log.Printf("Document index out of bounds: %d, user has %d documents", docIndex, len(user.Documents))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Документ не найден"})
+		return
+	}
+
+	document := user.Documents[docIndex]
+	log.Printf("Getting attachments for document %d: %d attachments found", docIndex, len(document.Attachments))
+
+	// Convert attachments to response format (matching JavaScript expectations)
+	attachments := make([]gin.H, 0, len(document.Attachments))
+	for _, attachment := range document.Attachments {
+		attachments = append(attachments, gin.H{
+			"id":            attachment.ID.Hex(),
+			"filename":      attachment.OriginalName, // JavaScript expects 'filename', use original name for display
+			"file_name":     attachment.FileName,     // Keep for backward compatibility
+			"original_name": attachment.OriginalName,
+			"file_path":     attachment.FilePath,
+			"content_type":  attachment.ContentType,
+			"size":          attachment.Size,
+			"uploaded_at":   attachment.UploadedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, attachments)
 }
 
 // deleteUserDocumentHandler deletes a user document
@@ -1144,18 +1391,32 @@ func deleteUserDocumentHandler(c *gin.Context) {
 func addDocumentAttachmentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 
-	docIDStr := c.Param("id")
-	docID, err := primitive.ObjectIDFromHex(docIDStr)
+	// Get document index from URL parameter
+	docIndexStr := c.Param("id")
+	docIndex, err := strconv.Atoi(docIndexStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
+		log.Printf("Invalid document index: %s", docIndexStr)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный индекс документа"})
 		return
 	}
 
+	// Validate document index
+	if docIndex < 0 || docIndex >= len(user.Documents) {
+		log.Printf("Document index out of bounds: %d, user has %d documents", docIndex, len(user.Documents))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Документ не найден"})
+		return
+	}
+
+	log.Printf("Adding attachment to document %d for user: %s", docIndex, user.ID.Hex())
+
 	file, err := c.FormFile("attachment")
 	if err != nil {
+		log.Printf("Failed to get file: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Не удалось получить файл"})
 		return
 	}
+
+	log.Printf("Processing file: %s, size: %d, type: %s", file.Filename, file.Size, file.Header.Get("Content-Type"))
 
 	// Check file type (documents and images)
 	allowedTypes := []string{
@@ -1174,26 +1435,43 @@ func addDocumentAttachmentHandler(c *gin.Context) {
 	}
 
 	if !allowed {
+		log.Printf("File type not allowed: %s", fileType)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Разрешены только документы и изображения"})
 		return
 	}
 
 	// Check file size (max 10MB)
 	if file.Size > 10*1024*1024 {
+		log.Printf("File too large: %d bytes", file.Size)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Размер файла не должен превышать 10MB"})
 		return
 	}
 
-	// Generate unique filename
-	ext := filepath.Ext(file.Filename)
-	filename := fmt.Sprintf("attachment_%s_%s_%d%s", user.ID.Hex(), docID.Hex(), time.Now().Unix(), ext)
-	filePath := filepath.Join("/data/attachments", filename)
+	// Get document type for directory structure
+	documentType := user.Documents[docIndex].DocumentType
+	log.Printf("Document type: %s", documentType)
+	
+	// Create document type directory
+	typeDir, err := createDocumentTypeDirectory(user.ID, documentType)
+	if err != nil {
+		log.Printf("Failed to create document type directory: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать директорию документа"})
+		return
+	}
 
-	// Create directory if it doesn't exist
-	os.MkdirAll("/data/attachments", 0755)
+	// Generate safe filename
+	timestamp := time.Now().Unix()
+	sanitizedName := sanitizeFilename(file.Filename)
+	ext := filepath.Ext(sanitizedName)
+	name := sanitizedName[:len(sanitizedName)-len(ext)]
+	filename := fmt.Sprintf("%s_%d%s", name, timestamp, ext)
+	filePath := filepath.Join(typeDir, filename)
+
+	log.Printf("Saving file to: %s", filePath)
 
 	// Save file
 	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		log.Printf("Failed to save file: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сохранить файл"})
 		return
 	}
@@ -1207,13 +1485,18 @@ func addDocumentAttachmentHandler(c *gin.Context) {
 		Size:         file.Size,
 	}
 
-	err = models.AddDocumentAttachment(user.ID, docID, attachment)
+	log.Printf("Adding attachment to database: %+v", attachment)
+
+	err = models.AddDocumentAttachmentByIndex(user.ID, docIndex, attachment)
 	if err != nil {
+		log.Printf("Failed to add attachment to database: %v", err)
 		// Remove uploaded file if database operation failed
 		os.Remove(filePath)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось добавить вложение"})
 		return
 	}
+
+	log.Printf("Attachment added successfully")
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Вложение успешно добавлено",
@@ -1221,14 +1504,80 @@ func addDocumentAttachmentHandler(c *gin.Context) {
 	})
 }
 
-// removeDocumentAttachmentHandler removes an attachment from a document
+// removeDocumentAttachmentHandler removes an attachment from a document by index
 func removeDocumentAttachmentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 
-	docIDStr := c.Param("id")
-	docID, err := primitive.ObjectIDFromHex(docIDStr)
+	// Get document index from URL parameter
+	docIndexStr := c.Param("id")
+	docIndex, err := strconv.Atoi(docIndexStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
+		log.Printf("Invalid document index: %s", docIndexStr)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный индекс документа"})
+		return
+	}
+
+	// Validate document index
+	if docIndex < 0 || docIndex >= len(user.Documents) {
+		log.Printf("Document index out of bounds: %d, user has %d documents", docIndex, len(user.Documents))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Документ не найден"})
+		return
+	}
+
+	attachmentIDStr := c.Param("attachmentId")
+	attachmentID, err := primitive.ObjectIDFromHex(attachmentIDStr)
+	if err != nil {
+		log.Printf("Invalid attachment ID: %s", attachmentIDStr)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID вложения"})
+		return
+	}
+
+	document := user.Documents[docIndex]
+	log.Printf("Removing attachment %s from document %d for user: %s", attachmentID.Hex(), docIndex, user.ID.Hex())
+
+	// Find attachment to remove file from filesystem
+	var attachmentPath string
+	for _, attachment := range document.Attachments {
+		if attachment.ID == attachmentID {
+			attachmentPath = attachment.FilePath
+			break
+		}
+	}
+
+	if attachmentPath == "" {
+		log.Printf("Attachment not found: %s in document %d", attachmentID.Hex(), docIndex)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Вложение не найдено"})
+		return
+	}
+
+	// Remove attachment from database first
+	err = models.RemoveDocumentAttachmentByIndex(user.ID, docIndex, attachmentID)
+	if err != nil {
+		log.Printf("Failed to remove attachment from database: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось удалить вложение из базы данных"})
+		return
+	}
+
+	// Remove file from filesystem after successful database operation
+	if err := os.Remove(attachmentPath); err != nil {
+		log.Printf("Warning: Could not remove attachment file %s: %v", attachmentPath, err)
+		// Don't return error here - database operation succeeded
+	} else {
+		log.Printf("Successfully removed attachment file: %s", attachmentPath)
+	}
+
+	log.Printf("Attachment %s successfully removed from document %d", attachmentID.Hex(), docIndex)
+	c.JSON(http.StatusOK, gin.H{"message": "Вложение успешно удалено"})
+}
+
+// downloadDocumentAttachmentHandler handles downloading a specific attachment
+func downloadDocumentAttachmentHandler(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+	
+	docIndexStr := c.Param("id")
+	docIndex, err := strconv.Atoi(docIndexStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный индекс документа"})
 		return
 	}
 
@@ -1239,26 +1588,120 @@ func removeDocumentAttachmentHandler(c *gin.Context) {
 		return
 	}
 
-	// Find attachment to remove file
-	for _, doc := range user.Documents {
-		if doc.ID == docID {
-			for _, attachment := range doc.Attachments {
-				if attachment.ID == attachmentID {
-					os.Remove(attachment.FilePath)
-					break
-				}
-			}
+	// Get updated user data to get documents
+	updatedUser, err := models.GetUserByID(user.ID.Hex())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
+		return
+	}
+
+	// Check if document exists
+	if docIndex < 0 || docIndex >= len(updatedUser.Documents) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
+		return
+	}
+
+	document := updatedUser.Documents[docIndex]
+
+	// Find attachment
+	var attachment *models.DocumentAttachment
+	for i := range document.Attachments {
+		if document.Attachments[i].ID == attachmentID {
+			attachment = &document.Attachments[i]
 			break
 		}
 	}
 
-	err = models.RemoveDocumentAttachment(user.ID, docID, attachmentID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось удалить вложение"})
+	if attachment == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Вложение не найдено"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Вложение успешно удалено"})
+	// Check if file exists
+	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден"})
+		return
+	}
+
+	// Serve file for download
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", "attachment; filename="+attachment.OriginalName)
+	c.File(attachment.FilePath)
+}
+
+// previewDocumentAttachmentHandler handles previewing a specific attachment
+func previewDocumentAttachmentHandler(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+	
+	docIndexStr := c.Param("id")
+	docIndex, err := strconv.Atoi(docIndexStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный индекс документа"})
+		return
+	}
+
+	attachmentIDStr := c.Param("attachmentId")
+	attachmentID, err := primitive.ObjectIDFromHex(attachmentIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID вложения"})
+		return
+	}
+
+	// Get updated user data to get documents
+	updatedUser, err := models.GetUserByID(user.ID.Hex())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
+		return
+	}
+
+	// Check if document exists
+	if docIndex < 0 || docIndex >= len(updatedUser.Documents) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
+		return
+	}
+
+	document := updatedUser.Documents[docIndex]
+
+	// Find attachment
+	var attachment *models.DocumentAttachment
+	for i := range document.Attachments {
+		if document.Attachments[i].ID == attachmentID {
+			attachment = &document.Attachments[i]
+			break
+		}
+	}
+
+	if attachment == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Вложение не найдено"})
+		return
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден"})
+		return
+	}
+
+	// Determine content type based on file extension
+	ext := strings.ToLower(filepath.Ext(attachment.OriginalName))
+	var contentType string
+	switch ext {
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".png":
+		contentType = "image/png"
+	case ".gif":
+		contentType = "image/gif"
+	case ".pdf":
+		contentType = "application/pdf"
+	default:
+		contentType = "application/octet-stream"
+	}
+
+	// Serve file for inline preview
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Disposition", "inline; filename="+attachment.OriginalName)
+	c.File(attachment.FilePath)
 }
 
 // SetupProfileRoutes настраивает роуты для профиля (доступные через /profile)
@@ -1275,9 +1718,14 @@ func SetupProfileRoutes(router *gin.Engine) {
 	router.GET("/profile/document/:id", authRequired(), downloadDocumentHandler)
 	
 	// Document system routes for profile
+	router.GET("/profile/documents", authRequired(), getUserDocumentsHandler)
+	router.GET("/profile/documents/:id", authRequired(), getUserDocumentHandler)
+	router.GET("/profile/documents/:id/attachments", authRequired(), getDocumentAttachmentsHandler)
 	router.POST("/profile/documents", authRequired(), createUserDocumentHandler)
 	router.PUT("/profile/documents/:id", authRequired(), updateUserDocumentHandler)
 	router.DELETE("/profile/documents/:id", authRequired(), deleteUserDocumentHandler)
 	router.POST("/profile/documents/:id/attachments", authRequired(), addDocumentAttachmentHandler)
 	router.DELETE("/profile/documents/:id/attachments/:attachmentId", authRequired(), removeDocumentAttachmentHandler)
+	router.GET("/profile/documents/:id/attachments/:attachmentId/download", authRequired(), downloadDocumentAttachmentHandler)
+	router.GET("/profile/documents/:id/attachments/:attachmentId/preview", authRequired(), previewDocumentAttachmentHandler)
 }

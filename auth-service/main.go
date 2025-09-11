@@ -141,9 +141,8 @@ func main() {
 
 	// Set up static file serving
 	router.Static("/static", "./static")
-	router.Static("/data/avatars", "/data/avatars")
-	router.Static("/data/documents", "/data/documents")
-	router.Static("/data/attachments", "/data/attachments")
+	// Новая структура: обслуживаем всю папку data для доступа к пользовательским файлам
+	router.Static("/data", "/data")
 
 	// Set up custom template functions
 	router.SetFuncMap(setupTemplateFunc())

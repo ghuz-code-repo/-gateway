@@ -60,6 +60,19 @@
     --shadow-heavy: 0 10px 40px rgba(0,0,0,0.2);
     --modal-focus-color: #667eea;
     --modal-focus-background: #f8f9ff;
+    
+    /* Переменные для форматированных полей */
+    --input-error-color: #DC4446;
+    --input-error-background: #fdf2f2;
+    --input-error-border: #fca5a5;
+    --input-error-focus-ring: rgba(220, 68, 70, 0.25);
+    --input-success-color: #10B981;
+    --input-success-background: #f0fdf4;
+    --input-success-border: #86efac;
+    --input-success-focus-ring: rgba(16, 185, 129, 0.25);
+    --input-hint-color: #6b7280;
+    --input-neutral-color: #6b7280;
+    --monospace-font: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
 }
 
 .dark-theme {
@@ -124,6 +137,19 @@
     --shadow-heavy: 0 10px 40px rgba(0,0,0,0.4);
     --modal-focus-color: #8ab4f8;
     --modal-focus-background: #1a2332;
+    
+    /* Переменные для форматированных полей в темной теме */
+    --input-error-color: #f87171;
+    --input-error-background: #3f1517;
+    --input-error-border: #7f1d1d;
+    --input-error-focus-ring: rgba(248, 113, 113, 0.35);
+    --input-success-color: #34d399;
+    --input-success-background: #064e3b;
+    --input-success-border: #065f46;
+    --input-success-focus-ring: rgba(52, 211, 153, 0.35);
+    --input-hint-color: #9ca3af;
+    --input-neutral-color: #9ca3af;
+    --monospace-font: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
 }
 
 html {
@@ -172,7 +198,8 @@ body {
     align-items: center; /* This centers content *within* the container if it's narrower than the container */
     /* width: 90%;  */
     /* max-width: 1200px; */
-    margin: auto; /* Centers the container horizontally */
+    margin-right: auto;
+    margin-left: auto;
     padding: 20px; /* Base padding for left/right/bottom. JS adjusts padding-top. */
     background: rgba(255, 255, 255, 0.1); 
     border-radius: 20px;
@@ -891,6 +918,48 @@ input[type="text"][name="password"] {
     display: flex; /* Visible by default on desktop */
     align-items: center;
     gap: 15px; 
+}
+
+.header-profilr-link{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+    text-decoration: none;
+    color: var(--text-color);
+    font-weight: bold;
+    transition: background 0.2s;
+    /* border: 1px solid var(--border-color);  */
+    height: 50px;
+    padding: 10px 5px;
+    background: var(--card-background-color);
+    border-radius: 5px;
+}
+
+.header-profilr-link:hover{
+    background: var(--primary-color-hover);
+}
+
+.avatar-mini{
+    position: relative;
+    height: 40px;
+    width: 40px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: none;
+    background: var(--card-background-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-mini img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
 
 /* Burger Menu Button */

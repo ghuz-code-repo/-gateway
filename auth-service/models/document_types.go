@@ -2,6 +2,8 @@ package models
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -28,6 +30,18 @@ func GetAllDocumentTypes() ([]DocumentType, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// First, let's see all documents without filter
+	allCursor, err := documentTypesCol.Find(ctx, bson.M{})
+	if err == nil {
+		var allDocs []DocumentType
+		allCursor.All(ctx, &allDocs)
+		log.Printf("All documents in collection: %d", len(allDocs))
+		for _, doc := range allDocs {
+			log.Printf("Document: %s, active: %v", doc.Name, doc.IsActive)
+		}
+		allCursor.Close(ctx)
+	}
+
 	cursor, err := documentTypesCol.Find(ctx, bson.M{"is_active": true})
 	if err != nil {
 		return nil, err
@@ -39,6 +53,8 @@ func GetAllDocumentTypes() ([]DocumentType, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Printf("Found %d active document types", len(documentTypes))
 
 	// Sort by order field
 	sort.Slice(documentTypes, func(i, j int) bool {
@@ -107,6 +123,32 @@ func RemoveUserDocumentNew(userID, docID primitive.ObjectID) error {
 		"$set": bson.M{
 			"updated_at": time.Now(),
 		},
+	}
+
+	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	return err
+}
+
+// UpdateUserDocumentByIndex updates a user document by its index in the documents array
+func UpdateUserDocumentByIndex(userID primitive.ObjectID, docIndex int, fields map[string]interface{}) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create update fields dynamically
+	updateFields := bson.M{
+		"updated_at": time.Now(),
+	}
+	
+	// Update each field in the document
+	for key, value := range fields {
+		updateFields[fmt.Sprintf("documents.%d.fields.%s", docIndex, key)] = value
+	}
+	
+	// Also update the document's updated_at field
+	updateFields[fmt.Sprintf("documents.%d.updated_at", docIndex)] = time.Now()
+
+	update := bson.M{
+		"$set": updateFields,
 	}
 
 	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)

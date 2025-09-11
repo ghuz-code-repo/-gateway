@@ -4,3 +4,4 @@
 /auth-service/go.sum
 
 mongo_data/*
+/auth-service/data

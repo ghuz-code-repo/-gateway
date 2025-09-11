@@ -141,7 +141,7 @@
             <div id="documents" class="tab-content">
                 <div class="documents-header">
                     <h2>Мои документы</h2>
-                    <button class="btn btn-primary" id="addDocumentBtn">
+                    <button class="btn btn-primary" id="addDocumentBtn" data-modal="documentModal">
                         <i class="fas fa-plus"></i>
                         Добавить документ
                     </button>
@@ -182,7 +182,7 @@
                 <h3>Добавить документ</h3>
                 <span class="close">&times;</span>
             </div>
-            <form id="documentForm" class="modal-form">
+            <form id="documentForm" class="modal-form" novalidate>
                 <div class="form-group">
                     <label for="documentTypeSelect">Тип документа</label>
                     <select id="documentTypeSelect" name="documentType" required>
@@ -192,13 +192,91 @@
                 <div id="documentFields" class="document-fields">
                     <!-- Поля документа будут загружены динамически -->
                 </div>
+                <!-- Единая секция управления файлами для создания -->
                 <div class="form-group">
-                    <label for="documentFile">Файл документа (PDF, DOC, DOCX, JPG, PNG)</label>
-                    <input type="file" id="documentFile" name="documentFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
+                    <label>Файлы документа (необязательно)</label>
+                    <div id="newDocumentFilesArea" class="unified-files-area">
+                        <!-- Новые файлы будут отображаться здесь -->
+                        <div id="newFilesContainer" class="files-container">
+                            <!-- Файлы будут добавлены динамически -->
+                            <!-- Кнопка + будет добавлена сюда JavaScript'ом -->
+                        </div>
+                        <div id="newEmptyState" class="empty-files-state">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетяните файлы сюда или нажмите для выбора</p>
+                            <small>Поддерживаемые форматы: PDF, JPG, PNG</small>
+                        </div>
+                    </div>
+                    <input type="file" id="documentFile" name="documentFile" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="file-input-hidden">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancelDocumentBtn">Отмена</button>
                     <button type="submit" class="btn btn-primary">Добавить документ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для редактирования документа -->
+    <div id="editDocumentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Редактировать документ</h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="editDocumentForm" class="modal-form" novalidate>
+                <input type="hidden" name="documentId" id="editDocumentId">
+                <div class="form-group">
+                    <label for="editDocumentTypeSelect">Тип документа</label>
+                    <select id="editDocumentTypeSelect" name="documentType" required disabled>
+                        <option value="">Выберите тип документа</option>
+                    </select>
+                    <small class="form-help">Тип документа нельзя изменить после создания</small>
+                </div>
+                <div id="editDocumentFields" class="document-fields">
+                    <!-- Поля документа будут загружены динамически -->
+                </div>
+                
+                <!-- Единая секция управления файлами -->
+                <div class="form-group">
+                    <label>Файлы документа</label>
+                    <!-- Панель массовых операций -->
+                    <div id="bulkActionsPanel" class="bulk-actions-panel" style="display: none;">
+                        <div class="bulk-actions-controls">
+                            <label class="select-all-label">
+                                <input type="checkbox" id="selectAllFiles" class="select-all-checkbox" style="display: none">
+                                <span>Выбрать все</span>
+                            </label>
+                            <span id="selectedCount" class="selected-count">0 выбрано</span>
+                        </div>
+                        <div class="bulk-actions-buttons">
+                            <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm" disabled>
+                                <i class="fas fa-trash"></i> Удалить выбранные
+                            </button>
+                        </div>
+                    </div>
+                    <div id="editDocumentFilesArea" class="unified-files-area">
+                        <!-- Загруженные и новые файлы будут отображаться здесь -->
+                        <div id="editFilesContainer" class="files-container">
+                            <!-- Файлы будут загружены динамически -->
+                            <!-- Кнопка + будет добавлена сюда JavaScript'ом -->
+                        </div>
+                        <div id="editEmptyState" class="empty-files-state">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетяните файлы сюда или нажмите для выбора</p>
+                            <small>Поддерживаемые форматы: PDF, JPG, PNG</small>
+                        </div>
+                    </div>
+                    <input type="file" id="editDocumentFiles" name="documentFiles" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="file-input-hidden">
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelEditDocumentBtn">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
                 </div>
             </form>
         </div>
@@ -338,6 +416,25 @@
             window.avatarCrop = avatarCrop; // Make it globally accessible for debugging
             
             console.log('AvatarCrop initialized successfully');
+        });
+    </script>
+    <script>
+        particlesJS('particles-js', {
+            "particles": {
+                "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+                "color": { "value": "#c4a668" },
+                "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+                "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+                "size": { "value": 4, "random": true },
+                "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+                "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": { "onhover": { "enable": true, "mode": "bubble" } },
+                "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+            },
+            "retina_detect": true
         });
     </script>
 </body>

@@ -10,20 +10,27 @@
     <!-- Desktop Header Controls -->
     <div class="header-controls-section">
         {{if .username }} <!-- Assuming .username implies a logged-in user -->
-        <div class="header-user-info">
-            {{ if .full_name }}<span class="header-fullname">{{ .full_name }}</span>{{ end }}
-            <span class="header-username">({{ .username }})</span>
-
-        </div>
+        <a href="/profile" class="header-profilr-link" title="Личный кабинет">
+            <div class="avatar-section">
+                <div class="avatar-mini">
+                    {{ if .user.AvatarPath }}
+                        <img src="{{ .user.AvatarPath }}" alt="Аватар">
+                    {{ else }}
+                        <i class="fas fa-user-circle" id="defaultAvatar"></i>
+                    {{ end }}
+                </div>
+            </div>
+            <div class="header-user-info">
+                {{ if .full_name }}<span class="header-fullname">{{ .full_name }}</span>{{ end }}
+                <span class="header-username">({{ .username }})</span>
+            </div>
+        </a>
         {{end}}
         <div class="header-buttons">
             <button id="theme-switcher" title="Сменить тему">
                 <i class="fas fa-moon"></i> <!-- Icon changes via JS -->
             </button>
             {{if .username }}
-            <a href="/profile" class="profile-btn" title="Личный кабинет">
-                <i class="fas fa-user-circle"></i>
-            </a>
             <a href="/logout" class="logout-btn" title="Выход">
                 <i class="fas fa-sign-out-alt"></i>
                 <!-- <span class="logout-text">Выход</span> --> <!-- Optional: text next to icon -->

@@ -1,0 +1,4 @@
+Test document for file upload testing.
+This file will test the new directory structure.
+User ID: 688216ad279b8a22aabeb269
+Document Type: pinfl

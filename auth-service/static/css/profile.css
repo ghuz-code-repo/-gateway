@@ -254,7 +254,7 @@
 
 .form-group label {
     display: block;
-    margin-bottom: 8px;
+    /* margin-bottom: 8px; */
     color: var(--text-color);
     font-weight: 500;
     font-size: 14px;
@@ -279,12 +279,198 @@
 .form-group textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px var(--focus-ring-color);
+    /* box-shadow: 0 0 0 3px var(--focus-ring-color); */
 }
 
 .form-group textarea {
     resize: vertical;
     min-height: 100px;
+}
+
+/* Formatted input fields */
+.form-group input[data-mask] {
+    font-family: var(--monospace-font);
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+
+/* Стили валидации ТОЛЬКО для модального окна документов */
+.modal-form .form-group.has-error input,
+.modal-form .form-group.has-error select,
+.modal-form .form-group.has-error textarea {
+    border-color: var(--input-error-color) !important;
+    /* НЕ меняем фон, только границу */
+}
+
+.modal-form .form-group.has-error input:focus,
+.modal-form .form-group.has-error select:focus,
+.modal-form .form-group.has-error textarea:focus {
+    border-color: var(--input-error-color) !important;
+    box-shadow: 0 0 0 3px var(--input-error-focus-ring);
+    outline: none;
+}
+
+/* Стили для успешно заполненных полей в модальном окне */
+.modal-form .form-group.has-success input,
+.modal-form .form-group.has-success select,
+.modal-form .form-group.has-success textarea {
+    border-color: var(--input-success-color) !important;
+    /* НЕ меняем фон, только границу */
+}
+
+.modal-form .form-group.has-success input:focus,
+.modal-form .form-group.has-success select:focus,
+.modal-form .form-group.has-success textarea:focus {
+    border-color: var(--input-success-color) !important;
+    box-shadow: 0 0 0 3px var(--input-success-focus-ring);
+    outline: none;
+}
+
+/* Стили для полей заполненных из БД в модальном окне */
+.modal-form .form-group.from-database input,
+.modal-form .form-group.from-database select,
+.modal-form .form-group.from-database textarea {
+    border-color: var(--input-neutral-color);
+    /* НЕ меняем фон, только границу */
+}
+
+.modal-form .form-group.from-database input:focus,
+.modal-form .form-group.from-database select:focus,
+.modal-form .form-group.from-database textarea:focus {
+    border-color: var(--input-neutral-color);
+    box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.25);
+    outline: none;
+}
+
+.form-group .field-hint {
+    font-size: 12px;
+    color: var(--input-hint-color);
+    margin-top: 4px;
+    display: block;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.form-group .field-error {
+    font-size: 12px;
+    color: var(--input-error-color);
+    margin-top: 4px;
+    display: none;
+    font-weight: 500;
+}
+
+.form-group .field-required-error {
+    font-size: 12px;
+    color: var(--input-error-color);
+    margin-top: 4px;
+    display: none;
+    font-weight: 500;
+}
+
+.form-group .field-format-hint {
+    font-size: 12px;
+    color: var(--input-error-color);
+    margin-top: 4px;
+    display: none;
+    font-weight: 500;
+    background-color: var(--input-error-background);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 3px solid var(--input-error-color);
+}
+
+/* Показываем ошибки только в модальном окне и только через JavaScript классы */
+/* Показываем field-error только для ошибок формата (не пустых полей) */
+.modal-form .form-group.has-error:not(.show-format-hint):not(.show-required-error) .field-error {
+    display: block;
+}
+
+/* Показываем format-hint только когда явно указан класс */
+.modal-form .form-group.show-format-hint .field-format-hint {
+    display: block;
+    animation: slideDown 0.3s ease;
+}
+
+/* Показываем required-error для пустых обязательных полей */
+.modal-form .form-group.show-required-error .field-required-error {
+    display: block;
+    animation: slideDown 0.3s ease;
+}
+
+/* Скрываем другие ошибки когда показан format-hint */
+.modal-form .form-group.show-format-hint .field-error,
+.modal-form .form-group.show-format-hint .field-required-error {
+    display: none;
+}
+
+/* Скрываем другие ошибки когда показан required-error */
+.modal-form .form-group.show-required-error .field-error,
+.modal-form .form-group.show-required-error .field-format-hint {
+    display: none;
+}
+
+/* Улучшенные стили для полей с валидацией */
+.form-group input[data-mask]:focus {
+    background-color: var(--input-background-color);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.form-group input[data-mask]:valid {
+    border-color: var(--primary-color);
+    background-color: var(--input-background-color);
+}
+
+/* Анимация для подсказок */
+.form-group .field-hint {
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.form-group:hover .field-hint {
+    opacity: 1;
+    color: var(--text-color);
+}
+
+/* Убираем старые общие стили валидации - они мешают нашей системе */
+/* Теперь валидация работает только через JavaScript классы в модальном окне */
+
+.form-group.has-error .field-error {
+    display: block;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Улучшенные стили для подсказок с иконками */
+.form-group .field-hint::before {
+    content: "ℹ️";
+    margin-right: 4px;
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+/* Стили для полей только для чтения */
+.form-group input:read-only {
+    background-color: var(--light-background-color);
+    color: var(--lighter-text-color);
+    cursor: not-allowed;
+}
+
+/* Стили для обязательных полей */
+.form-group label[required]::after,
+.form-group label:has(+ input[required])::after {
+    content: " *";
+    color: var(--input-error-color);
+    font-weight: bold;
 }
 
 /* Buttons */
@@ -325,16 +511,16 @@
 }
 
 .btn-danger {
-    background: var(--danger-color);
+    background: var(--danger-color) !important; 
     color: white;
 }
 
 .btn-danger:hover {
-    background: var(--danger-hover-color);
+    background: var(--danger-hover-color) !important; 
 }
 
 .btn-sm {
-    padding: 6px 12px;
+    /* padding: 6px 12px; */
     font-size: 12px;
 }
 
@@ -428,7 +614,7 @@
     margin: 5% auto;
     border-radius: 12px;
     width: 90%;
-    max-width: 600px;
+    max-width: 700px;
     box-shadow: var(--shadow-heavy);
     animation: modalFadeIn 0.3s ease-out;
 }
@@ -477,6 +663,122 @@
 
 .document-fields {
     margin: 20px 0;
+}
+
+/* Специальные стили для модального окна документов */
+.modal-form .form-group {
+    margin-bottom: 25px;
+}
+
+.modal-form .form-group label {
+    font-weight: 600;
+    color: var(--text-color);
+    /* margin-bottom: 8px; */
+    font-size: 14px;
+}
+
+.modal-form .form-group input[data-mask] {
+    padding: 14px 16px;
+    border: 2px solid var(--input-border-color);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background-color: var(--input-background-color);
+}
+
+.modal-form .form-group input[data-mask]:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+    transform: translateY(-1px);
+}
+
+.modal-form .form-group .field-hint {
+    background-color: var(--light-background-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 3px solid var(--primary-color);
+    margin-top: 8px;
+    font-size: 13px;
+}
+
+.modal-form .form-group .field-error {
+    background-color: var(--input-error-background);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 3px solid var(--input-error-color);
+    margin-top: 8px;
+    font-size: 13px;
+}
+
+/* Стили для select полей в модальном окне */
+.modal-form .form-group select {
+    padding: 14px 16px;
+    border: 2px solid var(--input-border-color);
+    border-radius: 8px;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    transition: all 0.3s ease;
+}
+
+.modal-form .form-group select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+    transform: translateY(-1px);
+}
+
+/* Стили для textarea в модальном окне */
+.modal-form .form-group textarea {
+    padding: 14px 16px;
+    border: 2px solid var(--input-border-color);
+    border-radius: 8px;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    transition: all 0.3s ease;
+    min-height: 100px;
+}
+
+.modal-form .form-group textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+    transform: translateY(-1px);
+}
+
+/* Стили для date полей */
+.modal-form .form-group input[type="date"] {
+    padding: 14px 16px;
+    border: 2px solid var(--input-border-color);
+    border-radius: 8px;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    transition: all 0.3s ease;
+}
+
+.modal-form .form-group input[type="date"]:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+    transform: translateY(-1px);
+}
+
+/* Убираем дублирующие стили - они уже определены выше */
+
+/* Улучшенные стили для файловых полей */
+.modal-form .form-group input[type="file"] {
+    padding: 14px 16px;
+    border: 2px dashed var(--input-border-color);
+    border-radius: 8px;
+    background-color: var(--light-background-color);
+    color: var(--input-text-color);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.modal-form .form-group input[type="file"]:hover {
+    border-color: var(--primary-color);
+    background-color: var(--modal-focus-background);
+}
+
+.modal-form .form-group input[type="file"]:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
 }
 
 .modal-actions {
@@ -1035,7 +1337,7 @@
     background: var(--card-background-color);
     border-radius: 12px;
     width: 90%;
-    max-width: 600px;
+    max-width: 700px;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 4px 24px rgba(0,0,0,0.2);
@@ -1074,6 +1376,8 @@
 }
 
 .modal-body {
+    display: flex;
+    justify-content: center;
     padding: 30px;
 }
 
@@ -1242,7 +1546,7 @@
 }
 
 .btn-sm {
-    padding: 4px 6px;
+    /* padding: 4px 6px; */
     font-size: 0.8rem;
 }
 
@@ -1380,4 +1684,647 @@
         width: 100%;
         max-width: 200px;
     }
+}
+
+/* Modal Content Scrollbar Styling - Matching admin interface */
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: var(--table-row-even-background-color);
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+/* Document Cards Styling */
+.documents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.document-card {
+    background: var(--card-background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.document-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.document-info h4 {
+    margin: 0 0 10px 0;
+    color: var(--text-color);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.document-info p {
+    margin: 5px 0;
+    color: var(--muted-text-color);
+    font-size: 14px;
+}
+
+/* Document card bottom row with attachments and actions */
+.document-bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 15px;
+    gap: 15px;
+}
+
+.document-attachments {
+    flex: 1;
+    color: var(--muted-text-color);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0; /* Allow shrinking */
+}
+
+.document-attachments i {
+    color: var(--muted-text-color);
+    font-size: 11px;
+    opacity: 0.7;
+    flex-shrink: 0; /* Don't shrink icon */
+}
+
+.attachments-list,
+.attachments-count,
+.no-attachments {
+    color: var(--muted-text-color);
+    font-weight: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+.document-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0; /* Don't shrink buttons */
+}
+
+.document-actions .btn {
+    padding: 8px 12px;
+    font-size: 14px;
+    border-radius: 4px;
+}
+
+.btn-download-attachments {
+    background-color: var(--info-color, #17a2b8);
+    border-color: var(--info-color, #17a2b8);
+    color: white;
+}
+
+.btn-download-attachments:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+    transform: translateY(-1px);
+}
+
+.document-actions .btn i {
+    font-size: 14px;
+    pointer-events: none;
+}
+
+/* No documents message */
+.no-documents {
+    text-align: center;
+    color: var(--muted-text-color);
+    font-style: italic;
+    padding: 40px 20px;
+    grid-column: 1 / -1;
+}
+
+/* Error message */
+.error-message {
+    text-align: center;
+    color: var(--danger-color);
+    padding: 40px 20px;
+    grid-column: 1 / -1;
+}
+
+/* File attachments styles */
+.file-input {
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--background-secondary);
+}
+
+.file-input:hover {
+    border-color: var(--primary-color);
+    background: var(--background-light);
+}
+
+.file-help {
+    color: var(--muted-text-color);
+    font-size: 12px;
+    margin-top: 5px;
+    display: block;
+}
+
+/* File previews */
+.file-previews, .attached-files {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.file-preview, .attached-file {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+    background: var(--background-secondary);
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.file-preview:hover, .attached-file:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.file-preview-image {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.file-preview-pdf, .file-preview-placeholder {
+    width: 100%;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-light);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    color: var(--muted-text-color);
+}
+
+.file-preview-pdf i, .file-preview-placeholder i {
+    font-size: 32px;
+    color: var(--danger-color);
+}
+
+.file-preview-name, .attached-file-name {
+    font-size: 12px;
+    color: var(--text-color);
+    word-break: break-word;
+    margin-bottom: 5px;
+}
+
+.file-preview-size, .attached-file-size {
+    font-size: 11px;
+    color: var(--muted-text-color);
+}
+
+.file-preview-remove, .attached-file-remove {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.file-preview-remove:hover, .attached-file-remove:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+}
+
+.attached-file-download {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.attached-file-download:hover {
+    background: var(--primary-hover);
+    transform: scale(1.1);
+}
+
+/* File preview modal */
+.file-preview-modal {
+    background: rgba(0, 0, 0, 0.9);
+}
+
+.file-preview-modal .modal-content {
+    max-width: 90vw;
+    max-height: 90vh;
+    background: var(--background-color);
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.file-preview-modal img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+}
+
+.file-preview-modal iframe {
+    width: 100%;
+    height: 70vh;
+    border: none;
+    border-radius: 4px;
+}
+
+/* Unified Files Area */
+.unified-files-area {
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    background: var(--input-background-color);
+    transition: all 0.3s ease;
+    position: relative;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 15px;
+}
+
+.unified-files-area:hover,
+.unified-files-area.dragover {
+    border-color: var(--primary-color);
+    /* background: var(--hover-background-color); */
+}
+
+.unified-files-area.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    background: var(--input-background-color);
+    border-color: var(--muted-text-color);
+}
+
+.unified-files-area.disabled:hover {
+    border-color: var(--muted-text-color);
+}
+
+.files-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+
+.files-container:not(:empty) ~ .empty-files-state {
+    display: none;
+}
+
+.add-file-button {
+    width: 140px;
+    height: 160px;
+    border: 2px dashed var(--muted-text-color);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--background-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+.add-file-button:hover {
+    border-color: var(--border-color);
+    background: var(--primary-color);
+}
+
+.add-file-button i {
+    font-size: 24px;
+    color: var(--text-color);
+}
+
+.add-file-button:hover i {
+    color: var(--text-color);
+}
+
+.empty-files-state {
+    width: 100%;
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--muted-text-color);
+}
+
+.empty-files-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: var(--muted-text-color);
+}
+
+.empty-files-state p {
+    margin: 8px 0;
+    font-size: 16px;
+    color: var(--text-color);
+}
+
+.empty-files-state small {
+    font-size: 14px;
+    color: var(--muted-text-color);
+}
+
+/* File Items with Status Icons */
+.file-item {
+    position: relative;
+    width: 140px;
+    height: 160px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background: var(--background-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.file-item:hover {
+    /* transform: translateY(-4px); */
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    border-color: var(--primary-color);
+}
+
+.file-item-preview {
+    width: 100%;
+    height: 90px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--input-background-color), var(--hover-background-color));
+    border-bottom: 1px solid var(--border-color);
+}
+
+.file-item-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.file-item-preview i {
+    font-size: 36px;
+    color: var(--primary-color);
+    opacity: 0.8;
+}
+
+.file-item-info {
+    padding: 8px 6px;
+    height: 50px;
+    font-size: 11px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.3;
+    color: var(--text-color);
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.file-item-status {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.file-item-status.uploaded {
+    background: linear-gradient(135deg, #28a745, #20c997);
+}
+
+.file-item-status.new {
+    background: linear-gradient(135deg, #007bff, #6f42c1);
+}
+
+.file-item-actions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.file-item:hover .file-item-actions {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.file-item-action {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    border: none;
+    color: white;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Delete button - red/danger color */
+.file-delete-btn {
+    background: var(--danger-color) !important;
+}
+
+.file-delete-btn:hover {
+    background: var(--danger-hover-color) !important;
+    transform: scale(1.1);
+}
+
+/* Preview area cursor */
+.file-item-preview {
+    transition: opacity 0.2s ease;
+}
+
+.file-item-preview:hover {
+    opacity: 0.8;
+}
+
+/* File preview button - long button below file name */
+.file-preview-button {
+    margin-top: 8px;
+    width: 100%;
+}
+
+.btn-preview-file {
+    width: 100%;
+    padding: 6px 12px;
+    /* background: linear-gradient(135deg, #17a2b8, #138496); */
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.btn-preview-file:hover {
+    /* background: linear-gradient(135deg, #138496, #117a8b); */
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.btn-preview-file i {
+    font-size: 10px;
+}
+
+.btn-preview-file span {
+    font-weight: 500;
+}
+
+.file-input-hidden {
+    display: none;
+}
+
+/* Bulk Actions Panel */
+.bulk-actions-panel {
+    background: var(--card-background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+
+.bulk-actions-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.select-all-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--text-color);
+    font-size: 14px;
+    margin: 0;
+}
+
+.select-all-checkbox {
+    margin: 0;
+    cursor: pointer;
+}
+
+.selected-count {
+    color: var(--muted-text-color);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.bulk-actions-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+/* File item checkbox styles */
+.file-item-checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 10;
+}
+
+.file-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+}
+
+/* Update file-item to accommodate checkbox */
+.file-item {
+    position: relative;
+    padding: 10px; /* Make room for checkbox */
+}
+
+/* Show checkboxes only when bulk actions panel is visible */
+.bulk-actions-panel ~ .unified-files-area .file-item-checkbox {
+    opacity: 1;
+    /* pointer-events: auto; */
+}
+
+.file-item-checkbox {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
 }

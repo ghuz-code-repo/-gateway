@@ -417,7 +417,7 @@ body {
     border-radius: 8px;
     background: var(--card-background-color);
     transition: all 0.3s ease;
-    cursor: pointer;
+    /* cursor: pointer; */
 }
 
 .user-item:hover,
@@ -558,10 +558,17 @@ body {
     border: none;
     border-radius: 12px;
     width: 90%;
-    max-width: 600px;
+    max-width: 700px;
     box-shadow: var(--shadow-heavy);
     animation: modalSlideIn 0.3s ease-out;
 }
+
+.modal-content::-webkit-scrollbar-thumb
+.modal-content::-webkit-scrollbar-track {
+    background: var(--primary-color) !important;
+    border-radius: 4px !important;
+}
+
 
 /* Узкое модальное окно для создания разрешений */
 #createPermissionModal .service-modal-content {
@@ -1043,7 +1050,7 @@ body {
     border-radius: 8px;
     background: var(--card-background-color);
     transition: all 0.3s ease;
-    cursor: pointer;
+    /* cursor: pointer; */
 }
 
 .permission-item:hover {
@@ -1080,7 +1087,7 @@ body {
     border-radius: 8px;
     background: var(--card-background-color);
     transition: all 0.3s ease;
-    cursor: pointer;
+    /* cursor: pointer; */
 }
 
 .user-item:hover {

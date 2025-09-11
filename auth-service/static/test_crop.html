@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Avatar Crop</title>
+</head>
+<body>
+    <h1>Test Avatar Crop</h1>
+    <button onclick="testCropUpdate()">Test Crop Update</button>
+    <div id="result"></div>
+    
+    <script>
+        async function testCropUpdate() {
+            const formData = new FormData();
+            formData.append('crop_update', 'true');
+            formData.append('crop_x', '10');
+            formData.append('crop_y', '10');
+            formData.append('crop_width', '100');
+            formData.append('crop_height', '100');
+            formData.append('cropped_image', 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/2gAMAwEAAhADEAAAAX8H/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/2gAIAQEAAQUCf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEABj8Cf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8hf//aAAwDAQACAAMAAAAQf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Qf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Qf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8Qf//Z');
+            
+            try {
+                const response = await fetch('/profile/avatar', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const text = await response.text();
+                document.getElementById('result').innerHTML = `Status: ${response.status}<br>Response: ${text}`;
+                console.log('Response:', text);
+            } catch (error) {
+                document.getElementById('result').innerHTML = `Error: ${error.message}`;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

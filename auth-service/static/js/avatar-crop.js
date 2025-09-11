@@ -132,30 +132,30 @@ class AvatarCrop {
             console.log('Save crop button event listener attached');
         }
         
-        // Close modal on backdrop click, but not on content click
-        if (cropModal) {
-            cropModal.addEventListener('click', (e) => {
-                if (e.target === cropModal) {
-                    this.closeModal();
-                }
-            });
+        // // Close modal on backdrop click, but not on content click
+        // if (cropModal) {
+        //     cropModal.addEventListener('click', (e) => {
+        //         if (e.target === cropModal) {
+        //             this.closeModal();
+        //         }
+        //     });
             
-            // Prevent ALL clicks inside modal content from bubbling up
-            const modalContent = cropModal.querySelector('.modal-content');
-            if (modalContent) {
-                modalContent.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                });
-            }
+        //     // Prevent ALL clicks inside modal content from bubbling up
+        //     const modalContent = cropModal.querySelector('.modal-content');
+        //     if (modalContent) {
+        //         modalContent.addEventListener('click', (e) => {
+        //             e.stopPropagation();
+        //         });
+        //     }
             
-            // Дополнительная защита - предотвращаем всплытие для всех элементов внутри модального окна
-            const allModalElements = cropModal.querySelectorAll('*');
-            allModalElements.forEach(element => {
-                element.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                });
-            });
-        }
+        //     // Дополнительная защита - предотвращаем всплытие для всех элементов внутри модального окна
+        //     const allModalElements = cropModal.querySelectorAll('*');
+        //     allModalElements.forEach(element => {
+        //         element.addEventListener('click', (e) => {
+        //             e.stopPropagation();
+        //         });
+        //     });
+        // }
         
         // Close buttons
         const closeButtons = cropModal.querySelectorAll('.close');

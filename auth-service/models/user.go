@@ -44,13 +44,28 @@ type DocumentType struct {
 
 // DocumentField represents a field in a document type
 type DocumentField struct {
-	Name         string                 `bson:"name" json:"name"`
+	ID           string                 `bson:"id" json:"id"`
+	Name         string                 `bson:"name,omitempty" json:"name,omitempty"`
 	Label        string                 `bson:"label" json:"label"`
 	Type         string                 `bson:"type" json:"type"` // text, number, date, select, textarea
 	Required     bool                   `bson:"required" json:"required"`
 	Options      []string               `bson:"options,omitempty" json:"options,omitempty"` // for select fields
 	Validation   map[string]interface{} `bson:"validation,omitempty" json:"validation,omitempty"`
 	Placeholder  string                 `bson:"placeholder,omitempty" json:"placeholder,omitempty"`
+	MaxLength    int                    `bson:"maxlength,omitempty" json:"maxlength,omitempty"`
+	Format       *FieldFormat           `bson:"format,omitempty" json:"format,omitempty"` // formatting configuration
+}
+
+// FieldFormat represents formatting configuration for a field
+type FieldFormat struct {
+	Mask         string `bson:"mask,omitempty" json:"mask,omitempty"`                   // input mask like "9999 999999"
+	Pattern      string `bson:"pattern,omitempty" json:"pattern,omitempty"`             // regex pattern for validation
+	Transform    string `bson:"transform,omitempty" json:"transform,omitempty"`         // uppercase, lowercase, capitalize
+	Separator    string `bson:"separator,omitempty" json:"separator,omitempty"`         // separator character for grouping
+	GroupSize    int    `bson:"group_size,omitempty" json:"group_size,omitempty"`       // size of each group
+	Prefix       string `bson:"prefix,omitempty" json:"prefix,omitempty"`               // prefix text
+	Suffix       string `bson:"suffix,omitempty" json:"suffix,omitempty"`               // suffix text
+	DecimalPlaces int   `bson:"decimal_places,omitempty" json:"decimal_places,omitempty"` // for number fields
 }
 
 // DocumentAttachment represents an attached file to a document
@@ -1650,6 +1665,11 @@ func UpdateUserAvatarWithCrop(userID primitive.ObjectID, avatarPath, originalAva
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	fmt.Printf("UpdateUserAvatarWithCrop called for user %s\n", userID.Hex())
+	fmt.Printf("Avatar path: %s\n", avatarPath)
+	fmt.Printf("Original avatar path: %s\n", originalAvatarPath)
+	fmt.Printf("Crop coordinates: %+v\n", cropCoords)
+
 	update := bson.M{
 		"$set": bson.M{
 			"avatar_path":          avatarPath,
@@ -1659,8 +1679,14 @@ func UpdateUserAvatarWithCrop(userID primitive.ObjectID, avatarPath, originalAva
 		},
 	}
 
-	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
-	return err
+	result, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	if err != nil {
+		fmt.Printf("UpdateUserAvatarWithCrop failed: %v\n", err)
+		return err
+	}
+	
+	fmt.Printf("UpdateUserAvatarWithCrop successful, matched: %d, modified: %d\n", result.MatchedCount, result.ModifiedCount)
+	return nil
 }
 
 // GetUsersWithAvatars получает всех пользователей, у которых есть путь к аватарке
@@ -1690,7 +1716,7 @@ func GetUsersWithAvatars() ([]User, error) {
 	return users, nil
 }
 
-// AddUserDocument adds a document to user's document list
+// AddUserDocument adds a document to user's document list (legacy)
 func AddUserDocument(userID primitive.ObjectID, doc Document) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1710,6 +1736,8 @@ func AddUserDocument(userID primitive.ObjectID, doc Document) error {
 	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
 	return err
 }
+
+
 
 // RemoveUserDocument removes a document from user's document list
 func RemoveUserDocument(userID, docID primitive.ObjectID) error {
@@ -1801,6 +1829,63 @@ func RemoveDocumentAttachment(userID, docID, attachmentID primitive.ObjectID) er
 			"_id":          userID,
 			"documents.id": docID,
 		},
+		update,
+	)
+	return err
+}
+
+// AddDocumentAttachmentByIndex adds an attachment to a user document by index
+func AddDocumentAttachmentByIndex(userID primitive.ObjectID, docIndex int, attachment DocumentAttachment) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	attachment.ID = primitive.NewObjectID()
+	attachment.UploadedAt = time.Now()
+
+	// Create the positional update based on document index
+	updateKey := fmt.Sprintf("documents.%d.attachments", docIndex)
+	updatedAtKey := fmt.Sprintf("documents.%d.updated_at", docIndex)
+
+	update := bson.M{
+		"$push": bson.M{
+			updateKey: attachment,
+		},
+		"$set": bson.M{
+			updatedAtKey:  time.Now(),
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		update,
+	)
+	return err
+}
+
+// RemoveDocumentAttachmentByIndex removes an attachment from a user document by index
+func RemoveDocumentAttachmentByIndex(userID primitive.ObjectID, docIndex int, attachmentID primitive.ObjectID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create the positional pull operation based on document index
+	pullKey := fmt.Sprintf("documents.%d.attachments", docIndex)
+	updatedAtKey := fmt.Sprintf("documents.%d.updated_at", docIndex)
+
+	update := bson.M{
+		"$pull": bson.M{
+			pullKey: bson.M{"_id": attachmentID},
+		},
+		"$set": bson.M{
+			updatedAtKey:  time.Now(),
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := usersCol.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
 		update,
 	)
 	return err
