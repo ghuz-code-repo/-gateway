@@ -117,7 +117,16 @@ type User struct {
 	Email      string             `bson:"email" json:"email"`
 	Password   string             `bson:"password" json:"-"`          // Never return password in JSON
 	Roles      []string           `bson:"roles" json:"roles"`         // Store role names
-	FullName   string             `bson:"full_name" json:"full_name"` // Add full name field
+	
+	// Separated name fields
+	LastName   string             `bson:"last_name,omitempty" json:"last_name,omitempty"`     // Фамилия
+	FirstName  string             `bson:"first_name,omitempty" json:"first_name,omitempty"`   // Имя
+	MiddleName string             `bson:"middle_name,omitempty" json:"middle_name,omitempty"` // Отчество
+	Suffix     string             `bson:"suffix,omitempty" json:"suffix,omitempty"`           // Суффикс (Jr., Sr., III и т.д.)
+	
+	// Legacy field for backward compatibility
+	FullName   string             `bson:"full_name,omitempty" json:"full_name,omitempty"`
+	
 	Phone      string             `bson:"phone,omitempty" json:"phone,omitempty"`
 	Position   string             `bson:"position,omitempty" json:"position,omitempty"`
 	Department string             `bson:"department,omitempty" json:"department,omitempty"`
@@ -126,8 +135,68 @@ type User struct {
 	CropCoordinates    *CropCoords `bson:"crop_coordinates,omitempty" json:"crop_coordinates,omitempty"`
 	Documents  []UserDocument     `bson:"documents,omitempty" json:"documents,omitempty"`      // New document system
 	LegacyDocs []Document         `bson:"legacy_docs,omitempty" json:"legacy_docs,omitempty"` // Legacy documents
+	IsBanned   bool               `bson:"is_banned,omitempty" json:"is_banned,omitempty"`     // User ban status
+	BannedAt   *time.Time         `bson:"banned_at,omitempty" json:"banned_at,omitempty"`     // When user was banned
+	BanReason  string             `bson:"ban_reason,omitempty" json:"ban_reason,omitempty"`   // Reason for ban
 	CreatedAt  time.Time          `bson:"created_at,omitempty" json:"created_at,omitempty"`
 	UpdatedAt  time.Time          `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
+}
+
+// GetFullName returns the complete full name with suffix
+func (u *User) GetFullName() string {
+	var parts []string
+	
+	if u.LastName != "" {
+		parts = append(parts, u.LastName)
+	}
+	if u.FirstName != "" {
+		parts = append(parts, u.FirstName)
+	}
+	if u.MiddleName != "" {
+		parts = append(parts, u.MiddleName)
+	}
+	if u.Suffix != "" {
+		parts = append(parts, u.Suffix)
+	}
+	
+	if len(parts) > 0 {
+		return strings.Join(parts, " ")
+	}
+	
+	// Fallback to legacy field if new fields are empty
+	return u.FullName
+}
+
+// GetShortName returns "Фамилия И. О." format
+func (u *User) GetShortName() string {
+	if u.LastName == "" {
+		// Fallback to legacy field or username
+		if u.FullName != "" {
+			return u.FullName
+		}
+		return u.Username
+	}
+	
+	var parts []string
+	parts = append(parts, u.LastName)
+	
+	if u.FirstName != "" {
+		parts = append(parts, string([]rune(u.FirstName)[0])+".")
+	}
+	
+	if u.MiddleName != "" {
+		parts = append(parts, string([]rune(u.MiddleName)[0])+".")
+	}
+	
+	return strings.Join(parts, " ")
+}
+
+// GetDisplayName returns full name for cards, short name for lists
+func (u *User) GetDisplayName(isCard bool) string {
+	if isCard {
+		return u.GetFullName()
+	}
+	return u.GetShortName()
 }
 
 // UserServiceRole represents a user's role assignment in a specific service
@@ -677,7 +746,16 @@ func CreateDefaultDocumentTypes() error {
 func ValidateUser(username, password string) (*User, bool) {
 	ctx := context.Background()
 	var user User
-	err := usersCol.FindOne(ctx, bson.M{"username": username}).Decode(&user)
+	
+	// Try to find user by username or email
+	filter := bson.M{
+		"$or": []bson.M{
+			{"username": username},
+			{"email": username}, // Allow login with email
+		},
+	}
+	
+	err := usersCol.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
 		log.Printf("User not found: %v", err)
 		return nil, false
@@ -700,11 +778,13 @@ func GenerateToken(user *User) (string, error) {
 	}
 
 	expirationTime := time.Now().Add(24 * time.Hour)
+	issuedAt := time.Now()
 	claims := &Claims{
 		Username: user.Username,
 		UserID:   user.ID.Hex(),
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
+			IssuedAt:  issuedAt.Unix(),
 		},
 	}
 
@@ -1031,6 +1111,45 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 }
 
 // CreateUser creates a new user
+// CreateUserWithNames creates a user with separated name fields
+func CreateUserWithNames(username, email, password, lastName, firstName, middleName, suffix string, roleNames []string) (primitive.ObjectID, error) {
+	ctx := context.Background()
+
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+
+	// Create user document
+	user := User{
+		Username:   username,
+		Email:      email,
+		Password:   string(hashedPassword),
+		Roles:      roleNames,
+		LastName:   lastName,
+		FirstName:  firstName,
+		MiddleName: middleName,
+		Suffix:     suffix,
+	}
+
+	result, err := usersCol.InsertOne(ctx, user)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+
+	// Add email notification after successful user creation
+	if err == nil && email != "" {
+		// Get Russian email template - use GetFullName() method
+		subject, body := GetAccountCreatedEmail(user.GetFullName(), username, password, roleNames)
+
+		SendEmailNotification(email, subject, body)
+	}
+
+	return result.InsertedID.(primitive.ObjectID), nil
+}
+
+// CreateUser creates a user with legacy fullName field (for backward compatibility)
 func CreateUser(username, email, password string, fullName string, roleNames []string) (primitive.ObjectID, error) {
 	ctx := context.Background()
 
@@ -1046,7 +1165,7 @@ func CreateUser(username, email, password string, fullName string, roleNames []s
 		Email:    email,
 		Password: string(hashedPassword),
 		Roles:    roleNames,
-		FullName: fullName, // Set full name
+		FullName: fullName, // Set legacy full name
 	}
 
 	result, err := usersCol.InsertOne(ctx, user)
@@ -1625,9 +1744,45 @@ func RemoveAllUserServiceRoles(userID primitive.ObjectID) error {
 }
 
 // UpdateUserProfile updates user profile information
-func UpdateUserProfile(userID primitive.ObjectID, email, fullName, phone, position, department string) error {
+// UpdateUserProfile updates user profile with separated name fields
+func UpdateUserProfile(userID primitive.ObjectID, email, lastName, firstName, middleName, suffix, phone, position, department string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	fmt.Printf("UpdateUserProfile: userID=%s, email=%s, lastName=%s, firstName=%s, middleName=%s, suffix=%s, phone=%s, position=%s, department=%s\n", 
+		userID.Hex(), email, lastName, firstName, middleName, suffix, phone, position, department)
+
+	update := bson.M{
+		"$set": bson.M{
+			"email":       email,
+			"last_name":   lastName,
+			"first_name":  firstName,
+			"middle_name": middleName,
+			"suffix":      suffix,
+			"phone":       phone,
+			"position":    position,
+			"department":  department,
+			"updated_at":  time.Now(),
+		},
+	}
+
+	result, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	if err != nil {
+		fmt.Printf("UpdateUserProfile error: %v\n", err)
+		return err
+	}
+	
+	fmt.Printf("UpdateUserProfile result: matched=%d, modified=%d\n", result.MatchedCount, result.ModifiedCount)
+	return nil
+}
+
+// UpdateUserProfileLegacy updates user profile using legacy fullName field (for backward compatibility)
+func UpdateUserProfileLegacy(userID primitive.ObjectID, email, fullName, phone, position, department string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	fmt.Printf("UpdateUserProfileLegacy: userID=%s, email=%s, fullName=%s, phone=%s, position=%s, department=%s\n", 
+		userID.Hex(), email, fullName, phone, position, department)
 
 	update := bson.M{
 		"$set": bson.M{
@@ -1640,8 +1795,14 @@ func UpdateUserProfile(userID primitive.ObjectID, email, fullName, phone, positi
 		},
 	}
 
-	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
-	return err
+	result, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	if err != nil {
+		fmt.Printf("UpdateUserProfileLegacy error: %v\n", err)
+		return err
+	}
+	
+	fmt.Printf("UpdateUserProfileLegacy result: matched=%d, modified=%d\n", result.MatchedCount, result.ModifiedCount)
+	return nil
 }
 
 // UpdateUserAvatar updates user avatar path
@@ -1686,6 +1847,41 @@ func UpdateUserAvatarWithCrop(userID primitive.ObjectID, avatarPath, originalAva
 	}
 	
 	fmt.Printf("UpdateUserAvatarWithCrop successful, matched: %d, modified: %d\n", result.MatchedCount, result.ModifiedCount)
+	return nil
+}
+
+// UpdateUserEmail updates only the email address of a user
+func UpdateUserEmail(userID primitive.ObjectID, email string) error {
+	usersCol := client.Database("authdb").Collection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if another user already has this email (only if not empty)
+	if email != "" {
+		existingUser, _ := GetUserByEmail(email)
+		if existingUser != nil && existingUser.ID != userID {
+			return fmt.Errorf("email already exists")
+		}
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"email":      email,
+			"updated_at": time.Now(),
+		},
+	}
+
+	result, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	if err != nil {
+		log.Printf("UpdateUserEmail failed: %v", err)
+		return err
+	}
+	
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user not found")
+	}
+	
+	log.Printf("UpdateUserEmail successful for user %s, email set to %s", userID.Hex(), email)
 	return nil
 }
 
@@ -1889,4 +2085,650 @@ func RemoveDocumentAttachmentByIndex(userID primitive.ObjectID, docIndex int, at
 		update,
 	)
 	return err
+}
+
+// UpdateUserDocumentFields updates the fields of a user document by index
+func UpdateUserDocumentFields(userID primitive.ObjectID, docIndex int, fields map[string]string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create update operations for each field
+	setOps := bson.M{}
+	
+	// Update each field
+	for fieldName, fieldValue := range fields {
+		fieldKey := fmt.Sprintf("documents.%d.fields.%s", docIndex, fieldName)
+		setOps[fieldKey] = fieldValue
+	}
+	
+	// Also update the document's updated_at timestamp
+	updatedAtKey := fmt.Sprintf("documents.%d.updated_at", docIndex)
+	setOps[updatedAtKey] = time.Now()
+	setOps["updated_at"] = time.Now()
+
+	update := bson.M{
+		"$set": setOps,
+	}
+
+	_, err := usersCol.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		update,
+	)
+	return err
+}
+
+// PasswordResetToken represents a password reset token
+type PasswordResetToken struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	UserID    primitive.ObjectID `bson:"user_id" json:"user_id"`
+	Email     string             `bson:"email" json:"email"`
+	Token     string             `bson:"token" json:"token"`
+	ExpiresAt time.Time          `bson:"expires_at" json:"expires_at"`
+	Used      bool               `bson:"used" json:"used"`
+	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
+}
+
+// BlacklistedToken represents a blacklisted JWT token
+type BlacklistedToken struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	UserID    primitive.ObjectID `bson:"user_id" json:"user_id"`
+	TokenHash string             `bson:"token_hash" json:"token_hash"` // SHA256 hash of the token
+	Reason    string             `bson:"reason" json:"reason"`         // Reason for blacklisting
+	ExpiresAt time.Time          `bson:"expires_at" json:"expires_at"` // When the original token would expire
+	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
+}
+
+// CreatePasswordResetToken creates a new password reset token
+func CreatePasswordResetToken(email string) (*PasswordResetToken, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Find user by email
+	var user User
+	err := usersCol.FindOne(ctx, bson.M{"email": email}).Decode(&user)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	// SECURITY: Delete all existing password reset tokens for this user
+	tokensCol := getPasswordResetTokensCollection()
+	deleteResult, err := tokensCol.DeleteMany(ctx, bson.M{"user_id": user.ID})
+	if err != nil {
+		log.Printf("Warning: Failed to delete existing password reset tokens for user %s: %v", user.ID.Hex(), err)
+	} else if deleteResult.DeletedCount > 0 {
+		log.Printf("Security: Deleted %d existing password reset tokens for user %s", deleteResult.DeletedCount, user.Username)
+	}
+
+	// NOTE: We don't invalidate sessions here to allow user to continue working
+	// Sessions will be invalidated only when password is actually changed
+	// This provides better UX while maintaining security
+
+	// Generate secure random token
+	tokenBytes := make([]byte, 32)
+	_, err = rand.Read(tokenBytes)
+	if err != nil {
+		return nil, err
+	}
+	token := fmt.Sprintf("%x", tokenBytes)
+
+	// Create token document
+	resetToken := &PasswordResetToken{
+		UserID:    user.ID,
+		Email:     email,
+		Token:     token,
+		ExpiresAt: time.Now().Add(1 * time.Hour), // Token expires in 1 hour
+		Used:      false,
+		CreatedAt: time.Now(),
+	}
+
+	// Insert token into database
+	result, err := getPasswordResetTokensCollection().InsertOne(ctx, resetToken)
+	if err != nil {
+		return nil, err
+	}
+
+	resetToken.ID = result.InsertedID.(primitive.ObjectID)
+	return resetToken, nil
+}
+
+// ValidatePasswordResetToken validates and returns the reset token
+func ValidatePasswordResetToken(token string) (*PasswordResetToken, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var resetToken PasswordResetToken
+	err := getPasswordResetTokensCollection().FindOne(ctx, bson.M{
+		"token": token,
+		"used":  false,
+		"expires_at": bson.M{"$gt": time.Now()},
+	}).Decode(&resetToken)
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid or expired token")
+	}
+
+	return &resetToken, nil
+}
+
+// UsePasswordResetToken marks the token as used and resets the password
+func UsePasswordResetToken(token string, newPassword string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Validate token
+	resetToken, err := ValidatePasswordResetToken(token)
+	if err != nil {
+		return err
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// Update user password
+	_, err = usersCol.UpdateOne(ctx, bson.M{"_id": resetToken.UserID}, bson.M{
+		"$set": bson.M{
+			"password":   string(hashedPassword),
+			"updated_at": time.Now(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// SECURITY: Invalidate all active sessions for this user
+	err = InvalidateAllUserSessions(resetToken.UserID, "Password reset completed")
+	if err != nil {
+		log.Printf("Warning: Failed to invalidate user sessions after password reset: %v", err)
+		// Don't fail the password reset if we can't invalidate sessions
+	}
+
+	// Delete ALL password reset tokens for this user (including the one we just used)
+	_, err = getPasswordResetTokensCollection().DeleteMany(ctx, bson.M{"user_id": resetToken.UserID})
+	if err != nil {
+		log.Printf("Warning: Failed to clean up password reset tokens: %v", err)
+		// Don't fail the password reset if we can't clean up tokens
+	}
+
+	log.Printf("Security: Password reset completed for user %s, all sessions invalidated", resetToken.UserID.Hex())
+	return nil
+}
+
+// getPasswordResetTokensCollection returns the password reset tokens collection
+func getPasswordResetTokensCollection() *mongo.Collection {
+	if db == nil {
+		log.Fatal("Database connection not initialized")
+	}
+	return db.Collection("password_reset_tokens")
+}
+
+// getBlacklistedTokensCollection returns the blacklisted tokens collection
+func getBlacklistedTokensCollection() *mongo.Collection {
+	if db == nil {
+		log.Fatal("Database connection not initialized")
+	}
+	return db.Collection("blacklisted_tokens")
+}
+
+// CleanupExpiredBlacklistedTokens removes expired blacklisted tokens
+func CleanupExpiredBlacklistedTokens() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	blacklistCol := getBlacklistedTokensCollection()
+	result, err := blacklistCol.DeleteMany(ctx, bson.M{
+		"expires_at": bson.M{"$lt": time.Now()},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if result.DeletedCount > 0 {
+		log.Printf("Cleanup: Removed %d expired blacklisted tokens", result.DeletedCount)
+	}
+
+	return nil
+}
+
+// CleanupExpiredPasswordResetTokens removes expired tokens from database
+func CleanupExpiredPasswordResetTokens() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := getPasswordResetTokensCollection().DeleteMany(ctx, bson.M{
+		"expires_at": bson.M{"$lt": time.Now()},
+	})
+
+	return err
+}
+
+// MigrateUserNamesFromFullName migrates users who have FullName but empty separate name fields
+func MigrateUserNamesFromFullName() error {
+	ctx := context.Background()
+	
+	// Find users with FullName but without separate name fields
+	cursor, err := usersCol.Find(ctx, bson.M{
+		"full_name": bson.M{"$exists": true, "$ne": ""},
+		"$or": []bson.M{
+			{"last_name": bson.M{"$exists": false}},
+			{"last_name": ""},
+			{"first_name": bson.M{"$exists": false}},
+			{"first_name": ""},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(ctx)
+
+	var usersUpdated int
+	for cursor.Next(ctx) {
+		var user User
+		if err := cursor.Decode(&user); err != nil {
+			continue
+		}
+
+		// Simple name parsing - split by spaces
+		parts := strings.Fields(strings.TrimSpace(user.FullName))
+		if len(parts) == 0 {
+			continue
+		}
+
+		var lastName, firstName, middleName string
+		if len(parts) >= 1 {
+			lastName = parts[0]
+		}
+		if len(parts) >= 2 {
+			firstName = parts[1]
+		}
+		if len(parts) >= 3 {
+			middleName = parts[2]
+		}
+
+		// Update user with parsed name fields
+		update := bson.M{
+			"$set": bson.M{
+				"last_name":   lastName,
+				"first_name":  firstName,
+				"middle_name": middleName,
+				"updated_at":  time.Now(),
+			},
+		}
+
+		_, err := usersCol.UpdateOne(ctx, bson.M{"_id": user.ID}, update)
+		if err != nil {
+			log.Printf("Failed to update user %s: %v", user.Username, err)
+			continue
+		}
+
+		usersUpdated++
+		log.Printf("Migrated name fields for user %s: %s -> %s %s %s", 
+			user.Username, user.FullName, lastName, firstName, middleName)
+	}
+
+	log.Printf("Migration completed: %d users updated with separated name fields", usersUpdated)
+	return nil
+}
+
+// InvalidateAllUserSessions blacklists all active JWT tokens for a user
+func InvalidateAllUserSessions(userID primitive.ObjectID, reason string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get user to determine current token expiration time
+	user, err := GetUserByObjectID(userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %v", err)
+	}
+
+	// Create a blacklist entry that covers all tokens issued before NOW
+	// This effectively invalidates all current sessions
+	blacklistEntry := &BlacklistedToken{
+		UserID:    userID,
+		TokenHash: fmt.Sprintf("user_%s_all_sessions_%d", userID.Hex(), time.Now().Unix()),
+		Reason:    reason,
+		ExpiresAt: time.Now().Add(24 * time.Hour), // Keep blacklist entry for 24 hours
+		CreatedAt: time.Now(),
+	}
+
+	blacklistCol := getBlacklistedTokensCollection()
+	_, err = blacklistCol.InsertOne(ctx, blacklistEntry)
+	if err != nil {
+		return fmt.Errorf("failed to add blacklist entry: %v", err)
+	}
+
+	log.Printf("Security: Invalidated all sessions for user %s (ID: %s) - Reason: %s", 
+		user.Username, userID.Hex(), reason)
+	
+	return nil
+}
+
+// IsTokenBlacklisted checks if a JWT token is blacklisted
+func IsTokenBlacklisted(tokenString string) bool {
+	// We'll implement a simple approach: if user has any blacklist entries
+	// created after their last login, consider all their tokens invalid
+	
+	// Parse token to extract user ID and issued time
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		jwtSecret := os.Getenv("JWT_SECRET")
+		if jwtSecret == "" {
+			jwtSecret = "default_jwt_secret_change_in_production"
+		}
+		return []byte(jwtSecret), nil
+	})
+
+	if err != nil {
+		log.Printf("Warning: Failed to parse token for blacklist check: %v", err)
+		return true // If we can't parse it, consider it invalid
+	}
+
+	claims, ok := token.Claims.(*Claims)
+	if !ok {
+		log.Printf("Warning: Invalid token claims for blacklist check")
+		return true
+	}
+
+	userID, err := primitive.ObjectIDFromHex(claims.UserID)
+	if err != nil {
+		log.Printf("Warning: Invalid user ID in token: %v", err)
+		return true
+	}
+
+	// Check if there are any blacklist entries for this user
+	// that were created AFTER the token was issued (meaning session should be invalidated)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tokenIssuedAt := time.Unix(claims.IssuedAt, 0)
+	
+	blacklistCol := getBlacklistedTokensCollection()
+	count, err := blacklistCol.CountDocuments(ctx, bson.M{
+		"user_id": userID,
+		"created_at": bson.M{
+			"$gt": tokenIssuedAt, // Blacklist entries created AFTER token was issued
+		},
+		"expires_at": bson.M{
+			"$gt": time.Now(), // And still active
+		},
+	})
+
+	if err != nil {
+		log.Printf("Warning: Failed to check blacklist: %v", err)
+		return false // Don't block user if we can't check
+	}
+
+	isBlacklisted := count > 0
+	if isBlacklisted {
+		log.Printf("Security: Token issued at %v is blacklisted (found %d active blacklist entries)", 
+			tokenIssuedAt, count)
+	}
+
+	return isBlacklisted
+}
+
+// ResetUserPassword generates a new temporary password for user
+func ResetUserPassword(userID primitive.ObjectID) (string, error) {
+	// Generate a new random password
+	tempPassword := generateRandomPassword(12)
+	
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %v", err)
+	}
+
+	ctx := context.Background()
+	_, err = usersCol.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		bson.M{
+			"$set": bson.M{
+				"password":   string(hashedPassword),
+				"updated_at": time.Now(),
+			},
+		},
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	return tempPassword, nil
+}
+
+// generateRandomPassword generates a random password of specified length
+func generateRandomPassword(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+	password := make([]byte, length)
+	
+	for i := range password {
+		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		password[i] = charset[num.Int64()]
+	}
+	
+	return string(password)
+}
+
+// BanUser bans a user with reason
+func BanUser(userID primitive.ObjectID, reason string) error {
+	ctx := context.Background()
+	now := time.Now()
+	
+	_, err := usersCol.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		bson.M{
+			"$set": bson.M{
+				"is_banned":  true,
+				"banned_at":  &now,
+				"ban_reason": reason,
+				"updated_at": time.Now(),
+			},
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to ban user: %v", err)
+	}
+
+	log.Printf("User %s has been banned. Reason: %s", userID.Hex(), reason)
+	return nil
+}
+
+// UnbanUser removes ban from user
+func UnbanUser(userID primitive.ObjectID) error {
+	ctx := context.Background()
+	
+	_, err := usersCol.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		bson.M{
+			"$set": bson.M{
+				"is_banned":  false,
+				"updated_at": time.Now(),
+			},
+			"$unset": bson.M{
+				"banned_at":  "",
+				"ban_reason": "",
+			},
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to unban user: %v", err)
+	}
+
+	log.Printf("User %s has been unbanned", userID.Hex())
+	return nil
+}
+
+// UserExportData represents user data for Excel export
+type UserExportData struct {
+	Username   string
+	LastName   string
+	FirstName  string
+	MiddleName string
+	Suffix     string
+	Email      string
+	Phone      string
+	Roles      string
+}
+
+// ExportUsersToExcel creates an Excel file with user data
+func ExportUsersToExcel(users []interface{}) (string, error) {
+	file := excelize.NewFile()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing Excel file: %v", err)
+		}
+	}()
+
+	sheetName := "Users"
+	index, err := file.NewSheet(sheetName)
+	if err != nil {
+		return "", fmt.Errorf("failed to create sheet: %v", err)
+	}
+	
+	file.SetActiveSheet(index)
+
+	// Headers
+	headers := []string{
+		"Username", "Фамилия", "Имя", "Отчество", "Частица", 
+		"Email", "Телефон", "Роли в сервисах",
+	}
+	
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		file.SetCellValue(sheetName, cell, header)
+	}
+
+	// Style headers
+	style, err := file.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true},
+		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E0E0E0"}, Pattern: 1},
+	})
+	if err == nil {
+		file.SetCellStyle(sheetName, "A1", fmt.Sprintf("H1"), style)
+	}
+
+	// Data rows
+	for i, userData := range users {
+		row := i + 2
+		if user, ok := userData.(UserExportData); ok {
+			file.SetCellValue(sheetName, fmt.Sprintf("A%d", row), user.Username)
+			file.SetCellValue(sheetName, fmt.Sprintf("B%d", row), user.LastName)
+			file.SetCellValue(sheetName, fmt.Sprintf("C%d", row), user.FirstName)
+			file.SetCellValue(sheetName, fmt.Sprintf("D%d", row), user.MiddleName)
+			file.SetCellValue(sheetName, fmt.Sprintf("E%d", row), user.Suffix)
+			file.SetCellValue(sheetName, fmt.Sprintf("F%d", row), user.Email)
+			file.SetCellValue(sheetName, fmt.Sprintf("G%d", row), user.Phone)
+			file.SetCellValue(sheetName, fmt.Sprintf("H%d", row), user.Roles)
+		}
+	}
+
+	// Auto-fit columns
+	for i := 1; i <= len(headers); i++ {
+		colName, _ := excelize.ColumnNumberToName(i)
+		file.SetColWidth(sheetName, colName, colName, 15)
+	}
+
+	// Save to temporary file
+	filename := fmt.Sprintf("users_export_%d.xlsx", time.Now().Unix())
+	if err := file.SaveAs(filename); err != nil {
+		return "", fmt.Errorf("failed to save file: %v", err)
+	}
+
+	return filename, nil
+}
+
+// GenerateUsersImportTemplate creates Excel template for user import
+func GenerateUsersImportTemplate() (string, error) {
+	file := excelize.NewFile()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing Excel file: %v", err)
+		}
+	}()
+
+	sheetName := "Template"
+	index, err := file.NewSheet(sheetName)
+	if err != nil {
+		return "", fmt.Errorf("failed to create sheet: %v", err)
+	}
+	
+	file.SetActiveSheet(index)
+
+	// Headers
+	headers := []string{
+		"username", "last_name", "first_name", "middle_name", "suffix",
+		"email", "phone", "position", "department", "password",
+	}
+	
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		file.SetCellValue(sheetName, cell, header)
+	}
+
+	// Instructions
+	instructions := []string{
+		"Заполните данные пользователей начиная со строки 2",
+		"username - обязательно, уникальное имя пользователя",
+		"last_name - обязательно, фамилия пользователя",
+		"first_name - обязательно, имя пользователя", 
+		"middle_name - отчество (необязательно)",
+		"suffix - частица (Jr., Sr., III и т.д.)",
+		"email - обязательно, уникальный email адрес",
+		"phone - номер телефона в формате +998XXXXXXXXX",
+		"position - должность (необязательно)",
+		"department - отдел (необязательно)",
+		"password - пароль (если не указан, будет сгенерирован автоматически)",
+	}
+
+	// Add instructions sheet
+	instructionSheet := "Инструкции"
+	_, err = file.NewSheet(instructionSheet)
+	if err == nil {
+		for i, instruction := range instructions {
+			file.SetCellValue(instructionSheet, fmt.Sprintf("A%d", i+1), instruction)
+		}
+		file.SetColWidth(instructionSheet, "A", "A", 60)
+	}
+
+	// Style headers in template sheet
+	style, err := file.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true, Color: "#FFFFFF"},
+		Fill: excelize.Fill{Type: "pattern", Color: []string{"#4472C4"}, Pattern: 1},
+	})
+	if err == nil {
+		file.SetCellStyle(sheetName, "A1", fmt.Sprintf("J1"), style)
+	}
+
+	// Auto-fit columns in template
+	for i := 1; i <= len(headers); i++ {
+		colName, _ := excelize.ColumnNumberToName(i)
+		file.SetColWidth(sheetName, colName, colName, 12)
+	}
+
+	// Add example data
+	file.SetCellValue(sheetName, "A2", "john_doe")
+	file.SetCellValue(sheetName, "B2", "Иванов")
+	file.SetCellValue(sheetName, "C2", "Иван")
+	file.SetCellValue(sheetName, "D2", "Иванович")
+	file.SetCellValue(sheetName, "E2", "")
+	file.SetCellValue(sheetName, "F2", "john.doe@example.com")
+	file.SetCellValue(sheetName, "G2", "+998901234567")
+	file.SetCellValue(sheetName, "H2", "Менеджер")
+	file.SetCellValue(sheetName, "I2", "IT отдел")
+	file.SetCellValue(sheetName, "J2", "password123")
+
+	filename := fmt.Sprintf("users_import_template_%d.xlsx", time.Now().Unix())
+	if err := file.SaveAs(filename); err != nil {
+		return "", fmt.Errorf("failed to save template: %v", err)
+	}
+
+	return filename, nil
 }

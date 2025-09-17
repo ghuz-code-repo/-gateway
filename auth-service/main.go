@@ -54,7 +54,8 @@ func checkAndCleanupAvatars() {
 	for _, user := range users {
 		if user.AvatarPath != "" {
 			// Конвертируем путь из URL в абсолютный файловый путь
-			filePath := strings.Replace(user.AvatarPath, "/data/avatars/", "/data/avatars/", 1)
+			// URL: /data/userID/avatar.jpg -> Файл: ./data/userID/avatar.jpg
+			filePath := "." + user.AvatarPath
 			
 			log.Printf("Проверяем файл аватарки: %s для пользователя %s", filePath, user.Email)
 			
@@ -133,16 +134,25 @@ func main() {
 		log.Println("Migration validation passed")
 	}
 
+	// Migrate user names from FullName to separate fields
+	log.Println("Running user names migration...")
+	if err := models.MigrateUserNamesFromFullName(); err != nil {
+		log.Printf("User names migration failed: %v", err)
+	}
+
 	// Check and cleanup avatar files
 	checkAndCleanupAvatars()
 
 	// Setup router
 	router := gin.Default()
 
+	// Set maximum memory for multipart forms to 99MB
+	router.MaxMultipartMemory = 99 << 20 // 99 MB
+
 	// Set up static file serving
 	router.Static("/static", "./static")
 	// Новая структура: обслуживаем всю папку data для доступа к пользовательским файлам
-	router.Static("/data", "/data")
+	router.Static("/data", "./data")
 
 	// Set up custom template functions
 	router.SetFuncMap(setupTemplateFunc())
@@ -150,8 +160,8 @@ func main() {
 	// Load HTML templates after setting function map
 	router.LoadHTMLGlob("templates/*")
 
-	// Setup routes
-	routes.SetupAuthRoutes(router)
+	// Setup all routes using the new modular structure
+	routes.SetupAllRoutes(router)
 
 	log.Println("Starting auth service on port 8080")
 	if err := router.Run(":8080"); err != nil {

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - Портал Golden House</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+      body {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity .05s ease-in-out;
+      }
+    </style>
+</head>
+<body>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    <div class="login-page-theme-switcher-container">
+        <button id="theme-switcher" title="Toggle theme"><i class="fas fa-moon"></i></button>
+    </div>
+    <div class="login-container">
+        <h1 class="login-title">Вход</h1>
+
+        <!-- Display error message if any -->
+        {{ if .error }}
+        <div class="flash-message danger">
+            {{ .error }}
+        </div>
+        {{ end }}
+        
+        <!-- Display success message if any -->
+        {{ if .success }}
+        <div class="flash-message success">
+            {{ .success }}
+        </div>
+        {{ end }}
+
+        <form action="/login" method="post" class="login-form" autocomplete="on">
+            <div class="form-group">
+                <input type="text" id="username" name="username" placeholder="Имя пользователя или email"
+                       autocomplete="username" spellcheck="false" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <div class="password-wrapper">
+                    <input type="password" id="password" name="password" placeholder="Пароль"
+                           autocomplete="off" required>
+                    <button type="button" class="eye-toggle password-tooltip" data-tooltip="Показать пароль" onclick="togglePassword()">       
+                        <i class="fas fa-eye" id="eyeIcon"></i>
+                    </button>
+                </div>
+            </div>
+
+            {{ if .redirect }}
+            <input type="hidden" name="redirect" value="{{ .redirect }}">
+            {{ end }}
+
+            <div class="form-actions">
+                <button type="submit" class="btn primary">Войти</button>
+                <a href="/forgot-password" class="forgot-password-link">Забыли пароль?</a>
+            </div>
+        </form>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+<script>
+    particlesJS('particles-js', {
+        "particles": {
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+            "color": { "value": "#c4a668" },
+            "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+            "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+            "size": { "value": 4, "random": true },
+            "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+            "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": true, "mode": "bubble" } },
+            "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+        },
+        "retina_detect": true
+    });
+
+    // Toggle password visibility
+    function togglePassword() {
+        const passwordInput = document.getElementById('password');
+        const eyeIcon = document.getElementById('eyeIcon');
+        const toggleButton = document.querySelector('.eye-toggle');
+
+        if (passwordInput && eyeIcon && toggleButton) {
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.className = 'fas fa-eye-slash';
+                toggleButton.setAttribute('data-tooltip', 'Спрятать пароль');
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.className = 'fas fa-eye';
+                toggleButton.setAttribute('data-tooltip', 'Показать пароль');
+            }
+
+            // Force layout recalculation to fix potential rendering issues
+            passwordInput.style.display = 'none';
+            passwordInput.offsetHeight; // trigger reflow
+            passwordInput.style.display = '';
+        }
+    }
+    </script>
+</body>
+</html>

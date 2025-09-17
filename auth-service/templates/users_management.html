@@ -1,0 +1,538 @@
+{{ define "users_management.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/users-management.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+</head>
+<body>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+            }
+        })();
+    </script>
+    
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+    
+    <div class="admin-page-container">
+        <div class="header-spacer"></div>
+        <div class="admin-content">
+            <div class="user-management-container">
+                <div class="page-title-section">
+                    <h1>{{ .title }}</h1>
+                    
+                    {{ if .error }}
+                    <div class="flash-message error">
+                        {{ .error }}
+                    </div>
+                    {{ end }}
+                    
+                    {{ if .success }}
+                    <div class="flash-message success">
+                        {{ .success }}
+                    </div>
+                    {{ end }}
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <a href="/users/new" class="btn primary">
+                        <i class="fas fa-user-plus"></i> Добавить пользователя
+                    </a>
+                    <a href="/users/import" class="btn secondary">
+                        <i class="fas fa-upload"></i> Импорт из Excel
+                    </a>
+                    <a href="/users/export" class="btn secondary">
+                        <i class="fas fa-download"></i> Экспорт в Excel
+                    </a>
+                </div>
+                
+                <!-- Search Section -->
+                <div class="search-section">
+                    <div class="search-header">
+                        <h3><i class="fas fa-search"></i> Умный поиск пользователей</h3>
+                        <p>Поиск работает по: имени пользователя, email, телефону, ФИО, ролям</p>
+                    </div>
+                    <input type="text" 
+                           id="userSearch" 
+                           placeholder="Введите запрос для поиска..."
+                           onkeyup="filterUsers()" 
+                           class="search-input">
+                </div>
+                
+
+                
+                <!-- Users Container with Scroll -->
+                <div class="users-container">
+                    <div class="users-grid" id="usersGrid">
+                        {{ range .usersWithRoles }}
+                        <div class="user-card {{ if .User.IsBanned }}banned{{ end }}"
+                             data-username="{{ .User.Username }}"
+                             data-email="{{ .User.Email }}"
+                             data-phone="{{ .User.Phone }}"
+                             data-lastname="{{ .User.LastName }}"
+                             data-firstname="{{ .User.FirstName }}"
+                             data-middlename="{{ .User.MiddleName }}"
+                             data-fullname="{{ .User.GetFullName }}"
+                             data-shortname="{{ .User.GetShortName }}"
+                             data-roles="{{ range $index, $role := .User.Roles }}{{ if $index }}, {{ end }}{{ $role }}{{ end }}{{ range $serviceRole := .ServiceRoles }}{{ if $serviceRole.IsActive }}, {{ $serviceRole.ServiceKey }}:{{ $serviceRole.RoleName }}{{ end }}{{ end }}">
+                            
+                            <!-- Аватар пользователя -->
+                            <div class="user-avatar">
+                                {{ if .User.AvatarPath }}
+                                <img src="{{ .User.AvatarPath }}" alt="Avatar">
+                                {{ else }}
+                                <i class="fas fa-user"></i>
+                                {{ end }}
+                            </div>
+                            
+                            <!-- Основная информация о пользователе -->
+                            <div class="user-details">
+                                <div class="user-name">
+                                    {{ if .User.LastName }}{{ .User.GetShortName }} ({{ .User.Username }}){{ else if .User.FullName }}{{ .User.FullName }} ({{ .User.Username }}){{ else }}{{ .User.Username }}{{ end }}
+                                </div>
+                                <div class="user-email">{{ .User.Email }}</div>
+                                
+                                <!-- Мета информация в одной строке -->
+                                <div class="user-meta">
+                                    <span class="status-badge {{ if .User.IsBanned }}status-banned{{ else }}status-active{{ end }}">
+                                        {{ if .User.IsBanned }}Заблокирован{{ else }}Активен{{ end }}
+                                    </span>
+                                    <span>Создан: {{ .User.CreatedAt.Format "02.01.2006" }}</span>
+                                    {{ if .User.Phone }}<span>{{ .User.Phone }}</span>{{ end }}
+                                </div>
+                                
+                                <!-- Роли в компактном виде -->
+                                <div class="user-roles">
+                                    <span>Роли:</span>
+                                    {{ if .User.Roles }}
+                                        {{ range .User.Roles }}
+                                        <span class="role-badge">{{ . }}</span>
+                                        {{ end }}
+                                    {{ end }}
+                                    {{ range $serviceRole := .ServiceRoles }}
+                                        {{ if $serviceRole.IsActive }}
+                                        <span class="role-badge service-role-badge">{{ $serviceRole.ServiceKey }}:{{ $serviceRole.RoleName }}</span>
+                                        {{ end }}
+                                    {{ end }}
+                                    {{ if not .User.Roles }}
+                                        {{ $hasServiceRoles := false }}
+                                        {{ range $serviceRole := .ServiceRoles }}
+                                            {{ if $serviceRole.IsActive }}{{ $hasServiceRoles = true }}{{ end }}
+                                        {{ end }}
+                                        {{ if not $hasServiceRoles }}
+                                        <span class="role-badge">нет ролей</span>
+                                        {{ end }}
+                                    {{ end }}
+                                </div>
+                            </div>
+                            
+                            <!-- Кнопки действий -->
+                            <div class="user-actions">
+                                <!-- Дропдаун с основными действиями -->
+                                <div class="dropdown">
+                                    <button class="btn small secondary dropdown-btn" onclick="toggleDropdown(this)">
+                                        <i class="fas fa-cog"></i> Действия
+                                    </button>
+                                    <div class="dropdown-content">
+                                        <a href="/users/{{ .User.ID.Hex }}">
+                                            <i class="fas fa-edit"></i> Редактировать профиль
+                                        </a>
+                                        <button onclick="manageUserRoles('{{ .User.ID.Hex }}')">
+                                            <i class="fas fa-users-cog"></i> Управление ролями
+                                        </button>
+                                        <button onclick="showUserPassword('{{ .User.ID.Hex }}')">
+                                            <i class="fas fa-key"></i> Показать пароль
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Кнопки быстрых действий -->
+                                {{ if ne .User.Username "admin" }}
+                                {{ if .User.IsBanned }}
+                                <button type="button" class="btn small success" onclick="unbanUser('{{ .User.ID.Hex }}')">
+                                    <i class="fas fa-unlock"></i> Разблокировать
+                                </button>
+                                {{ else }}
+                                <button type="button" class="btn small warning" onclick="banUser('{{ .User.ID.Hex }}')">
+                                    <i class="fas fa-ban"></i> Заблокировать
+                                </button>
+                                {{ end }}
+                                <button type="button" class="btn small danger" onclick="deleteUser('{{ .User.ID.Hex }}')">
+                                    <i class="fas fa-trash"></i> Удалить
+                                </button>
+                                {{ end }}
+                            </div>
+                        </div>
+                        {{ end }}
+                    </div>
+                    
+                    <!-- No users found message -->
+                    <div id="no-users-found" class="no-users-found" style="display: none;">
+                        <i class="fas fa-search"></i>
+                        <p>Пользователи не найдены</p>
+                        <small>Попробуйте изменить поисковой запрос</small>
+                    </div>
+                </div>
+                
+
+                
+                <div style="margin-top: 30px;">
+                    <a href="/admin-menu" class="back-link">Назад к панели управления</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+    
+    <script>
+        // Smart search functionality
+        function filterUsers() {
+            const searchTerm = document.getElementById('userSearch').value.toLowerCase().trim();
+            const userItems = document.querySelectorAll('#usersGrid .user-card');
+            const usersGrid = document.getElementById('usersGrid');
+            
+            // If search is empty, show all users in alphabetical order
+            if (searchTerm === '') {
+                hideNoUsersFoundMessage();
+                const existingHeaders = usersGrid.querySelectorAll('.search-category-header');
+                existingHeaders.forEach(header => header.remove());
+                
+                userItems.forEach(item => {
+                    item.classList.remove('user-hidden');
+                    item.removeAttribute('data-search-category');
+                    item.removeAttribute('data-search-priority');
+                });
+                
+                sortUsersByUsername();
+                return;
+            }
+            
+            // Search categories by priority
+            const categories = {
+                'username': { name: 'По имени пользователя', priority: 1, matches: [] },
+                'email': { name: 'По email адресу', priority: 2, matches: [] },
+                'phone': { name: 'По номеру телефона', priority: 3, matches: [] },
+                'names': { name: 'По ФИО', priority: 4, matches: [] },
+                'roles': { name: 'По ролям', priority: 5, matches: [] }
+            };
+            
+            // Search and categorize users
+            userItems.forEach(item => {
+                const username = (item.dataset.username || '').toLowerCase();
+                const email = (item.dataset.email || '').toLowerCase();
+                const phone = (item.dataset.phone || '').toLowerCase();
+                const lastName = (item.dataset.lastname || '').toLowerCase();
+                const firstName = (item.dataset.firstname || '').toLowerCase();
+                const middleName = (item.dataset.middlename || '').toLowerCase();
+                const roles = (item.dataset.roles || '').toLowerCase();
+                const fullName = (item.dataset.fullname || '').toLowerCase();
+                const shortName = (item.dataset.shortname || '').toLowerCase();
+                
+                let matchedCategory = null;
+                let matchedPriority = 999;
+                
+                // 1. Search in username
+                if (username.includes(searchTerm)) {
+                    matchedCategory = 'username';
+                    matchedPriority = 1;
+                }
+                // 2. Search in email
+                else if (email.includes(searchTerm)) {
+                    matchedCategory = 'email';
+                    matchedPriority = 2;
+                }
+                // 3. Search in phone
+                else if (phone.includes(searchTerm)) {
+                    matchedCategory = 'phone';
+                    matchedPriority = 3;
+                }
+                // 4. Search in names
+                else if (lastName.includes(searchTerm) || firstName.includes(searchTerm) || 
+                         middleName.includes(searchTerm) || fullName.includes(searchTerm) || 
+                         shortName.includes(searchTerm)) {
+                    matchedCategory = 'names';
+                    matchedPriority = 4;
+                }
+                // 5. Search in roles
+                else if (roles.includes(searchTerm)) {
+                    matchedCategory = 'roles';
+                    matchedPriority = 5;
+                }
+                
+                // Update element
+                if (matchedCategory) {
+                    item.classList.remove('user-hidden');
+                    item.setAttribute('data-search-category', matchedCategory);
+                    item.setAttribute('data-search-priority', matchedPriority);
+                    categories[matchedCategory].matches.push(item);
+                } else {
+                    item.classList.add('user-hidden');
+                    item.removeAttribute('data-search-category');
+                    item.removeAttribute('data-search-priority');
+                }
+            });
+            
+            // Check if there are results
+            const hasResults = Object.values(categories).some(cat => cat.matches.length > 0);
+            
+            if (!hasResults) {
+                showNoUsersFoundMessage();
+            } else {
+                hideNoUsersFoundMessage();
+                // Only organize by categories in cards view
+                if (document.getElementById('cards-view').classList.contains('active')) {
+                    reorganizeUsersByCategories(categories);
+                }
+            }
+        }
+        
+        function sortUsersByUsername() {
+            const usersGrid = document.getElementById('usersGrid');
+            const usersTableBody = document.getElementById('usersTableBody');
+            
+            // Sort cards view
+            const cards = Array.from(usersGrid.querySelectorAll('.user-card:not(.search-category-header)'));
+            cards.sort((a, b) => {
+                const usernameA = (a.dataset.username || '').toLowerCase();
+                const usernameB = (b.dataset.username || '').toLowerCase();
+                return usernameA.localeCompare(usernameB);
+            });
+            
+            cards.forEach(card => usersGrid.appendChild(card));
+            
+            // Sort table view
+            const rows = Array.from(usersTableBody.querySelectorAll('tr'));
+            rows.sort((a, b) => {
+                const usernameA = (a.dataset.username || '').toLowerCase();
+                const usernameB = (b.dataset.username || '').toLowerCase();
+                return usernameA.localeCompare(usernameB);
+            });
+            
+            rows.forEach(row => usersTableBody.appendChild(row));
+        }
+        
+        function reorganizeUsersByCategories(categories) {
+            const usersGrid = document.getElementById('usersGrid');
+            
+            // Remove existing category headers
+            const existingHeaders = usersGrid.querySelectorAll('.search-category-header');
+            existingHeaders.forEach(header => header.remove());
+            
+            // Add categories in priority order
+            const sortedCategories = Object.entries(categories)
+                .filter(([key, cat]) => cat.matches.length > 0)
+                .sort((a, b) => a[1].priority - b[1].priority);
+            
+            sortedCategories.forEach(([key, category]) => {
+                // Create category header
+                const header = document.createElement('div');
+                header.className = 'search-category-header';
+                header.textContent = `${category.name} (${category.matches.length})`;
+                usersGrid.appendChild(header);
+                
+                // Sort matches by username within category
+                category.matches.sort((a, b) => {
+                    const usernameA = (a.dataset.username || '').toLowerCase();
+                    const usernameB = (b.dataset.username || '').toLowerCase();
+                    return usernameA.localeCompare(usernameB);
+                });
+                
+                // Add matches
+                category.matches.forEach(match => {
+                    usersGrid.appendChild(match);
+                });
+            });
+        }
+        
+        function showNoUsersFoundMessage() {
+            const noUsersMsg = document.getElementById('no-users-found');
+            if (noUsersMsg) {
+                noUsersMsg.style.display = 'block';
+            }
+        }
+        
+        function hideNoUsersFoundMessage() {
+            const noUsersMsg = document.getElementById('no-users-found');
+            if (noUsersMsg) {
+                noUsersMsg.style.display = 'none';
+            }
+        }
+        
+
+        
+        // Дропдаун меню
+        function toggleDropdown(button) {
+            const dropdown = button.parentElement;
+            const allDropdowns = document.querySelectorAll('.dropdown');
+            
+            // Закрываем все другие дропдауны
+            allDropdowns.forEach(d => {
+                if (d !== dropdown) {
+                    d.classList.remove('show');
+                }
+            });
+            
+            // Переключаем текущий дропдаун
+            dropdown.classList.toggle('show');
+        }
+        
+        // Закрываем дропдауны при клике вне
+        document.addEventListener('click', function(event) {
+            // Проверяем, что клик НЕ по кнопке дропдауна и НЕ внутри дропдауна
+            if (!event.target.closest('.dropdown')) {
+                const dropdowns = document.querySelectorAll('.dropdown.show');
+                dropdowns.forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                });
+            }
+        });
+        
+
+        
+        // User management functions
+        function manageUserRoles(userId) {
+            window.open(`/users/${userId}`, '_blank');
+        }
+        
+        async function showUserPassword(userId) {
+            if (!confirm('Вы уверены, что хотите посмотреть пароль пользователя?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/users/${userId}/password`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`Пароль пользователя: ${data.password}`);
+                } else {
+                    alert('Ошибка при получении пароля: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка при получении пароля');
+            }
+        }
+        
+        async function banUser(userId) {
+            const reason = prompt('Укажите причину блокировки пользователя:');
+            if (!reason) return;
+            
+            try {
+                const response = await fetch(`/users/${userId}/ban`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ reason: reason })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Ошибка при блокировке: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка при блокировке пользователя');
+            }
+        }
+        
+        async function unbanUser(userId) {
+            if (!confirm('Вы уверены, что хотите разблокировать пользователя?')) return;
+            
+            try {
+                const response = await fetch(`/users/${userId}/unban`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Ошибка при разблокировке: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка при разблокировке пользователя');
+            }
+        }
+        
+        async function deleteUser(userId) {
+            if (!confirm('Вы уверены, что хотите удалить этого пользователя? Это действие нельзя отменить.')) return;
+            
+            try {
+                const response = await fetch(`/users/${userId}/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Ошибка при удалении: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка при удалении пользователя');
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Initialize particles
+            particlesJS('particles-js', {
+                "particles": { 
+                    "number": { "value": 50, "density": { "enable": true, "value_area": 800 } }, 
+                    "color": { "value": "#c4a668" }, 
+                    "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } }, 
+                    "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } }, 
+                    "size": { "value": 4, "random": true }, 
+                    "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 }, 
+                    "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" } 
+                }, 
+                "interactivity": { 
+                    "detect_on": "canvas", 
+                    "events": { "onhover": { "enable": true, "mode": "bubble" } }, 
+                    "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } } 
+                }, 
+                "retina_detect": true
+            });
+        });
+    </script>
+</body>
+</html>
+{{ end }}

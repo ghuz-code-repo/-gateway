@@ -14,14 +14,15 @@
             <div class="avatar-section">
                 <div class="avatar-mini">
                     {{ if .user.AvatarPath }}
-                        <img src="{{ .user.AvatarPath }}" alt="Аватар">
+                        <img src="{{ .user.AvatarPath }}" alt="Аватар" id="headerAvatarImage">
                     {{ else }}
-                        <i class="fas fa-user-circle" id="defaultAvatar"></i>
+                        <i class="fas fa-user-circle" id="headerDefaultAvatar"></i>
                     {{ end }}
                 </div>
             </div>
             <div class="header-user-info">
-                {{ if .full_name }}<span class="header-fullname">{{ .full_name }}</span>{{ end }}
+                <!-- DEBUG: short_name=[{{ .short_name }}], full_name=[{{ .full_name }}], username=[{{ .username }}] -->
+                {{ if .short_name }}<span class="header-fullname">{{ .short_name }}</span>{{ else }}<!-- NO SHORT_NAME -->{{ end }}
                 <span class="header-username">({{ .username }})</span>
             </div>
         </a>
@@ -54,7 +55,7 @@
     {{if .username }}
     <div class="mobile-user-info">
         <span class="header-username">{{ .username }}</span>
-        {{ if .full_name }}<span class="header-fullname">({{ .full_name }})</span>{{ end }}
+        {{ if .short_name }}<span class="header-fullname">({{ .short_name }})</span>{{ end }}
     </div>
     {{end}}
 

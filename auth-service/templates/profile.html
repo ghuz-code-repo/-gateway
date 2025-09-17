@@ -7,6 +7,7 @@
     <title>{{ .title }} - Сервис аутентификации</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/profile.css">
+    <link rel="stylesheet" href="/static/css/smart-phone-input.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
       body {
@@ -63,7 +64,7 @@
                 <div class="avatar-section">
                     <div class="avatar" id="avatarContainer">
                         {{ if .user.AvatarPath }}
-                            <img src="{{ .user.AvatarPath }}" alt="Аватар" id="avatarImage">
+                            <img src="{{ .user.AvatarPath }}?v={{ .timestamp }}" alt="Аватар" id="avatarImage">
                         {{ else }}
                             <i class="fas fa-user-circle" id="defaultAvatar"></i>
                         {{ end }}
@@ -74,7 +75,7 @@
                     <input type="file" id="avatarInput" accept="image/*" style="display: none;">
                 </div>
                 <div class="user-info">
-                    <h1>{{ .user.FullName }}</h1>
+                    <h1>{{ .user.GetFullName }}</h1>
                     <p class="user-email">{{ .user.Email }}</p>
                     <p class="user-role">
                         {{ if .userRoles }}
@@ -112,8 +113,20 @@
                 <h2>Персональная информация</h2>
                 <form class="profile-form" id="profileForm">
                     <div class="form-group">
-                        <label for="fullName">Полное имя</label>
-                        <input type="text" id="fullName" name="fullName" value="{{ .user.FullName }}" required>
+                        <label for="lastName">Фамилия *</label>
+                        <input type="text" id="lastName" name="lastName" value="{{ .user.LastName }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="firstName">Имя *</label>
+                        <input type="text" id="firstName" name="firstName" value="{{ .user.FirstName }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="middleName">Отчество</label>
+                        <input type="text" id="middleName" name="middleName" value="{{ .user.MiddleName }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="suffix">Суффикс</label>
+                        <input type="text" id="suffix" name="suffix" value="{{ .user.Suffix }}" placeholder="Jr., Sr., III и т.д.">
                     </div>
                     <div class="form-group">
                         <label for="email">Email</label>
@@ -121,7 +134,9 @@
                     </div>
                     <div class="form-group">
                         <label for="phone">Телефон</label>
-                        <input type="tel" id="phone" name="phone" value="{{ .user.Phone }}">
+                        <div class="smart-phone-input">
+                            <input type="tel" id="phone" name="phone" value="{{ .user.Phone }}" placeholder="+998">
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="position">Должность</label>
@@ -289,7 +304,20 @@
                 <h3>Обрезать изображение</h3>
                 <span class="close">&times;</span>
             </div>
-            <div class="modal-body">
+            <div class="modal-body-actions">
+                <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancelCropBtn">Отмена</button>
+                <button type="button" class="btn btn-danger" id="removeAvatarModalBtn" style="display: none;">
+                    <i class="fas fa-trash"></i> Удалить аватар
+                </button>
+                <button type="button" class="btn btn-outline" id="changeFileBtn" style="display: none;">
+                    <i class="fas fa-exchange-alt"></i> Выбрать другой файл
+                </button>
+                <button type="button" class="btn btn-primary" id="saveCropBtn" style="display: none;">
+                    <i class="fas fa-upload"></i> Загрузить аватар
+                </button>
+                </div>
+                <div class="modal-body">
                 <div class="file-selection" id="fileSelection">
                     <div class="file-upload-area" id="newAvatarArea">
                         <i class="fas fa-cloud-upload-alt"></i>
@@ -297,7 +325,7 @@
                         <button type="button" class="btn btn-primary" id="selectFileBtn">
                             <i class="fas fa-folder-open"></i> Выбрать файл
                         </button>
-                        <p class="file-info">Поддерживаются: JPG, PNG, GIF (до 5MB)</p>
+                        <p class="file-info">Поддерживаются: JPG, PNG, GIF (до 99MB)</p>
                     </div>
                 </div>
                 <div class="crop-container" id="cropContainer" style="display: none;">
@@ -330,18 +358,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" id="cancelCropBtn">Отмена</button>
-                <button type="button" class="btn btn-danger" id="removeAvatarModalBtn" style="display: none;">
-                    <i class="fas fa-trash"></i> Удалить аватар
-                </button>
-                <button type="button" class="btn btn-outline" id="changeFileBtn" style="display: none;">
-                    <i class="fas fa-exchange-alt"></i> Выбрать другой файл
-                </button>
-                <button type="button" class="btn btn-primary" id="saveCropBtn" style="display: none;">
-                    <i class="fas fa-upload"></i> Загрузить аватар
-                </button>
+                </div>
             </div>
         </div>
     </div>
@@ -353,7 +370,8 @@
         // Данные пользователя для JavaScript
         window.userData = {
             id: {{ .user.ID }},
-            fullName: "{{ .user.FullName }}",
+            fullName: "{{ .user.GetFullName }}",
+            shortName: "{{ .user.GetShortName }}",
             email: "{{ .user.Email }}",
             phone: "{{ .user.Phone }}",
             position: "{{ .user.Position }}",
@@ -373,11 +391,39 @@
     <script src="/static/js/profile.js"></script>
     <script src="/static/js/avatar-crop.js"></script>
     
-    <!-- Initialize Avatar Crop -->
+    <!-- Smart Phone Input -->
+    <script src="/static/js/phone-config.js"></script>
+    <script src="/static/js/smart-phone-input.js"></script>
+    
+    <!-- Initialize Smart Phone Input and Avatar Crop -->
     <script>
         // Initialize after all scripts are loaded
         window.addEventListener('load', function() {
-            console.log('Window loaded, checking if AvatarCrop is already initialized');
+            console.log('Window loaded, initializing components...');
+            
+            // Initialize Smart Phone Input FIRST (независимо от AvatarCrop)
+            const phoneInput = document.getElementById('phone');
+            console.log('phoneInput element:', phoneInput);
+            console.log('window.SmartPhoneInput:', window.SmartPhoneInput);
+            console.log('window.PhoneConfig:', window.PhoneConfig);
+            
+            if (phoneInput && window.SmartPhoneInput && window.PhoneConfig) {
+                console.log('Initializing SmartPhoneInput...');
+                try {
+                    window.smartPhoneInstance = new SmartPhoneInput(phoneInput, {
+                        enableGeolocation: true,
+                        showUnsupportedNotification: true
+                    });
+                    console.log('SmartPhoneInput initialized successfully');
+                } catch (error) {
+                    console.error('SmartPhoneInput initialization error:', error);
+                }
+            } else {
+                console.warn('SmartPhoneInput: Missing dependencies or phone input element');
+                console.warn('- phoneInput:', phoneInput);
+                console.warn('- SmartPhoneInput class:', window.SmartPhoneInput);
+                console.warn('- PhoneConfig:', window.PhoneConfig);
+            }
             
             // Check if AvatarCrop is already initialized
             if (window.avatarCropInstance) {
@@ -385,37 +431,28 @@
                 return;
             }
             
-            // Test if elements exist
+            // Initialize AvatarCrop if elements exist
             const avatarContainer = document.getElementById('avatarContainer');
             const avatarInput = document.getElementById('avatarInput');
             const cropModal = document.getElementById('cropModal');
             
-            console.log('Elements check:');
+            console.log('Avatar elements check:');
             console.log('- avatarContainer:', avatarContainer);
             console.log('- avatarInput:', avatarInput);
             console.log('- cropModal:', cropModal);
             
-            if (!avatarContainer) {
-                console.error('avatarContainer not found!');
-                return;
+            if (avatarContainer && avatarInput && cropModal) {
+                try {
+                    console.log('Initializing AvatarCrop from template...');
+                    const avatarCrop = new AvatarCrop();
+                    window.avatarCrop = avatarCrop; // Make it globally accessible for debugging
+                    console.log('AvatarCrop initialized successfully');
+                } catch (error) {
+                    console.error('AvatarCrop initialization error:', error);
+                }
+            } else {
+                console.warn('AvatarCrop: Some elements not found, skipping initialization');
             }
-            
-            if (!avatarInput) {
-                console.error('avatarInput not found!');
-                return;
-            }
-            
-            if (!cropModal) {
-                console.error('cropModal not found!');
-                return;
-            }
-            
-            // Only initialize if not already done
-            console.log('Initializing AvatarCrop from template...');
-            const avatarCrop = new AvatarCrop();
-            window.avatarCrop = avatarCrop; // Make it globally accessible for debugging
-            
-            console.log('AvatarCrop initialized successfully');
         });
     </script>
     <script>

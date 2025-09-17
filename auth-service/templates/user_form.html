@@ -51,8 +51,23 @@
             </div>
             
             <div class="form-group">
-                <label for="full_name">ФИО:</label>
-                <input type="text" id="full_name" name="full_name" value="{{ if .user }}{{ .user.FullName }}{{ else }}{{ .full_name }}{{ end }}" required>
+                <label for="last_name">Фамилия:</label>
+                <input type="text" id="last_name" name="last_name" value="{{ if .user }}{{ .user.LastName }}{{ else }}{{ .last_name }}{{ end }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="first_name">Имя:</label>
+                <input type="text" id="first_name" name="first_name" value="{{ if .user }}{{ .user.FirstName }}{{ else }}{{ .first_name }}{{ end }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="middle_name">Отчество:</label>
+                <input type="text" id="middle_name" name="middle_name" value="{{ if .user }}{{ .user.MiddleName }}{{ else }}{{ .middle_name }}{{ end }}">
+            </div>
+            
+            <div class="form-group">
+                <label for="suffix">Суффикс:</label>
+                <input type="text" id="suffix" name="suffix" value="{{ if .user }}{{ .user.Suffix }}{{ else }}{{ .suffix }}{{ end }}" placeholder="мл., ст., и т.д.">
             </div>
             
             <div class="form-group">

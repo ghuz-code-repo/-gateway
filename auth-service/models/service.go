@@ -196,6 +196,14 @@ func DeleteService(id primitive.ObjectID) error {
 	return err
 }
 
+// DeleteServiceByKey removes a service by its key
+func DeleteServiceByKey(key string) error {
+	ctx := context.Background()
+
+	_, err := servicesCol.DeleteOne(ctx, bson.M{"key": key})
+	return err
+}
+
 // AddPermissionToService adds a new permission to a service (new schema)
 func AddPermissionToService(serviceKey string, permissionDef PermissionDef) error {
 	ctx := context.Background()

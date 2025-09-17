@@ -11,6 +11,7 @@ class AvatarCrop {
         this.startY = 0;
         this.currentHandle = null;
         this.imageData = null;
+        this.selectedFile = null; // Store the selected file
         this.modal = document.getElementById('cropModal');
         this.isUploading = false; // Flag to prevent multiple uploads
         
@@ -61,6 +62,8 @@ class AvatarCrop {
                 }
                 
                 if (e.target.files[0]) {
+                    this.selectedFile = e.target.files[0]; // Save the selected file
+                    console.log('File saved to selectedFile:', this.selectedFile.name);
                     this.loadImage(e.target.files[0]);
                 }
             });
@@ -245,9 +248,9 @@ class AvatarCrop {
             return;
         }
         
-        // Validate file size (5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            this.showNotification('Размер файла не должен превышать 5MB', 'error');
+        // Validate file size (99MB)
+        if (file.size > 99 * 1024 * 1024) {
+            this.showNotification('Размер файла не должен превышать 99MB', 'error');
             return;
         }
         
@@ -991,21 +994,30 @@ class AvatarCrop {
             formData.append('cropped_image', croppedImage);
         } else {
             console.log('Processing as new file upload');
-            // This is a new file upload
-            const avatarInput = document.getElementById('avatarInput');
-            console.log('Avatar input element:', avatarInput);
-            console.log('Avatar input files:', avatarInput ? avatarInput.files : 'no element');
+            // This is a new file upload - use the saved file
+            console.log('Selected file from class property:', this.selectedFile);
             
-            if (avatarInput && avatarInput.files[0]) {
-                console.log('Found file in input:', avatarInput.files[0].name);
-                formData.append('avatar', avatarInput.files[0]);
+            if (this.selectedFile) {
+                console.log('Found file in selectedFile:', this.selectedFile.name);
+                formData.append('avatar', this.selectedFile);
                 formData.append('cropped_image', croppedImage);
             } else {
-                console.error('No file found in avatar input for new upload');
-                console.log('Falling back to crop-only mode...');
-                // Fallback: treat as existing image crop update
-                formData.append('crop_update', 'true');
-                formData.append('cropped_image', croppedImage);
+                // Fallback: check avatar input as before
+                const avatarInput = document.getElementById('avatarInput');
+                console.log('Avatar input element:', avatarInput);
+                console.log('Avatar input files:', avatarInput ? avatarInput.files : 'no element');
+                
+                if (avatarInput && avatarInput.files[0]) {
+                    console.log('Found file in input:', avatarInput.files[0].name);
+                    formData.append('avatar', avatarInput.files[0]);
+                    formData.append('cropped_image', croppedImage);
+                } else {
+                    console.error('No file found in selectedFile or avatar input for new upload');
+                    console.log('Falling back to crop-only mode...');
+                    // Fallback: treat as existing image crop update
+                    formData.append('crop_update', 'true');
+                    formData.append('cropped_image', croppedImage);
+                }
             }
         }
         
@@ -1027,6 +1039,11 @@ class AvatarCrop {
             console.log('Upload response:', data);
             if (data.success) {
                 this.showNotification(data.message || 'Аватарка успешно обновлена!', 'success');
+                
+                // Clear the selected file and set existing avatar flag
+                this.selectedFile = null;
+                this.isExistingAvatar = true;
+                console.log('File cleared, isExistingAvatar set to true');
                 
                 // Update avatar display
                 this.updateAvatarDisplay(data.avatar_path);
@@ -1118,6 +1135,39 @@ class AvatarCrop {
             defaultAvatar.style.display = 'none';
         } else {
             console.error('No avatar image or default avatar element found');
+        }
+        
+        // Also update header avatar if it exists
+        const headerAvatarImage = document.getElementById('headerAvatarImage');
+        const headerDefaultAvatar = document.getElementById('headerDefaultAvatar');
+        
+        if (headerAvatarImage) {
+            console.log('Updating header avatar image');
+            headerAvatarImage.src = fullPath;
+            headerAvatarImage.style.display = 'block';
+            if (headerDefaultAvatar) headerDefaultAvatar.style.display = 'none';
+        } else if (headerDefaultAvatar) {
+            console.log('Creating new header avatar image to replace default');
+            // Replace icon with image in header
+            const newHeaderImg = document.createElement('img');
+            newHeaderImg.src = fullPath;
+            newHeaderImg.alt = 'Аватар';
+            newHeaderImg.id = 'headerAvatarImage';
+            newHeaderImg.style.display = 'block';
+            
+            newHeaderImg.onload = () => {
+                console.log('New header avatar image loaded successfully');
+                headerDefaultAvatar.style.display = 'none';
+            };
+            
+            newHeaderImg.onerror = (e) => {
+                console.error('New header avatar image failed to load:', e);
+                newHeaderImg.remove();
+                headerDefaultAvatar.style.display = 'block';
+            };
+            
+            headerDefaultAvatar.parentElement.appendChild(newHeaderImg);
+            headerDefaultAvatar.style.display = 'none';
         }
         
         // Update window.userData to reflect new avatar

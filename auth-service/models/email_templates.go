@@ -121,3 +121,33 @@ func GetAccountDeletedEmail(fullName, username string) (string, string) {
 
 	return subject, content
 }
+
+// GetPasswordResetEmail returns a formatted email for password reset
+func GetPasswordResetEmail(fullName, resetLink string) (string, string) {
+	subject := "Восстановление пароля - Портал Golden House"
+
+	content := fmt.Sprintf(`
+Здравствуйте, %s!
+
+Вы запросили восстановление пароля для вашей учетной записи на портале Golden House.
+
+Для сброса пароля перейдите по ссылке ниже:
+%s
+
+ВАЖНО:
+- Ссылка действительна в течение 1 часа
+- Если вы не запрашивали восстановление пароля, свяжитесь с администратором системы как можно скорее!
+- По соображениям безопасности, не пересылайте эту ссылку другим лицам
+
+Если у вас возникли вопросы или проблемы, обратитесь в службу поддержки:
+- Email: %s
+- Telegram: %s
+
+С уважением,
+	Команда отдела аналитики и развития Golden House
+
+Это автоматическое сообщение, пожалуйста, не отвечайте на него.
+		`, fullName, resetLink, os.Getenv("SUPPORT_EMAIL"), os.Getenv("SUPPORT_TELEGRAM"))
+
+	return subject, content
+}

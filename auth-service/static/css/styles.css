@@ -38,6 +38,7 @@
     /* Дополнительные переменные для админки */
     --secondary-color: #6c757d;
     --secondary-color-hover: #5a6268;
+    --text-color-muted: #666;
     --light-text-color: #666;
     --lighter-text-color: #7f8c8d;
     --lightest-text-color: #95a5a6;
@@ -115,6 +116,7 @@
     /* Дополнительные переменные для темной темы админки */
     --secondary-color: #6c757d;
     --secondary-color-hover: #5a6268;
+    --text-color-muted: #aaa;
     --light-text-color: #aaa;
     --lighter-text-color: #888;
     --lightest-text-color: #666;
@@ -187,7 +189,7 @@ body {
     height: 100%;
     top: 0;
     left: 0;
-    z-index: 0; /* Corrected as per user feedback */
+    z-index: -1; /* Corrected as per user feedback */
     /* This places it above the body's direct background, but behind other z-indexed content */
 }
 
@@ -647,10 +649,6 @@ input[type="file"]:hover {
     cursor: pointer;
 }
 
-input[type="text"][name="password"] {
-    -webkit-text-security: disc !important;
-}
-
 /* Alert messages */
 .flash-messages {
     margin-bottom: 20px;
@@ -926,7 +924,7 @@ input[type="text"][name="password"] {
     align-items: center;
     gap: 15px;
     text-decoration: none;
-    color: var(--text-color);
+    color: var(--primary-color);
     font-weight: bold;
     transition: background 0.2s;
     /* border: 1px solid var(--border-color);  */
@@ -937,6 +935,7 @@ input[type="text"][name="password"] {
 }
 
 .header-profilr-link:hover{
+    color: var(--text-color);
     background: var(--primary-color-hover);
 }
 
@@ -1311,7 +1310,11 @@ input[type="text"][name="password"] {
     padding: 20px;
     text-align: center;
     transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
+
 
 .service-card a { /* Ensure 'a' tag can receive focus for :active to work reliably on click */
     display: block; /* Make the link fill the card area for better click interaction */
@@ -1459,4 +1462,402 @@ input[type="text"][name="password"] {
     .logo-img {
         min-width: 70px;
     }
+}
+
+/* Login page password toggle and forgot password styles */
+.login-form .password-wrapper {
+    position: relative;
+    display: block;
+    width: 100%;
+}
+
+.login-form .password-wrapper input {
+    width: 100%;
+    padding-right: 45px;
+    box-sizing: border-box;
+}
+
+/* Отключаем встроенные иконки браузера для полей пароля */
+
+.login-form .password-wrapper input[type="password"]::-webkit-credentials-auto-fill-button,
+.login-form .password-wrapper input[type="password"]::-webkit-contacts-auto-fill-button,
+.login-form .password-wrapper input[type="password"]::-webkit-strong-password-auto-fill-button {
+    display: none !important;
+}
+
+.login-form .password-wrapper input[type="password"]::-ms-reveal,
+.login-form .password-wrapper input[type="password"]::-ms-clear {
+    display: none !important;
+}
+
+.login-form .eye-toggle {
+    position: absolute;
+    right: 9px;
+    top: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--primary-color);
+    font-size: 16px;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    z-index: 1001;
+    margin-top: 0px;
+}
+
+.login-form .eye-toggle:hover {
+    color: var(--text-color);
+}
+
+
+
+.login-form .eye-toggle i {
+    pointer-events: none;
+}
+
+.form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+.forgot-password-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+.forgot-password-link:hover {
+    color: var(--primary-color-hover);
+    text-decoration: underline;
+}
+
+/* Password recovery form styles */
+.recovery-form {
+    background: var(--card-background-color);
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.recovery-form h2 {
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.recovery-form .form-group {
+    margin-bottom: 20px;
+}
+
+.recovery-form input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--input-border-color);
+    border-radius: 8px;
+    font-size: 16px;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.recovery-form input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.back-to-login {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.back-to-login a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+.back-to-login a:hover {
+    color: var(--primary-color-hover);
+    text-decoration: underline;
+}
+
+/* Password recovery form validation styles */
+.recovery-form .password-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.recovery-form .password-input-container input[type="password"],
+.recovery-form .password-input-container input[type="text"] {
+    padding-right: 45px; /* Space for eye button */
+    width: 100%;
+}
+
+/* Отключаем встроенные браузерные кнопки показа пароля для recovery-form */
+.recovery-form .password-input-container input[type="password"]::-webkit-credentials-auto-fill-button,
+.recovery-form .password-input-container input[type="password"]::-webkit-contacts-auto-fill-button,
+.recovery-form .password-input-container input[type="password"]::-webkit-strong-password-auto-fill-button {
+    display: none !important;
+}
+
+.recovery-form .password-input-container input[type="password"]::-ms-reveal,
+.recovery-form .password-input-container input[type="password"]::-ms-clear {
+    display: none !important;
+}
+
+.recovery-form .password-toggle-btn {
+    position: absolute;
+    right: 12px;
+    top: 9px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 16px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    transition: color 0.2s ease;
+    z-index: 2;
+    background: transparent !important;
+}
+
+.recovery-form .password-toggle-btn:hover {
+    background: var(--primary-color) !important;
+    color: var(--text-color) !important;
+}
+
+/* Password validation states for recovery form */
+.recovery-form .form-group.has-error input[type="password"],
+.recovery-form .form-group.has-error input[type="text"] {
+    border-color: var(--input-error-color) !important;
+    box-shadow: 0 0 0 3px var(--input-error-focus-ring) !important;
+}
+
+.recovery-form .form-group.has-error input[type="password"]:focus,
+.recovery-form .form-group.has-error input[type="text"]:focus {
+    border-color: var(--input-error-color) !important;
+    box-shadow: 0 0 0 3px var(--input-error-focus-ring) !important;
+    outline: none;
+}
+
+.recovery-form .form-group.has-error .field-hint {
+    color: var(--input-error-color);
+    display: block;
+}
+
+.recovery-form .form-group.has-success input[type="password"],
+.recovery-form .form-group.has-success input[type="text"] {
+    border-color: var(--input-success-color) !important;
+    box-shadow: 0 0 0 3px var(--input-success-focus-ring) !important;
+}
+
+.recovery-form .form-group.has-success input[type="password"]:focus,
+.recovery-form .form-group.has-success input[type="text"]:focus {
+    border-color: var(--input-success-color) !important;
+    box-shadow: 0 0 0 3px var(--input-success-focus-ring) !important;
+    outline: none;
+}
+
+.recovery-form .form-group.has-success .field-hint {
+    color: var(--input-success-color);
+    display: block;
+}
+
+.recovery-form .field-hint {
+    font-size: 12px;
+    margin-top: 4px;
+    display: none;
+    transition: all 0.2s ease;
+}
+
+/* Password recovery result page styles */
+.recovery-result {
+    background: var(--card-background-color);
+    border-radius: 12px;
+    padding: 40px 30px;
+    max-width: 500px;
+    margin: 0 auto;
+    text-align: center;
+    box-shadow: var(--shadow-light);
+    border: 1px solid var(--light-border-color);
+}
+
+.result-icon {
+    margin-bottom: 20px;
+}
+
+.result-icon i {
+    font-size: 64px;
+    margin-bottom: 10px;
+}
+
+.result-icon.success i {
+    color: var(--input-success-color);
+}
+
+.result-icon.error i {
+    color: var(--input-error-color);
+}
+
+.recovery-result h2 {
+    color: var(--text-color);
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.result-message {
+    color: var(--text-color);
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+.result-message.error {
+    color: var(--input-error-color);
+    background: rgba(239, 68, 68, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid var(--input-error-color);
+}
+
+.result-note {
+    color: var(--lighter-text-color);
+    font-size: 14px;
+    margin-bottom: 30px;
+    font-style: italic;
+}
+
+.admin-contacts {
+    background: var(--background-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0 30px 0;
+    border: 1px solid var(--light-border-color);
+}
+
+.admin-contacts h3 {
+    color: var(--text-color);
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.contact-item:last-child {
+    margin-bottom: 0;
+}
+
+.contact-item i {
+    color: var(--primary-color);
+    width: 20px;
+    text-align: center;
+}
+
+.recovery-result .back-to-login {
+    margin-top: 30px;
+}
+
+.recovery-result .back-to-login .btn {
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.recovery-result .back-to-login .btn.primary {
+    background: var(--primary-color);
+    color: var(--button-text-color);
+    border: none;
+}
+
+.recovery-result .back-to-login .btn.primary:hover {
+    background: var(--primary-color-hover);
+    transform: translateY(-1px);
+}
+
+/* Tooltip styles for password toggle buttons */
+.password-tooltip {
+    position: relative;
+}
+
+.password-tooltip::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-color);
+    color: var(--background-color);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.password-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: var(--text-color);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.password-tooltip:hover::before,
+.password-tooltip:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Special handling for login form eye-toggle to maintain absolute positioning */
+.login-form .eye-toggle {
+    position: absolute !important;
 }

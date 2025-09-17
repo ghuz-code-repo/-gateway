@@ -175,6 +175,15 @@ function closeModal(modalId) {
 }
 
 function initializeFormHandlers() {
+    // Handle service update form submission
+    const serviceForm = document.querySelector('form.form');
+    if (serviceForm && !serviceForm.action.includes('/delete')) {
+        serviceForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitServiceForm();
+        });
+    }
+    
     // Handle role form submission
     const roleForm = document.getElementById('role-form');
     if (roleForm) {
@@ -240,6 +249,56 @@ function submitPermissionForm() {
             setTimeout(() => window.location.reload(), 1000);
         } else {
             throw new Error('Ошибка сохранения разрешения');
+        }
+    })
+    .catch(error => {
+        showNotification(error.message, 'error');
+    });
+}
+
+function submitServiceForm() {
+    const form = document.querySelector('form.form');
+    const formData = new FormData(form);
+    
+    fetch(window.location.pathname, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json().catch(() => ({})); // Handle both JSON and non-JSON responses
+        } else if (response.status === 400) {
+            return response.json();
+        } else {
+            throw new Error('Ошибка обновления сервиса');
+        }
+    })
+    .then(data => {
+        if (data.requires_confirmation) {
+            // Show confirmation dialog for key changes
+            if (confirm(`${data.message}\n\nВы уверены, что хотите изменить ключ сервиса? Это может повлиять на интегрированные системы.`)) {
+                // Add confirmation flag and resubmit
+                formData.append('confirmKeyChange', 'true');
+                return fetch(window.location.pathname, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        showNotification('Сервис успешно обновлен', 'success');
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        return response.json().then(err => {
+                            throw new Error(err.error || 'Ошибка обновления сервиса');
+                        });
+                    }
+                });
+            }
+        } else if (data.error) {
+            throw new Error(data.error);
+        } else {
+            showNotification('Сервис успешно обновлен', 'success');
+            setTimeout(() => window.location.reload(), 1000);
         }
     })
     .catch(error => {

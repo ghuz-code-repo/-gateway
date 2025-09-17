@@ -1,0 +1,169 @@
+package routes
+
+import (
+	"auth-service/models"
+	"fmt"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+// homeHandler handles the home page
+func homeHandler(c *gin.Context) {
+	c.Redirect(http.StatusFound, "/menu")
+}
+
+// menuHandler shows the list of accessible services
+func menuHandler(c *gin.Context) {
+	// Get user from middleware
+	user := c.MustGet("user").(*models.User)
+
+	// Get user's accessible services based on their service roles
+	accessibleServices := []string{}
+
+	// Check if user is admin (has admin role in old system or system service)
+	isAdmin := hasAdminRole(user)
+	
+	if isAdmin {
+		fmt.Println("Пользователь является администратором. Добавление всех сервисов.")
+		// Admin users can access all services
+		services, err := models.GetAllServices()
+		if err != nil {
+			fmt.Printf("Ошибка получения сервисов для админа: %v\n", err)
+		} else {
+			for _, service := range services {
+				accessibleServices = append(accessibleServices, service.Key)
+			}
+		}
+	} else {
+		// For regular users, get services where they have roles
+		userAccessibleServices, err := models.GetUserAccessibleServices(user.ID)
+		if err != nil {
+			fmt.Printf("Ошибка получения доступных сервисов для пользователя %s: %v\n", user.Username, err)
+		} else {
+			accessibleServices = userAccessibleServices
+		}
+		
+		// Also include services from old role system for backward compatibility
+		roles, err := models.GetAllRoles()
+		if err == nil {
+			for _, userRole := range user.Roles {
+				for _, role := range roles {
+					if role.Name == userRole && role.ServiceKey != "" {
+						if !contains(accessibleServices, role.ServiceKey) {
+							accessibleServices = append(accessibleServices, role.ServiceKey)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Debug output
+	fmt.Printf("Доступные сервисы для пользователя %s: %v\n", user.Username, accessibleServices)
+	fmt.Printf("Пользователь %s является админом: %v\n", user.Username, isAdmin)
+
+	// Create a slice of service infos with display names
+	serviceInfos := []gin.H{}
+	for _, serviceKey := range accessibleServices {
+		serviceInfo := gin.H{
+			"id":          serviceKey,
+			"displayName": getServiceDisplayName(serviceKey),
+			"icon":        getIconForService(serviceKey),
+			"description": getServiceDescription(serviceKey),
+		}
+		
+		// Check if user can manage this service (system admin OR service admin)
+		canManageService := isAdmin || hasServiceAdminRole(user, serviceKey)
+		serviceInfo["canManage"] = canManageService
+		
+		if canManageService {
+			service, err := models.GetServiceByKey(serviceKey)
+			if err == nil && service != nil {
+				serviceInfo["serviceId"] = service.ID.Hex()
+				fmt.Printf("Добавлен serviceId для %s: %s (isSystemAdmin: %v, isServiceAdmin: %v)\n", 
+					serviceKey, service.ID.Hex(), isAdmin, hasServiceAdminRole(user, serviceKey))
+			} else {
+				fmt.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
+			}
+		}
+		
+		serviceInfos = append(serviceInfos, serviceInfo)
+	}
+
+	c.HTML(http.StatusOK, "menu.html", gin.H{
+		"username":     user.Username,
+		"full_name":    user.GetFullName(),
+		"short_name":   user.GetShortName(),
+		"user":         user, // Add full user object for header template
+		"services":     accessibleServices, // Keep for backward compatibility
+		"serviceInfos": serviceInfos,       // New structure with display names
+		"isAdmin":      hasAdminRole(user),
+		"role":         user.Roles,
+	})
+}
+
+// getServiceDisplayName returns a user-friendly name for a service
+func getServiceDisplayName(serviceKey string) string {
+	// Try to get the display name from services collection
+	service, err := models.GetServiceByKey(serviceKey)
+	if err == nil && service != nil && service.Name != "" {
+		return service.Name
+	}
+
+	// Fallback to permissions collection for backward compatibility
+	permission, err := models.GetPermissionByService(serviceKey)
+	if err == nil && permission.DisplayName != "" {
+		return permission.DisplayName
+	}
+
+	// Default to the original service key if not found
+	return serviceKey
+}
+
+// getServiceDescription returns a description for a service
+func getServiceDescription(serviceKey string) string {
+	// Try to get the description from services collection
+	service, err := models.GetServiceByKey(serviceKey)
+	if err == nil && service != nil && service.Description != "" {
+		return service.Description
+	}
+
+	// Default descriptions for known services
+	switch serviceKey {
+	case "client-service":
+		return "Управление клиентами и их данными"
+	case "referal":
+		return "Система реферальных программ и бонусов"
+	case "microservices-v2":
+		return "Микросервисная архитектура версии 2.0"
+	case "admin-service":
+		return "Административные функции системы"
+	case "AppartmentFinder":
+		return "Поиск и анализ недвижимости"
+	default:
+		return "Сервис " + serviceKey
+	}
+}
+
+// getIconForService returns an appropriate Font Awesome icon for each service
+func getIconForService(service string) string {
+	// Get icon from database if available
+	permission, err := models.GetPermissionByService(service)
+	if err == nil && permission.Icon != "" {
+		return permission.Icon
+	}
+
+	// Default icon if no specific icon is defined
+	return "link"
+}
+
+// Helper function to check if a slice contains a string
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}

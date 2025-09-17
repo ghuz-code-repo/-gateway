@@ -6,8 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Theme-specific values
     const darkThemeClass = 'dark-theme';
     const lightThemeClass = 'light-theme';
-    const darkLogoSrc = '/auth/static/img/logo-dark.svg';
-    const lightLogoSrc = '/auth/static/img/logo-light.svg';
+    const darkLogoSrc = '/static/img/logo-dark.svg';
+    const lightLogoSrc = '/static/img/logo-light.svg';
 
     const moonIconClass = 'fa-moon';
     const sunIconClass = 'fa-sun';

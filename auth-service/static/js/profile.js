@@ -122,15 +122,26 @@ function initDocumentHandlers() {
         input.addEventListener('change', handleFileSelect);
     });
 
-    // Document action handlers
+    // Document action handlers - use more specific selectors and event delegation
+    console.log('Setting up document click handlers');
     document.addEventListener('click', (e) => {
-        if (e.target.matches('.btn-delete-doc')) {
+        // Check if clicked element or its parent has the required class
+        const deleteBtn = e.target.closest('.btn-delete-doc');
+        const editBtn = e.target.closest('.btn-edit-doc');
+        const downloadBtn = e.target.closest('.btn-download-doc');
+        const downloadAttachmentsBtn = e.target.closest('.btn-download-attachments');
+        
+        if (deleteBtn) {
+            console.log('Delete button clicked');
             handleDocumentDelete(e);
-        } else if (e.target.matches('.btn-edit-doc')) {
+        } else if (editBtn) {
+            console.log('Edit button clicked, docId:', editBtn.dataset.docId);
             handleDocumentEdit(e);
-        } else if (e.target.matches('.btn-download-doc')) {
+        } else if (downloadBtn) {
+            console.log('Download button clicked');
             handleDocumentDownload(e);
-        } else if (e.target.matches('.btn-download-attachments')) {
+        } else if (downloadAttachmentsBtn) {
+            console.log('Download attachments button clicked');
             handleDownloadAttachments(e);
         }
     });
@@ -207,6 +218,8 @@ async function handleDocumentEdit(e) {
     e.preventDefault();
     const docId = e.target.dataset.docId;
     
+    console.log('handleDocumentEdit called with docId:', docId);
+    
     if (!docId) {
         console.error('Document ID not found');
         return;
@@ -264,8 +277,17 @@ async function openEditDocumentModal(docData) {
 
     // Load and populate fields for this document type
     const fieldsContainer = editModal.querySelector('#editDocumentFields');
+    console.log('Fields container found:', !!fieldsContainer);
+    console.log('Document data:', docData);
+    
     if (fieldsContainer && docData.document_type) {
-        await loadDocumentFieldsForEdit(fieldsContainer, docData.document_type, docData.data || {});
+        console.log('Loading fields for document type:', docData.document_type, 'with data:', docData.fields);
+        await loadDocumentFieldsForEdit(fieldsContainer, docData.document_type, docData.fields || {});
+    } else {
+        console.error('Fields container not found or document type missing:', {
+            fieldsContainer: !!fieldsContainer,
+            documentType: docData.document_type
+        });
     }
 
     // Load existing attachments into unified area
@@ -1256,19 +1278,38 @@ document.addEventListener('submit', function(e) {
                 'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || data.message || 'Ошибка сервера');
+                });
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
-                showNotification('Профиль успешно обновлен', 'success');
+            if (data.success || data.message) {
+                const message = data.message || 'Профиль успешно обновлен';
+                showNotification(message, 'success');
                 // Update displayed information if needed
-                updateProfileDisplay(data.user);
+                if (data.user) {
+                    updateProfileDisplay(data.user);
+                }
+                // Reset password form if it's a password change
+                if (e.target.id === 'passwordForm') {
+                    e.target.reset();
+                    // Clear validation states
+                    const formGroups = e.target.querySelectorAll('.form-group');
+                    formGroups.forEach(group => {
+                        group.classList.remove('has-error', 'has-success');
+                    });
+                }
             } else {
-                showNotification(data.message || 'Ошибка при сохранении профиля', 'error');
+                showNotification(data.error || data.message || 'Ошибка при сохранении профиля', 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            showNotification('Ошибка при сохранении профиля', 'error');
+            showNotification(error.message || 'Ошибка при сохранении профиля', 'error');
         })
         .finally(() => {
             submitBtn.disabled = false;
@@ -1287,6 +1328,18 @@ function updateProfileDisplay(userData) {
     const phoneDisplay = document.querySelector('.info-group .info-item[data-field="phone"]');
     if (phoneDisplay && userData.phone) {
         phoneDisplay.textContent = userData.phone;
+    }
+    
+    // Update name displays
+    const nameDisplay = document.querySelector('.info-group .info-item[data-field="name"]');
+    if (nameDisplay && userData.fullName) {
+        nameDisplay.textContent = userData.fullName;
+    }
+    
+    // Update header name if exists
+    const headerName = document.querySelector('.user-name, .header-user-name');
+    if (headerName && userData.shortName) {
+        headerName.textContent = userData.shortName;
     }
     
     // Update other fields as needed
@@ -2045,7 +2098,7 @@ async function uploadDocumentFiles(documentId, files) {
     try {
         for (const file of files) {
             const formData = new FormData();
-            formData.append('attachment', file);
+            formData.append('file', file);
             
             const response = await fetch(`/profile/documents/${documentId}/attachments`, {
                 method: 'POST',
@@ -2117,13 +2170,19 @@ async function loadDocumentFieldsForEdit(fieldsContainer, documentType, existing
         fieldsContainer.innerHTML = '';
         
         // Generate form fields and populate with existing data
+        console.log('Document type fields:', typeData.fields);
+        console.log('Existing data:', existingData);
+        
         typeData.fields.forEach(field => {
             const fieldElement = createFormField(field);
             
             // Populate field with existing data
             const input = fieldElement.querySelector(`#field_${field.id}`);
+            console.log(`Looking for field ${field.id}, input found:`, !!input, 'data:', existingData[field.id]);
+            
             if (input && existingData[field.id]) {
                 input.value = existingData[field.id];
+                console.log(`Set value for field ${field.id}:`, existingData[field.id]);
                 
                 // Trigger validation for populated field
                 setTimeout(() => {
@@ -2220,11 +2279,26 @@ async function createDocumentCardWithAttachments(doc) {
         console.error('Error loading attachments for document:', doc.id, error);
     }
     
+    // Create fields HTML
+    let fieldsHtml = '';
+    if (doc.fields && Object.keys(doc.fields).length > 0) {
+        fieldsHtml = '<div class="document-fields">';
+        for (const [key, value] of Object.entries(doc.fields)) {
+            if (value) {
+                // Format field names to be more readable
+                const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                fieldsHtml += `<p><strong>${fieldName}:</strong> ${value}</p>`;
+            }
+        }
+        fieldsHtml += '</div>';
+    }
+
     card.innerHTML = `
         <div class="document-info">
             <h4>${doc.title || doc.document_type}</h4>
             <p>Тип: ${doc.document_type}</p>
             <p>Добавлен: ${new Date(doc.created_at).toLocaleDateString('ru-RU')}</p>
+            ${fieldsHtml}
         </div>
         <div class="document-bottom-row">
             ${attachmentsHtml}
@@ -2471,4 +2545,84 @@ async function handleBulkDelete() {
     if (areaContainer) {
         updateUnifiedAreaVisibility(areaContainer);
     }
+}
+
+// Password Security Tab Functions
+document.addEventListener('DOMContentLoaded', function() {
+    initPasswordValidation();
+    initPasswordToggleButtons();
+});
+
+function initPasswordValidation() {
+    const newPasswordInput = document.getElementById('newPassword');
+    const confirmPasswordInput = document.getElementById('confirmPassword');
+    
+    if (!newPasswordInput || !confirmPasswordInput) return;
+    
+    function validatePasswords() {
+        const newPassword = newPasswordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+        
+        const newPasswordGroup = newPasswordInput.closest('.form-group');
+        const confirmPasswordGroup = confirmPasswordInput.closest('.form-group');
+        
+        // Clear previous validation states
+        [newPasswordGroup, confirmPasswordGroup].forEach(group => {
+            if (group) {
+                group.classList.remove('has-error', 'has-success');
+            }
+        });
+        
+        // Only validate if both fields have content
+        if (newPassword && confirmPassword) {
+            if (newPassword === confirmPassword) {
+                // Passwords match - show success
+                if (newPasswordGroup) newPasswordGroup.classList.add('has-success');
+                if (confirmPasswordGroup) confirmPasswordGroup.classList.add('has-success');
+            } else {
+                // Passwords don't match - show error
+                if (newPasswordGroup) newPasswordGroup.classList.add('has-error');
+                if (confirmPasswordGroup) confirmPasswordGroup.classList.add('has-error');
+            }
+        } else if (newPassword || confirmPassword) {
+            // One field is empty, the other is not - show error
+            if (newPassword && !confirmPassword && confirmPasswordGroup) {
+                confirmPasswordGroup.classList.add('has-error');
+            } else if (!newPassword && confirmPassword && newPasswordGroup) {
+                newPasswordGroup.classList.add('has-error');
+            }
+        }
+    }
+    
+    // Add event listeners for real-time validation
+    newPasswordInput.addEventListener('input', validatePasswords);
+    confirmPasswordInput.addEventListener('input', validatePasswords);
+    newPasswordInput.addEventListener('blur', validatePasswords);
+    confirmPasswordInput.addEventListener('blur', validatePasswords);
+}
+
+function initPasswordToggleButtons() {
+    const toggleButtons = document.querySelectorAll('.password-toggle-btn');
+    
+    toggleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const input = this.previousElementSibling;
+            if (!input) return;
+            
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            
+            // Update icon
+            const icon = this.querySelector('i');
+            if (icon) {
+                icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+            }
+            
+            // Update tooltip
+            this.setAttribute('data-tooltip', isPassword ? 'Спрятать пароль' : 'Показать пароль');
+            
+            // Update aria-label for accessibility
+            this.setAttribute('aria-label', isPassword ? 'Скрыть пароль' : 'Показать пароль');
+        });
+    });
 }

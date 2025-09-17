@@ -297,10 +297,22 @@
                             <div id="usersList">
                                 {{ if .serviceUsers }}
                                     {{ range .serviceUsers }}
-                                    <div class="user-item" data-username="{{ .Username }}" data-email="{{ .Email }}">
+                                    <div class="user-item" 
+                                         data-username="{{ .Username }}" 
+                                         data-email="{{ .Email }}"
+                                         data-fullname="{{ .FullName }}"
+                                         data-shortname="{{ .GetShortName }}"
+                                         data-lastname="{{ .LastName }}"
+                                         data-firstname="{{ .FirstName }}"
+                                         data-middlename="{{ .MiddleName }}"
+                                         data-phone="{{ .Phone }}"
+                                         data-roles="{{ range $index, $role := .ServiceRoles }}{{ if $index }},{{ end }}{{ $role }}{{ end }}"
+                                         data-avatar-path="{{ .AvatarPath }}">
+                                        <div class="user-avatar">
+                                        </div>
                                         <div class="user-details">
                                             <div class="user-name">
-                                                {{ if .FullName }}{{ .FullName }} ({{ .Username }}){{ else }}{{ .Username }}{{ end }}
+                                                {{ if .LastName }}{{ .GetShortName }} ({{ .Username }}){{ else if .FullName }}{{ .FullName }} ({{ .Username }}){{ else }}{{ .Username }}{{ end }}
                                             </div>
                                             <div class="user-email">{{ .Email }}</div>
                                             <div class="user-roles">
@@ -318,7 +330,7 @@
                                             <button type="button" class="btn small secondary" 
                                                     data-user-id="{{ .ID.Hex }}" 
                                                     data-username="{{ .Username }}"
-                                                    data-fullname="{{ .FullName }}"
+                                                    data-fullname="{{ if .LastName }}{{ .GetFullName }}{{ else }}{{ .FullName }}{{ end }}"
                                                     data-roles="{{ jsonify .ServiceRoles }}"
                                                     onclick="editUserRolesFromButton(this)">
                                                 <i class="fas fa-edit"></i> Управлять ролями
@@ -372,9 +384,6 @@
         </div>
     </div>
 
-    <script src="/static/js/layout-adjust.js"></script>
-    <script src="/static/js/mobile-menu.js"></script>
-    
     <!-- Простой тестовый скрипт -->
     <script>
         console.log('Main script loaded');
@@ -688,6 +697,86 @@
         const serviceKey = '{{ .service.Key }}';
         const serviceId = '{{ .service.ID.Hex }}';
         
+        // ========== ФУНКЦИИ ДЛЯ АВАТАРОВ ==========
+        
+        // Создание дефолтного аватара с иконкой пользователя
+        function createDefaultAvatarElement(size = 40) {
+            const div = document.createElement('div');
+            div.style.cssText = `
+                width: 100%;
+                height: 100%;
+                background-color: var(--card-background-color, #f5f5f5);
+                border: 2px solid var(--light-border-color, #ddd);
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--text-color-secondary, #666);
+                font-size: ${Math.max(size * 0.4, 16)}px;
+                box-sizing: border-box;
+            `;
+            
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-user';
+            div.appendChild(icon);
+            
+            return div;
+        }
+        
+        // Установка аватара с проверкой на наличие изображения
+        function setUserAvatar(container, user, size = 50) {
+            // Очищаем контейнер
+            container.innerHTML = '';
+            
+            if (user.avatarPath && user.avatarPath !== '') {
+                // Есть аватар - создаем img элемент
+                const img = document.createElement('img');
+                img.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    border-radius: 8px;
+                    object-fit: cover;
+                    border: 2px solid var(--light-border-color, #ddd);
+                    box-sizing: border-box;
+                `;
+                
+                img.src = user.avatarPath + '?v=' + Date.now();
+                img.alt = 'Аватар';
+                
+                img.onerror = function() {
+                    // Если аватар не загрузился, показываем дефолтную иконку
+                    container.innerHTML = '';
+                    const defaultAvatar = createDefaultAvatarElement(size);
+                    container.appendChild(defaultAvatar);
+                };
+                
+                container.appendChild(img);
+            } else {
+                // Нет аватара - показываем дефолтную иконку
+                const defaultAvatar = createDefaultAvatarElement(size);
+                container.appendChild(defaultAvatar);
+            }
+        }
+        
+        // Инициализация аватаров в статическом списке пользователей
+        function initializeUserListAvatars() {
+            const userItems = document.querySelectorAll('.user-item');
+            userItems.forEach(function(userItem) {
+                const avatarContainer = userItem.querySelector('.user-avatar');
+                if (avatarContainer) {
+                    const user = {
+                        username: userItem.dataset.username || '',
+                        fullName: userItem.dataset.fullname || '',
+                        shortName: userItem.dataset.shortname || '',
+                        avatarPath: userItem.dataset.avatarPath || ''
+                    };
+                    
+                    // Для списка пользователей размер 80px (на всю высоту)
+                    setUserAvatar(avatarContainer, user, 80);
+                }
+            });
+        }
+        
         // ========== ФУНКЦИИ УПРАВЛЕНИЯ ПОЛЬЗОВАТЕЛЯМИ ==========
         
         // Открыть модальное окно добавления пользователя
@@ -741,6 +830,25 @@
                             resetUserStates();
                             return;
                         }
+                        
+                        if (response.status === 404) {
+                            // Пользователь не найден - это нормальная ситуация
+                            console.log('User not found (404), checking identifier format');
+                            const isEmail = identifier.includes('@') && identifier.includes('.');
+                            console.log('User not found, isEmail:', isEmail);
+                            
+                            if (isEmail) {
+                                // Состояние 3: Новый пользователь (email формат)
+                                console.log('Showing new user state');
+                                showUserNewState();
+                            } else {
+                                // Состояние 2: Некорректный формат
+                                console.log('Showing invalid user state');
+                                showUserInvalidState();
+                            }
+                            return;
+                        }
+                        
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     
@@ -798,19 +906,18 @@
             // Заполнить информацию о пользователе
             const nameEl = document.getElementById('existingUserName');
             const emailEl = document.getElementById('existingUserEmail');
-            const avatarEl = document.getElementById('userAvatarText');
+            const avatarEl = document.getElementById('userAvatarContainer');
             
             if (nameEl) {
-                const displayName = user.fullName && user.fullName.trim() ? `${user.fullName} (${user.username})` : user.username;
+                const displayName = (user.shortName && user.shortName.trim()) ? `${user.shortName} (${user.username})` : 
+                                   (user.fullName && user.fullName.trim()) ? `${user.fullName} (${user.username})` : user.username;
                 nameEl.textContent = displayName;
             }
             if (emailEl) emailEl.textContent = user.email;
             
-            // Создать аватар с инициалами
+            // Установить аватар изображение
             if (avatarEl) {
-                const name = user.fullName || user.username;
-                const initials = name.split(' ').map(word => word.charAt(0).toUpperCase()).slice(0, 2).join('');
-                avatarEl.textContent = initials;
+                setUserAvatar(avatarEl, user, 50);
             }
             
             // Убрать обязательность поля полного имени
@@ -876,21 +983,20 @@
             // Заполнить информацию о пользователе
             const nameEl = document.getElementById('existingServiceUserName');
             const emailEl = document.getElementById('existingServiceUserEmail');
-            const avatarEl = document.getElementById('existingServiceUserAvatarText');
+            const avatarEl = document.getElementById('existingServiceUserAvatarContainer');
             const rolesEl = document.getElementById('existingServiceUserRoles');
             
             if (nameEl) {
-                const displayName = user.fullName && user.fullName.trim() ? `${user.fullName} (${user.username})` : user.username;
+                const displayName = (user.shortName && user.shortName.trim()) ? `${user.shortName} (${user.username})` : 
+                                   (user.fullName && user.fullName.trim()) ? `${user.fullName} (${user.username})` : user.username;
                 nameEl.textContent = displayName;
             }
             if (emailEl) emailEl.textContent = user.email;
             if (rolesEl) rolesEl.textContent = serviceRoles.join(', ');
             
-            // Создать аватар с инициалами
+            // Установить аватар изображение
             if (avatarEl) {
-                const name = user.fullName || user.username;
-                const initials = name.split(' ').map(word => word.charAt(0).toUpperCase()).slice(0, 2).join('');
-                avatarEl.textContent = initials;
+                setUserAvatar(avatarEl, user, 50);
             }
             
             // Убрать обязательность поля полного имени
@@ -1097,6 +1203,8 @@
             const userId = formData.get('userId');
             const roles = formData.getAll('roles');
             
+            console.log('submitEditUserRoles:', { userId, roles });
+            
             // Предупреждение при удалении всех ролей
             if (roles.length === 0) {
                 const confirmed = confirm(
@@ -1114,7 +1222,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        roles: roles
+                        roleNames: roles
                     })
                 });
                 
@@ -1135,20 +1243,185 @@
         
         // Поиск пользователей
         function filterUsers() {
-            const searchTerm = document.getElementById('userSearch').value.toLowerCase();
+            const searchTerm = document.getElementById('userSearch').value.toLowerCase().trim();
             const userItems = document.querySelectorAll('.user-item');
+            const usersList = document.getElementById('usersList');
             
-            userItems.forEach(item => {
-                const username = item.dataset.username?.toLowerCase() || '';
-                const email = item.dataset.email?.toLowerCase() || '';
+            // Если поиск пустой, показываем всех пользователей в алфавитном порядке
+            if (searchTerm === '') {
+                // Убираем заголовки категорий и сообщения об отсутствии результатов
+                hideNoUsersFoundMessage();
+                const existingHeaders = usersList.querySelectorAll('.search-category-header');
+                existingHeaders.forEach(header => header.remove());
                 
-                const matches = username.includes(searchTerm) || email.includes(searchTerm);
-                
-                if (matches) {
+                // Показываем всех пользователей
+                userItems.forEach(item => {
                     item.classList.remove('user-hidden');
+                    item.removeAttribute('data-search-category');
+                    item.removeAttribute('data-search-priority');
+                });
+                
+                // Сортируем по username в алфавитном порядке
+                sortUsersByUsername();
+                return;
+            }
+            
+            // Категории поиска по приоритету
+            const categories = {
+                'username': { name: 'По имени пользователя', priority: 1, matches: [] },
+                'email': { name: 'По email адресу', priority: 2, matches: [] },
+                'phone': { name: 'По номеру телефона', priority: 3, matches: [] },
+                'names': { name: 'По ФИО', priority: 4, matches: [] },
+                'roles': { name: 'По ролям', priority: 5, matches: [] }
+            };
+            
+            // Поиск и категоризация пользователей
+            userItems.forEach(item => {
+                const username = (item.dataset.username || '').toLowerCase();
+                const email = (item.dataset.email || '').toLowerCase();
+                const phone = (item.dataset.phone || '').toLowerCase();
+                const lastName = (item.dataset.lastname || '').toLowerCase();
+                const firstName = (item.dataset.firstname || '').toLowerCase();
+                const middleName = (item.dataset.middlename || '').toLowerCase();
+                const roles = (item.dataset.roles || '').toLowerCase();
+                const fullName = (item.dataset.fullname || '').toLowerCase();
+                const shortName = (item.dataset.shortname || '').toLowerCase();
+                
+                let matchedCategory = null;
+                let matchedPriority = 999;
+                
+                // 1. Поиск в username
+                if (username.includes(searchTerm)) {
+                    matchedCategory = 'username';
+                    matchedPriority = 1;
+                }
+                // 2. Поиск в email
+                else if (email.includes(searchTerm)) {
+                    matchedCategory = 'email';
+                    matchedPriority = 2;
+                }
+                // 3. Поиск в телефоне
+                else if (phone.includes(searchTerm)) {
+                    matchedCategory = 'phone';
+                    matchedPriority = 3;
+                }
+                // 4. Поиск в ФИО
+                else if (lastName.includes(searchTerm) || firstName.includes(searchTerm) || 
+                         middleName.includes(searchTerm) || fullName.includes(searchTerm) || 
+                         shortName.includes(searchTerm)) {
+                    matchedCategory = 'names';
+                    matchedPriority = 4;
+                }
+                // 5. Поиск в ролях
+                else if (roles.includes(searchTerm)) {
+                    matchedCategory = 'roles';
+                    matchedPriority = 5;
+                }
+                
+                // Обновляем элемент
+                if (matchedCategory) {
+                    item.classList.remove('user-hidden');
+                    item.setAttribute('data-search-category', matchedCategory);
+                    item.setAttribute('data-search-priority', matchedPriority);
+                    categories[matchedCategory].matches.push(item);
                 } else {
                     item.classList.add('user-hidden');
+                    item.removeAttribute('data-search-category');
+                    item.removeAttribute('data-search-priority');
                 }
+            });
+            
+            // Проверяем есть ли результаты
+            const hasResults = Object.values(categories).some(cat => cat.matches.length > 0);
+            
+            if (!hasResults) {
+                // Показываем сообщение "пользователь не найден"
+                showNoUsersFoundMessage();
+            } else {
+                hideNoUsersFoundMessage();
+                // Сортируем пользователей по категориям
+                reorganizeUsersByCategories(categories);
+            }
+        }
+        
+        function showNoUsersFoundMessage() {
+            let noResultsMsg = document.getElementById('no-users-found');
+            if (!noResultsMsg) {
+                noResultsMsg = document.createElement('div');
+                noResultsMsg.id = 'no-users-found';
+                noResultsMsg.className = 'no-results-message';
+                noResultsMsg.innerHTML = `
+                    <div class="no-results-content">
+                        <i class="fas fa-user-slash"></i>
+                        <h4>Пользователи не найдены</h4>
+                        <p>По вашему запросу не найдено ни одного пользователя</p>
+                    </div>
+                `;
+                document.getElementById('usersList').appendChild(noResultsMsg);
+            }
+            noResultsMsg.style.display = 'block';
+        }
+        
+        function hideNoUsersFoundMessage() {
+            const noResultsMsg = document.getElementById('no-users-found');
+            if (noResultsMsg) {
+                noResultsMsg.style.display = 'none';
+            }
+        }
+        
+        function reorganizeUsersByCategories(categories) {
+            const usersList = document.getElementById('usersList');
+            const searchTerm = document.getElementById('userSearch').value.toLowerCase().trim();
+            
+            // Удаляем существующие заголовки категорий
+            const existingHeaders = usersList.querySelectorAll('.search-category-header');
+            existingHeaders.forEach(header => header.remove());
+            
+            // Сортируем категории по приоритету и добавляем заголовки
+            Object.entries(categories)
+                .filter(([_, cat]) => cat.matches.length > 0)
+                .sort(([_, a], [__, b]) => a.priority - b.priority)
+                .forEach(([categoryKey, category]) => {
+                    // Создаем заголовок категории
+                    const categoryHeader = document.createElement('div');
+                    categoryHeader.className = 'search-category-header';
+                    categoryHeader.innerHTML = `
+                        <h4>${category.name}</h4>
+                        <span class="category-count">${category.matches.length} найдено</span>
+                    `;
+                    
+                    // Вставляем заголовок перед первым элементом категории
+                    const firstMatch = category.matches[0];
+                    usersList.insertBefore(categoryHeader, firstMatch);
+                    
+                    // Перемещаем все элементы категории после заголовка
+                    category.matches.forEach((item, index) => {
+                        if (index === 0) {
+                            // Первый элемент уже на месте
+                            return;
+                        }
+                        // Вставляем после предыдущего элемента
+                        const prevElement = index === 1 ? categoryHeader : category.matches[index - 1];
+                        usersList.insertBefore(item, prevElement.nextSibling);
+                    });
+                });
+        }
+        
+        // Сортировка пользователей по username в алфавитном порядке
+        function sortUsersByUsername() {
+            const usersList = document.getElementById('usersList');
+            const userItems = usersList.querySelectorAll('.user-item');
+            
+            // Конвертируем NodeList в массив и сортируем
+            const sortedItems = Array.from(userItems).sort((a, b) => {
+                const usernameA = (a.dataset.username || '').toLowerCase();
+                const usernameB = (b.dataset.username || '').toLowerCase();
+                return usernameA.localeCompare(usernameB, 'ru', { sensitivity: 'base' });
+            });
+            
+            // Перемещаем элементы в отсортированном порядке
+            sortedItems.forEach(item => {
+                usersList.appendChild(item);
             });
         }
         
@@ -1167,6 +1440,12 @@
 
         // Обработчики клика по карточкам разрешений для переключения чекбоксов
         document.addEventListener('DOMContentLoaded', function() {
+            // Инициализация аватаров в списке пользователей
+            initializeUserListAvatars();
+            
+            // Инициальная алфавитная сортировка пользователей
+            sortUsersByUsername();
+            
             // Обработчики для модального окна добавления пользователя
             const addUserModal = document.getElementById('addUserModal');
             if (addUserModal) {
@@ -1984,13 +2263,13 @@
                     <form method="post" action="/services/{{ .service.ID.Hex }}/roles" id="createRoleForm">
                         <div class="form-group">
                             <label for="modal-role-name">Название роли *</label>
-                            <input type="text" id="modal-role-name" name="name" required 
+                            <input type="text" id="modal-role-name" name="role_name" required 
                                    pattern="[a-z0-9_\-]+" title="Только строчные буквы, цифры, дефисы и подчеркивания"
                                    placeholder="например: editor">
                         </div>
                         <div class="form-group">
                             <label for="modal-role-desc">Описание</label>
-                            <input type="text" id="modal-role-desc" name="description" 
+                            <input type="text" id="modal-role-desc" name="role_description" 
                                    placeholder="например: Редактор контента">
                         </div>
                     </form>
@@ -2192,8 +2471,7 @@
                                     <span class="state-title">Пользователь найден</span>
                                 </div>
                                 <div class="existing-user-card">
-                                    <div class="user-avatar">
-                                        <span id="userAvatarText"></span>
+                                    <div class="user-avatar" id="userAvatarContainer">
                                     </div>
                                     <div class="user-details">
                                         <div class="user-name" id="existingUserName"></div>
@@ -2232,8 +2510,7 @@
                                 </div>
                                 <div class="state-content">
                                     <div class="existing-service-user-card">
-                                        <div class="user-avatar">
-                                            <span id="existingServiceUserAvatarText">?</span>
+                                        <div class="user-avatar" id="existingServiceUserAvatarContainer">
                                         </div>
                                         <div class="user-details">
                                             <div class="user-name" id="existingServiceUserName">-</div>
@@ -2332,6 +2609,7 @@
     <script src="/static/js/theme-switcher.js"></script>
     <script src="/static/js/layout-adjust.js"></script>
     <script src="/static/js/mobile-menu.js"></script>
+    <script src="/static/js/service-manage.js"></script>
     
     <!-- Инициализация частиц -->
     <script>

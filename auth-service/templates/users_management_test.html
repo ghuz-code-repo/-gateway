@@ -1,0 +1,88 @@
+{{ define "users_management_test.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - ТЕСТ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: white;
+            color: black;
+            margin: 20px;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 2px solid red;
+        }
+        .user-card {
+            border: 1px solid #ccc;
+            margin: 10px 0;
+            padding: 15px;
+            background: #f9f9f9;
+        }
+        .debug-info {
+            background: yellow;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid orange;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>ТЕСТОВАЯ СТРАНИЦА УПРАВЛЕНИЯ ПОЛЬЗОВАТЕЛЯМИ</h1>
+        
+        <div class="debug-info">
+            <h3>Отладочная информация:</h3>
+            <p>Title: {{ .title }}</p>
+            <p>Users count: {{ len .usersWithRoles }}</p>
+            {{ if .error }}<p style="color: red;">Error: {{ .error }}</p>{{ end }}
+            {{ if .success }}<p style="color: green;">Success: {{ .success }}</p>{{ end }}
+        </div>
+
+        {{ if .usersWithRoles }}
+            <h2>Список пользователей ({{ len .usersWithRoles }})</h2>
+            {{ range $index, $userWithRole := .usersWithRoles }}
+            <div class="user-card">
+                <h3>Пользователь #{{ $index }}</h3>
+                <p><strong>ID:</strong> {{ .User.ID.Hex }}</p>
+                <p><strong>Username:</strong> {{ .User.Username }}</p>
+                <p><strong>Email:</strong> {{ .User.Email }}</p>
+                <p><strong>ФИО:</strong> {{ .User.GetFullName }}</p>
+                <p><strong>Создан:</strong> {{ .User.CreatedAt }}</p>
+                <p><strong>Заблокирован:</strong> {{ .User.IsBanned }}</p>
+                <p><strong>Роли:</strong> {{ range .User.Roles }}{{ . }} {{ end }}</p>
+                
+                {{ if .ServiceRoles }}
+                <p><strong>Роли в сервисах:</strong></p>
+                <ul>
+                    {{ range .ServiceRoles }}
+                    <li>{{ .ServiceKey }}: {{ .RoleName }} (активна: {{ .IsActive }})</li>
+                    {{ end }}
+                </ul>
+                {{ end }}
+            </div>
+            {{ end }}
+        {{ else }}
+            <div class="debug-info">
+                <p style="color: red; font-size: 18px;">НЕТ ДАННЫХ О ПОЛЬЗОВАТЕЛЯХ!</p>
+                <p>Возможные причины:</p>
+                <ul>
+                    <li>Переменная .usersWithRoles пустая</li>
+                    <li>Ошибка в обработчике</li>
+                    <li>Проблема с базой данных</li>
+                </ul>
+            </div>
+        {{ end }}
+
+        <div style="margin-top: 30px;">
+            <a href="/admin-menu">← Назад к панели управления</a>
+        </div>
+    </div>
+</body>
+</html>
+{{ end }}

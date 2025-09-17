@@ -49,6 +49,14 @@ func MigrateToADR001Schema() (*MigrationResult, error) {
 		result.Errors = append(result.Errors, fmt.Sprintf("Default services creation failed: %v", err))
 	}
 
+	// Phase 4: Remove unwanted system administration service
+	err = DeleteServiceByKey("system")
+	if err != nil {
+		log.Printf("Could not remove system service (might not exist): %v", err)
+	} else {
+		log.Println("Removed unwanted 'System Administration' service")
+	}
+
 	result.CompletedAt = time.Now()
 	log.Printf("Migration completed: %d services updated, %d roles updated", 
 		result.ServicesUpdated, result.RolesUpdated)
@@ -189,17 +197,6 @@ func ensureDefaultServices(result *MigrationResult) error {
 				{Name: "edit", DisplayName: "Edit", Description: "Permission to edit calculators"},
 				{Name: "delete", DisplayName: "Delete", Description: "Permission to delete calculators"},
 				{Name: "share", DisplayName: "Share", Description: "Permission to share calculators"},
-			},
-		},
-		{
-			key:         "system",
-			name:        "System Administration",
-			description: "System-wide administration and management",
-			permissions: []PermissionDef{
-				{Name: "admin", DisplayName: "Admin", Description: "Full system administration access"},
-				{Name: "manage_all", DisplayName: "Manage All", Description: "Manage all system resources"},
-				{Name: "user_management", DisplayName: "User Management", Description: "Manage users and roles"},
-				{Name: "service_management", DisplayName: "Service Management", Description: "Manage services and permissions"},
 			},
 		},
 	}

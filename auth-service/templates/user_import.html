@@ -4,6 +4,7 @@
 <head>
     <title>{{ .title }} - шлюз авторизации</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
       body {
         visibility: hidden;
@@ -55,6 +56,9 @@
                 
                 <div class="form-buttons">
                     <button type="submit" class="btn primary">Импортировать пользователей</button>
+                    <a href="/users/template" class="btn secondary">
+                        <i class="fas fa-file-excel"></i> Скачать шаблон
+                    </a>
                     <a href="/users" class="btn">Отмена</a>
                 </div>
             </form>

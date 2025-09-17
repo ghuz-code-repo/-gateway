@@ -31,9 +31,9 @@ services:
       - data_network
       - public_network
     volumes:
-      - ./auth-service/data:/data
-      - ./auth-service/static:/static
-      - ./auth-service/templates:/templates
+      - ./auth-service/data:/root/data
+      - ./auth-service/static:/root/static
+      - ./auth-service/templates:/root/templates
 
     restart: always
 
