@@ -57,6 +57,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 iconElement.classList.add(moonIconClass);
             }
         }
+        
+        // // Reinitialize particles with new theme colors
+        // if (typeof window.initParticles === 'function') {
+        //     setTimeout(() => {
+        //         window.initParticles();
+        //     }, 100);
+        // }
     }
 
     // Set initial state of the button icon and logo.

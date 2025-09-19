@@ -1,3 +1,4 @@
+{{ define "user_form.html" }}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -7,13 +8,9 @@
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/admin-service-form.css">
     <link rel="stylesheet" href="/static/css/user-form.css">
-    <style>
-      body {
-        visibility: hidden;
-        opacity: 0;
-        transition: opacity .05s ease-in-out;
-      }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/user-form.js"></script>
 </head>
 <body>
     <script>
@@ -32,244 +29,532 @@
             });
         })();
     </script>
+    
     <div id="particles-js"></div>
     {{ template "header" . }}
     
-    <div class="container">
-        <h1>{{ .title }}</h1>
-        
-        {{ if .error }}
-        <div class="flash-message danger">
-            {{ .error }}
-        </div>
-        {{ end }}
-        
-        <form action="{{ if .user }}/users/{{ .user.ID.Hex }}{{ else }}/users{{ end }}" method="post">
-            <div class="form-group">
-                <label for="username">Имя пользователя:</label>
-                <input type="text" id="username" name="username" value="{{ if .user }}{{ .user.Username }}{{ else }}{{ .username }}{{ end }}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="last_name">Фамилия:</label>
-                <input type="text" id="last_name" name="last_name" value="{{ if .user }}{{ .user.LastName }}{{ else }}{{ .last_name }}{{ end }}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="first_name">Имя:</label>
-                <input type="text" id="first_name" name="first_name" value="{{ if .user }}{{ .user.FirstName }}{{ else }}{{ .first_name }}{{ end }}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="middle_name">Отчество:</label>
-                <input type="text" id="middle_name" name="middle_name" value="{{ if .user }}{{ .user.MiddleName }}{{ else }}{{ .middle_name }}{{ end }}">
-            </div>
-            
-            <div class="form-group">
-                <label for="suffix">Суффикс:</label>
-                <input type="text" id="suffix" name="suffix" value="{{ if .user }}{{ .user.Suffix }}{{ else }}{{ .suffix }}{{ end }}" placeholder="мл., ст., и т.д.">
-            </div>
-            
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" value="{{ if .user }}{{ .user.Email }}{{ else }}{{ .email }}{{ end }}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">
-                    {{ if .user }}
-                        Пароль (оставьте пустым, чтобы сохранить текущий пароль):
-                    {{ else }}
-                        Пароль:
-                    {{ end }}
-                </label>
-                <div class="password-input-group">
-                    <input type="password" id="password" name="password" {{ if not .user }}required{{ end }}>
-                    <button type="button" id="generatePassword" class="btn small">Сгенерировать</button>
-                    <button type="button" id="togglePassword" class="btn small">👁</button>
-                </div>
-                <div class="password-strength-indicator" id="passwordStrength" style="display: none;">
-                    <div class="strength-bar">
-                        <div class="strength-fill" id="strengthFill"></div>
+    <div class="admin-page-container">
+        <div class="admin-content">
+            <div class="enhanced-user-form">
+                <div class="page-title-section">
+                    <h1>{{ .title }}</h1>
+                    
+                    {{ if .error }}
+                    <div class="flash-message error">
+                        {{ .error }}
                     </div>
-                    <div class="strength-text" id="strengthText"></div>
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <label>Системные роли:</label>
-                <div class="roles-grid">
-                    {{ range .roles }}
-                    <div class="role-checkbox-card">
-                        <input type="checkbox" id="role-{{ .Name }}" name="roles" value="{{ .Name }}"
-                        {{ if $.user }}
-                            {{ $roleName := .Name }}
-                            {{ range $.user.Roles }}
-                                {{ if eq . $roleName }}checked{{ end }}
-                            {{ end }}
-                        {{ end }}>
-                        <label for="role-{{ .Name }}">
-                            <div class="role-info">
-                                <div class="role-name">{{ .Name }}</div>
-                                <div class="role-description">{{ .Description }}</div>
-                            </div>
-                        </label>
+                    {{ end }}
+                    
+                    {{ if .success }}
+                    <div class="flash-message success">
+                        {{ .success }}
                     </div>
                     {{ end }}
                 </div>
-            </div>
-
-            <div class="form-group">
-                <label>Роли в сервисах:</label>
-                <div class="service-roles-section">
-                    {{ range .services }}
-                    <div class="service-role-group">
-                        <h4>{{ .Name }} ({{ .Key }})</h4>
-                        {{ $serviceKey := .Key }}
-                        {{ $userServiceRoles := $.userServiceRoles }}
-                        <div class="service-roles-grid">
-                            {{ range .Roles }}
-                            <div class="service-role-checkbox-card">
-                                <input type="checkbox" 
-                                       id="service-role-{{ $serviceKey }}-{{ .Name }}" 
-                                       name="service_roles" 
-                                       value="{{ $serviceKey }}:{{ .Name }}"
-                                       {{ $currentRoleName := .Name }}
-                                       {{ range $userServiceRoles }}
-                                           {{ if and (eq .ServiceKey $serviceKey) (eq .RoleName $currentRoleName) .IsActive }}checked{{ end }}
-                                       {{ end }}>
-                                <label for="service-role-{{ $serviceKey }}-{{ .Name }}">
-                                    <div class="service-role-info">
-                                        <div class="service-role-name">{{ .Name }}</div>
-                                        <div class="service-role-description">{{ .Description }}</div>
+                
+                <form action="{{ if .editingUser }}/users/{{ .editingUser.ID.Hex }}{{ else }}/users{{ end }}" method="post" enctype="multipart/form-data" id="userForm">
+                    <div class="form-sections">
+                        
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <i class="fas fa-user"></i>
+                                Основная информация
+                            </h3>
+                            
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="username" class="required">Имя пользователя</label>
+                                    <div class="input-with-button">
+                                        <input type="text" 
+                                               id="username" 
+                                               name="username" 
+                                               value="{{ if .editingUser }}{{ .editingUser.Username }}{{ end }}" 
+                                               required>
+                                        <button type="button" 
+                                                class="generate-btn" 
+                                                onclick="generateFromEmail()" 
+                                                title="Автоматически заполняется из email">
+                                            <i class="fas fa-magic"></i>
+                                            Создать логин из почтового адреса
+                                        </button>
                                     </div>
-                                </label>
+                                    <span class="help-text">Автоматически заполняется из email</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="email" class="required">Email</label>
+                                    <input type="email" 
+                                           id="email" 
+                                           name="email" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}" 
+                                           required>
+                                    <span class="help-text">Будет использован для входа в систему</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="password" {{ if not .editingUser }}class="required"{{ end }}>
+                                        {{ if .editingUser }}Новый пароль (оставьте пустым, чтобы не менять){{ else }}Пароль{{ end }}
+                                    </label>
+                                    <div class="password-input-container">
+                                        <input type="password" 
+                                               id="password" 
+                                               name="password" 
+                                               {{ if not .editingUser }}required{{ end }}>
+                                        <button type="button" 
+                                                class="password-toggle-btn" 
+                                                onclick="togglePasswordVisibility()"
+                                                title="Показать/скрыть пароль">
+                                            <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                                        </button>
+                                        <button type="button" 
+                                                class="generate-password-btn" 
+                                                onclick="generatePassword()"
+                                                title="Сгенерировать пароль">
+                                            <i class="fas fa-random"></i>
+                                        </button>
+                                    </div>
+                                    <span class="help-text">Минимум 6 символов</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="phone">Телефон</label>
+                                    <input type="tel" 
+                                           id="phone" 
+                                           name="phone" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Phone }}{{ end }}" 
+                                           placeholder="+998 90 000 93 89">
+                                </div>
                             </div>
-                            {{ end }}
+                        </div>
+                        
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <i class="fas fa-id-card"></i>
+                                Личная информация
+                            </h3>
+                            
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="last_name" class="required">Фамилия</label>
+                                    <input type="text" 
+                                           id="last_name" 
+                                           name="last_name" 
+                                           value="{{ if .editingUser }}{{ .editingUser.LastName }}{{ end }}" 
+                                           required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="first_name" class="required">Имя</label>
+                                    <input type="text" 
+                                           id="first_name" 
+                                           name="first_name" 
+                                           value="{{ if .editingUser }}{{ .editingUser.FirstName }}{{ end }}" 
+                                           required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="middle_name">Отчество</label>
+                                    <input type="text" 
+                                           id="middle_name" 
+                                           name="middle_name" 
+                                           value="{{ if .editingUser }}{{ .editingUser.MiddleName }}{{ end }}">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="suffix">Суффикс</label>
+                                    <input type="text" 
+                                           id="suffix" 
+                                           name="suffix" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Suffix }}{{ end }}" 
+                                           placeholder="Jr., Sr., III и т.д.">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="position">Должность</label>
+                                    <input type="text" 
+                                           id="position" 
+                                           name="position" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Position }}{{ end }}">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="department">Отдел</label>
+                                    <input type="text" 
+                                           id="department" 
+                                           name="department" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Department }}{{ end }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <i class="fas fa-user-shield"></i>
+                                Роли и права доступа
+                            </h3>
+                            
+                            <div class="roles-container">
+                                <div class="form-group full-width">
+                                    <label class="system-admin-toggle">
+                                        <input type="checkbox" 
+                                               id="system_admin" 
+                                               name="system_admin" 
+                                               value="true"
+                                               {{ if .isSystemAdmin }}checked{{ end }}>
+                                        <span class="toggle-switch"></span>
+                                        <span class="toggle-label">Системный администратор</span>
+                                    </label>
+                                    <span class="help-text">Предоставляет полный доступ к системе</span>
+                                </div>
+                                
+                                <div class="form-group full-width">
+                                    <label>Роли в сервисах</label>
+                                    <div class="service-roles-container">
+                                        {{ if .allServices }}
+                                        {{ range $service := .allServices }}
+                                        <div class="service-role-group">
+                                            <div class="service-title">
+                                                <i class="fas fa-cogs"></i>
+                                                {{ $service.Name }} ({{ len $service.Roles }} ролей)
+                                            </div>
+                                            <div class="roles-grid">
+                                                {{ if $service.Roles }}
+                                                {{ range $role := $service.Roles }}
+                                                <div class="checkbox-item service-role">
+                                                    <input type="checkbox" 
+                                                           id="role-{{ $service.ID.Hex }}-{{ $role.Name }}" 
+                                                           name="roles" 
+                                                           value="{{ $service.Key }}-{{ $role.Name }}"
+                                                           {{ range $userRole := $.userRoles }}
+                                                             {{ if and (eq $userRole.ServiceKey $service.Key) (eq $userRole.RoleName $role.Name) }}checked{{ end }}
+                                                           {{ end }}>
+                                                    <label for="role-{{ $service.ID.Hex }}-{{ $role.Name }}">
+                                                        {{ $role.Name }}
+                                                        {{ if $role.Description }}
+                                                        <div class="permission-info">
+                                                            <small>{{ $role.Description }}</small>
+                                                        </div>
+                                                        {{ end }}
+                                                    </label>
+                                                </div>
+                                                {{ end }}
+                                                {{ else }}
+                                                <div class="empty-roles">
+                                                    <span>Нет доступных ролей для этого сервиса</span>
+                                                </div>
+                                                {{ end }}
+                                            </div>
+                                        </div>
+                                        {{ end }}
+                                        {{ else }}
+                                        <div class="empty-services">
+                                            <p>Нет доступных сервисов. Проверьте подключение к базе данных.</p>
+                                        </div>
+                                        {{ end }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="documents-header">
+                                <h3 class="section-title">
+                                    <i class="fas fa-file-alt"></i>
+                                    Документы пользователя
+                                </h3>
+                                <button type="button" class="btn btn-primary" id="addDocumentBtn">
+                                    <i class="fas fa-plus"></i>
+                                    Добавить документ
+                                </button>
+                            </div>
+                            <div class="documents-grid" id="documentsGrid">
+                                <!-- Документы будут загружены через JavaScript -->
+                                <div class="loading-documents">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Загрузка документов...</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <div class="left-actions">
+                                <a href="/users" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left"></i>
+                                    Назад к списку
+                                </a>
+                            </div>
+                            <div class="right-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-check"></i>
+                                    {{ if .editingUser }}Обновить пользователя{{ else }}Создать пользователя{{ end }}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    {{ end }}
-                </div>
-            </div>
-            
-            <div class="form-buttons">
-                <button type="submit" class="btn primary">
-                    {{ if .user }}Обновить{{ else }}Создать{{ end }} пользователя
-                </button>
-                <a href="/users" class="btn">Отмена</a>
-            </div>
-        </form>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-    <script src="/static/js/theme-switcher.js"></script>
-    <script src="/static/js/layout-adjust.js"></script>
-    <script src="/static/js/mobile-menu.js"></script>
-    <script>
-    // Password generation and management
-    document.addEventListener('DOMContentLoaded', function() {
-        const passwordInput = document.getElementById('password');
-        const generateBtn = document.getElementById('generatePassword');
-        const toggleBtn = document.getElementById('togglePassword');
-        const strengthIndicator = document.getElementById('passwordStrength');
-        const strengthFill = document.getElementById('strengthFill');
-        const strengthText = document.getElementById('strengthText');
+                </form>
+        </div>
+    
 
-        // Generate secure password
-        generateBtn.addEventListener('click', function() {
-            const password = generateSecurePassword();
-            passwordInput.value = password;
-            checkPasswordStrength(password);
+    <div id="documentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Добавить документ</h3>
+                <span class="close" onclick="closeDocumentModalAdmin()">&times;</span>
+            </div>
+            <form id="documentForm" class="modal-form" novalidate>
+                <div class="form-group">
+                    <label for="documentTypeSelect">Тип документа</label>
+                    <select id="documentTypeSelect" name="documentType" required>
+                        <option value="">Выберите тип документа</option>
+                    </select>
+                </div>
+                <div id="documentFields" class="document-fields">
+                    <!-- Поля документа будут загружены динамически -->
+                </div>
+                <!-- Единая секция управления файлами для создания -->
+                <div class="form-group">
+                    <label>Файлы документа (необязательно)</label>
+                    <div id="newDocumentFilesArea" class="unified-files-area">
+                        <!-- Новые файлы будут отображаться здесь -->
+                        <div id="newFilesContainer" class="files-container">
+                            <!-- Файлы будут добавлены динамически -->
+                            <!-- Кнопка + будет добавлена сюда JavaScript'ом -->
+                        </div>
+                        <div id="newEmptyState" class="empty-files-state">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетяните файлы сюда или нажмите для выбора</p>
+                            <small>Поддерживаемые форматы: PDF, JPG, PNG</small>
+                        </div>
+                    </div>
+                    <input type="file" id="documentFile" name="documentFile" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="file-input-hidden">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelDocumentBtn" onclick="closeDocumentModalAdmin()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить документ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для редактирования документа -->
+    <div id="editDocumentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Редактировать документ</h3>
+                <span class="close" onclick="closeEditDocumentModal()">&times;</span>
+            </div>
+            <form id="editDocumentForm" class="modal-form" novalidate>
+                <input type="hidden" name="documentId" id="editDocumentId">
+                <div class="form-group">
+                    <label for="editDocumentTypeSelect">Тип документа</label>
+                    <select id="editDocumentTypeSelect" name="documentType" required disabled>
+                        <option value="">Выберите тип документа</option>
+                    </select>
+                    <small class="form-help">Тип документа нельзя изменить после создания</small>
+                </div>
+                <div id="editDocumentFields" class="document-fields">
+                    <!-- Поля документа будут загружены динамически -->
+                </div>
+                
+                <!-- Единая секция управления файлами -->
+                <div class="form-group">
+                    <label>Файлы документа</label>
+                    <!-- Панель массовых операций -->
+                    <div id="bulkActionsPanel" class="bulk-actions-panel" style="display: none;">
+                        <div class="bulk-actions-controls">
+                            <span class="select-all-label" onclick="toggleSelectAllFiles()">Выбрать все</span>
+                            <span id="selectedCount" class="selected-count">0 выбрано</span>
+                        </div>
+                        <div class="bulk-actions-buttons">
+                            <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm" disabled>
+                                <i class="fas fa-trash"></i> Удалить выбранные
+                            </button>
+                        </div>
+                    </div>
+                    <div id="editDocumentFilesArea" class="unified-files-area">
+                        <!-- Загруженные и новые файлы будут отображаться здесь -->
+                        <div id="editFilesContainer" class="files-container">
+                            <!-- Файлы будут загружены динамически -->
+                            <!-- Кнопка + будет добавлена сюда JavaScript'ом -->
+                        </div>
+                        <div id="editEmptyState" class="empty-files-state">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетяните файлы сюда или нажмите для выбора</p>
+                            <small>Поддерживаемые форматы: PDF, JPG, PNG</small>
+                        </div>
+                    </div>
+                    <input type="file" id="editDocumentFiles" name="documentFiles" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="file-input-hidden">
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelEditDocumentBtn" onclick="closeEditDocumentModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        // Global functions for modal management
+        function closeDocumentModal() {
+            const modal = document.getElementById('documentModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        function closeEditDocumentModal() {
+            const modal = document.getElementById('editDocumentModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        function toggleSelectAllFiles() {
+            const checkboxes = document.querySelectorAll('#editDocumentFilesArea .file-checkbox');
+            const checkedBoxes = document.querySelectorAll('#editDocumentFilesArea .file-checkbox:checked');
+            const allSelected = checkedBoxes.length === checkboxes.length && checkboxes.length > 0;
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = !allSelected;
+                const fileItem = checkbox.closest('.file-item');
+                if (fileItem) {
+                    if (!allSelected) {
+                        fileItem.classList.add('selected');
+                    } else {
+                        fileItem.classList.remove('selected');
+                    }
+                }
+            });
+            
+            updateBulkActionsStateAdmin();
+        }
+        
+        function generateFromEmail() {
+            const email = document.getElementById('email').value;
+            if (email) {
+                const username = email.split('@')[0];
+                document.getElementById('username').value = username;
+            }
+        }
+        
+        document.getElementById('email').addEventListener('blur', function() {
+            const usernameField = document.getElementById('username');
+            if (!usernameField.value && this.value) {
+                generateFromEmail();
+            }
         });
 
-        // Toggle password visibility
-        toggleBtn.addEventListener('click', function() {
+        function generatePassword() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+            let password = '';
+            for (let i = 0; i < 12; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('password').value = password;
+            
+            const passwordField = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            passwordField.type = 'text';
+            toggleIcon.className = 'fas fa-eye-slash';
+            
+            setTimeout(() => {
+                passwordField.type = 'password';
+                toggleIcon.className = 'fas fa-eye';
+            }, 3000);
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
-                toggleBtn.textContent = '🙈';
+                toggleIcon.className = 'fas fa-eye-slash';
             } else {
                 passwordInput.type = 'password';
-                toggleBtn.textContent = '👁';
+                toggleIcon.className = 'fas fa-eye';
+            }
+        }
+        
+        function openDocumentModal() {
+            document.getElementById('documentModal').style.display = 'block';
+        }
+
+        function closeDocumentModal() {
+            document.getElementById('documentModal').style.display = 'none';
+            document.getElementById('documentForm').reset();
+        }
+
+        document.getElementById('documentForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('documentTitle').value;
+            const file = document.getElementById('documentFile').files[0];
+            
+            if (title && file) {
+                const documentsGrid = document.getElementById('documentsGrid');
+                
+                // Remove empty state if it exists
+                const emptyState = documentsGrid.querySelector('.empty-documents');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+                
+                // Create new document item
+                const documentItem = document.createElement('div');
+                documentItem.className = 'document-item';
+                documentItem.innerHTML = `
+                    <div class="document-info">
+                        <i class="fas fa-file"></i>
+                        <span>${title}</span>
+                        <input type="hidden" name="document_titles[]" value="${title}">
+                        <input type="hidden" name="document_files[]" value="${file.name}">
+                    </div>
+                    <button type="button" class="btn small danger" onclick="removeDocument(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                `;
+                
+                documentsGrid.appendChild(documentItem);
+                closeDocumentModal();
             }
         });
 
-        // Check password strength on input
-        passwordInput.addEventListener('input', function() {
-            checkPasswordStrength(this.value);
+        function removeDocument(button) {
+            const documentItem = button.parentElement;
+            const documentsGrid = document.getElementById('documentsGrid');
+            
+            documentItem.remove();
+            
+            // Add empty state if no documents left
+            if (documentsGrid.children.length === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'empty-documents';
+                emptyState.innerHTML = `
+                    <i class="fas fa-folder-open"></i>
+                    <p>Нет добавленных документов</p>
+                `;
+                documentsGrid.appendChild(emptyState);
+            }
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('documentModal');
+            if (event.target === modal) {
+                closeDocumentModal();
+            }
         });
-
-        function generateSecurePassword() {
-            const length = 12;
-            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
-            let password = "";
-            
-            // Ensure at least one character from each required set
-            const lower = "abcdefghijklmnopqrstuvwxyz";
-            const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            const numbers = "0123456789";
-            const symbols = "!@#$%^&*()";
-            
-            password += lower[Math.floor(Math.random() * lower.length)];
-            password += upper[Math.floor(Math.random() * upper.length)];
-            password += numbers[Math.floor(Math.random() * numbers.length)];
-            password += symbols[Math.floor(Math.random() * symbols.length)];
-            
-            // Fill the rest
-            for (let i = 4; i < length; i++) {
-                password += charset[Math.floor(Math.random() * charset.length)];
-            }
-            
-            // Shuffle the password
-            return password.split('').sort(() => Math.random() - 0.5).join('');
-        }
-
-        function checkPasswordStrength(password) {
-            if (!password) {
-                strengthIndicator.style.display = 'none';
-                return;
-            }
-
-            strengthIndicator.style.display = 'block';
-            
-            let score = 0;
-            let feedback = [];
-
-            // Length check
-            if (password.length >= 8) score += 20;
-            else feedback.push('не менее 8 символов');
-
-            // Lowercase check
-            if (/[a-z]/.test(password)) score += 20;
-            else feedback.push('строчные буквы');
-
-            // Uppercase check
-            if (/[A-Z]/.test(password)) score += 20;
-            else feedback.push('заглавные буквы');
-
-            // Number check
-            if (/[0-9]/.test(password)) score += 20;
-            else feedback.push('цифры');
-
-            // Special character check
-            if (/[^A-Za-z0-9]/.test(password)) score += 20;
-            else feedback.push('специальные символы');
-
-            // Update strength bar
-            strengthFill.style.width = score + '%';
-            
-            if (score < 40) {
-                strengthFill.style.backgroundColor = '#ff4444';
-                strengthText.textContent = 'Слабый пароль. Добавьте: ' + feedback.join(', ');
-            } else if (score < 80) {
-                strengthFill.style.backgroundColor = '#ffaa00';
-                strengthText.textContent = 'Средний пароль. Добавьте: ' + feedback.join(', ');
-            } else {
-                strengthFill.style.backgroundColor = '#44ff44';
-                strengthText.textContent = 'Сильный пароль';
-            }
-        }
-    });
-
-    // Particles.js configuration
+    </script>
+    
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script>
     particlesJS('particles-js', {
         "particles": {
             "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
@@ -282,7 +567,7 @@
         },
         "interactivity": {
             "detect_on": "canvas",
-            "events": { "onhover": { "enable": true, "mode": "bubble" } },
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
             "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
         },
         "retina_detect": true
@@ -290,4 +575,4 @@
     </script>
 </body>
 </html>
-
+{{ end }}

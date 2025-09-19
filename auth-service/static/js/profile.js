@@ -459,7 +459,17 @@ function createUnifiedFileItem(fileData, status = 'uploaded', docId = null) {
     
     let previewContent = '';
     if (isImage && status === 'uploaded') {
-        previewContent = `<img src="${fileData.file_path}" alt="${fileData.filename}">`;
+        const previewUrl = `/profile/documents/${docId}/attachments/${fileData.id}/preview`;
+        console.log('Creating preview for uploaded image:', {
+            fileName: fileData.filename || fileData.name,
+            docId,
+            attachmentId: fileData.id,
+            previewUrl
+        });
+        previewContent = `<img src="${previewUrl}" alt="${fileData.filename || fileData.name}" 
+                               onload="console.log('Image loaded successfully:', '${previewUrl}')"
+                               onerror="console.log('Image failed to load:', '${previewUrl}'); this.style.display='none'; this.nextElementSibling.style.display='block';">
+                         <i class="fas fa-file-image" style="display: none; color: #28a745;"></i>`;
     } else if (isImage && status === 'new') {
         // For new files, we'll set the src via FileReader
         previewContent = `<img class="preview-placeholder" alt="${fileData.name}">`;
@@ -490,7 +500,7 @@ function createUnifiedFileItem(fileData, status = 'uploaded', docId = null) {
     
     const previewButtonHTML = canPreview ? `
         <div class="file-preview-button">
-            <button type="button" class="btn-preview-file" data-doc-id="${docId || ''}" data-file-data="${btoa(JSON.stringify(buttonFileData))}" data-status="${status}" onclick="previewAttachmentFromButton(this, event)" title="Предпросмотр">
+            <button type="button" class="btn-preview-file" data-doc-id="${docId || ''}" data-file-data="${encodeURIComponent(JSON.stringify(buttonFileData))}" data-status="${status}" onclick="previewAttachmentFromButton(this, event)" title="Предпросмотр">
                 <i class="fas fa-eye"></i>
                 <span>Предпросмотр</span>
             </button>
@@ -546,6 +556,7 @@ function createUnifiedFileItem(fileData, status = 'uploaded', docId = null) {
 }
 
 function previewAttachmentFromButton(button, event) {
+    console.log('Preview button clicked:', button);
     // Prevent form submission
     if (event) {
         event.preventDefault();
@@ -553,17 +564,22 @@ function previewAttachmentFromButton(button, event) {
     }
     
     const docId = button.dataset.docId;
-    const fileDataBase64 = button.dataset.fileData;
+    const fileDataEncoded = button.dataset.fileData;
     const status = button.dataset.status;
     
+    console.log('Preview data:', { docId, fileDataEncoded, status });
+    
     try {
-        const fileData = JSON.parse(atob(fileDataBase64));
+        const fileData = JSON.parse(decodeURIComponent(fileDataEncoded));
+        console.log('Parsed file data:', fileData);
         
         if (status === 'uploaded') {
             // For uploaded files, use server preview
+            console.log('Calling previewAttachment for uploaded file');
             previewAttachment(docId, fileData);
         } else if (status === 'new') {
             // For new files, use local preview
+            console.log('Calling previewNewFile for new file');
             previewNewFile(fileData);
         }
     } catch (error) {
@@ -982,16 +998,27 @@ async function removeAttachment(docId, attachmentId, skipConfirm = false) {
 }
 
 function previewAttachment(docId, attachment) {
+    console.log('previewAttachment called with:', { docId, attachment });
     isFileOperationInProgress = true;
     
-    const isImage = /\.(jpg|jpeg|png|gif)$/i.test(attachment.filename);
-    const isPdf = /\.pdf$/i.test(attachment.filename);
+    const filename = attachment.filename || attachment.file_name || attachment.name || 'unknown';
+    console.log('Using filename:', filename);
+    
+    const isImage = /\.(jpg|jpeg|png|gif)$/i.test(filename);
+    const isPdf = /\.pdf$/i.test(filename);
+    
+    console.log('File type detection:', { isImage, isPdf });
     
     if (isImage) {
-        showImagePreview(`/profile/documents/${docId}/attachments/${attachment.id}/preview`, attachment.filename);
+        const previewUrl = `/profile/documents/${docId}/attachments/${attachment.id}/preview`;
+        console.log('Opening image preview with URL:', previewUrl);
+        showImagePreview(previewUrl, filename);
     } else if (isPdf) {
-        showPdfPreview(`/profile/documents/${docId}/attachments/${attachment.id}/preview`, attachment.filename);
+        const previewUrl = `/profile/documents/${docId}/attachments/${attachment.id}/preview`;
+        console.log('Opening PDF preview with URL:', previewUrl);
+        showPdfPreview(previewUrl, filename);
     } else {
+        console.log('File type not supported for preview, downloading instead');
         // For other file types, just download
         downloadAttachment(docId, attachment.id);
     }
@@ -2049,7 +2076,7 @@ async function handleEditDocumentSubmission(event) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ data: formData })
+            body: JSON.stringify({ fields: formData })
         });
         
         if (!response.ok) {

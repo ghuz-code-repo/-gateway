@@ -62,7 +62,7 @@
     <script src="/static/js/theme-switcher.js"></script>
     <script src="/static/js/layout-adjust.js"></script>
     <script src="/static/js/mobile-menu.js"></script>
-<script>
+    <script>
     particlesJS('particles-js', {
         "particles": {
             "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
@@ -75,7 +75,7 @@
         },
         "interactivity": {
             "detect_on": "canvas",
-            "events": { "onhover": { "enable": true, "mode": "bubble" } },
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
             "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
         },
         "retina_detect": true

@@ -189,10 +189,28 @@ body {
     height: 100%;
     top: 0;
     left: 0;
-    z-index: -1; /* Corrected as per user feedback */
+    z-index: 0; /* Changed from -1 to 0 to show above body background */
+    /* pointer-events: none; Allow clicks to pass through */
     /* This places it above the body's direct background, but behind other z-indexed content */
 }
 
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--table-row-hover-background-color) !important;
+    border-radius: 3px !important;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-color) !important;
+    border-radius: 3px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color) !important;
+}
 
 .container {
     display: flex;
@@ -901,7 +919,7 @@ input[type="file"]:hover {
     /* position: fixed; */
     top: 0;
     left: 0;
-    z-index: 1000; /* Увеличиваем z-index для надежности */
+    z-index: 1; /* Увеличиваем z-index для надежности */
     transition: background-color 0.3s, box-shadow 0.3s;
     box-sizing: border-box; 
 }
@@ -947,7 +965,7 @@ input[type="file"]:hover {
     margin-bottom: 5px;
     border-radius: 50%;
     overflow: hidden;
-    border: none;
+    border: 1px solid var(--primary-color);
     background: var(--card-background-color);
     display: flex;
     align-items: center;

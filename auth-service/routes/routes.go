@@ -51,6 +51,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 		users.GET("/new/legacy", showUserFormHandler) // Old form for backward compatibility
 		users.POST("/", createUserHandler)
 		users.GET("/:id", showEnhancedUserFormHandler) // Use enhanced form for editing
+		users.GET("/:id/debug", debugUserRolesHandler) // Debug roles for user
 		users.GET("/:id/legacy", getUserHandler)     // Old handler for backward compatibility
 		users.POST("/:id", updateUserHandler)
 		users.POST("/:id/delete", deleteUserHandler)
@@ -61,6 +62,17 @@ func SetupAdminRoutes(router *gin.Engine) {
 		users.POST("/import", importUsersHandler)
 		users.GET("/export", exportUsersHandler)
 		users.GET("/template", downloadUsersTemplateHandler)
+		// Document management for specific users (admin access)
+		users.GET("/:id/documents", getUserDocumentsByIDHandler) // Get documents for user
+		users.POST("/:id/documents", createUserDocumentHandlerAdmin) // Create new document for user
+		users.GET("/:id/documents/:docId", getUserDocumentHandlerAdmin) // Get specific document
+		users.PUT("/:id/documents/:docId", updateUserDocumentHandlerAdmin) // Update document
+		users.DELETE("/:id/documents/:docId", deleteUserDocumentHandlerAdmin) // Delete document
+		users.GET("/:id/documents/:docId/attachments", getUserDocumentAttachmentsByIDHandler) // Get attachments for document
+		users.POST("/:id/documents/:docId/attachments", addDocumentAttachmentHandlerAdmin) // Add attachment to document
+		users.DELETE("/:id/documents/:docId/attachments/:attachmentId", removeDocumentAttachmentHandlerAdmin) // Remove attachment
+		users.GET("/:id/documents/:docId/attachments/:attachmentId/download", downloadDocumentAttachmentHandlerAdmin) // Download attachment
+		users.GET("/:id/documents/:docId/attachments/:attachmentId/preview", previewDocumentAttachmentHandlerAdmin) // Preview attachment
 	}
 
 	// Admin utility routes

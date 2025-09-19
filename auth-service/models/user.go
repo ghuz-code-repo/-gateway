@@ -2732,3 +2732,84 @@ func GenerateUsersImportTemplate() (string, error) {
 
 	return filename, nil
 }
+
+// UpdateUserComplete updates all user fields including roles
+func UpdateUserComplete(user User) error {
+	ctx := context.Background()
+	
+	filter := bson.M{"_id": user.ID}
+	update := bson.M{
+		"$set": bson.M{
+			"username":     user.Username,
+			"email":        user.Email,
+			"last_name":    user.LastName,
+			"first_name":   user.FirstName,
+			"middle_name":  user.MiddleName,
+			"suffix":       user.Suffix,
+			"phone":        user.Phone,
+			"position":     user.Position,
+			"department":   user.Department,
+			"roles":        user.Roles,
+			"updated_at":   user.UpdatedAt,
+		},
+	}
+	
+	// Only update password if it's not empty
+	if user.Password != "" {
+		update["$set"].(bson.M)["password"] = user.Password
+	}
+	
+	_, err := usersCol.UpdateOne(ctx, filter, update)
+	return err
+}
+
+// DeactivateUserServiceRoles deactivates all service roles for a user
+func DeactivateUserServiceRoles(userID primitive.ObjectID) error {
+	ctx := context.Background()
+	
+	filter := bson.M{
+		"user_id":   userID,
+		"is_active": true,
+	}
+	
+	update := bson.M{
+		"$set": bson.M{
+			"is_active": false,
+		},
+	}
+	
+	_, err := userServiceRolesCol.UpdateMany(ctx, filter, update)
+	return err
+}
+
+// CreateUserFromStruct creates a user from a User struct
+func CreateUserFromStruct(user User) (primitive.ObjectID, error) {
+	ctx := context.Background()
+	
+	result, err := usersCol.InsertOne(ctx, user)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+	
+	return result.InsertedID.(primitive.ObjectID), nil
+}
+
+// UpdateUserDocuments updates the documents field for a user
+func UpdateUserDocuments(userID primitive.ObjectID, documents []UserDocument) error {
+	ctx := context.Background()
+	
+	filter := bson.M{"_id": userID}
+	update := bson.M{
+		"$set": bson.M{
+			"documents":  documents,
+			"updated_at": time.Now(),
+		},
+	}
+	
+	_, err := usersCol.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update user documents: %v", err)
+	}
+	
+	return nil
+}

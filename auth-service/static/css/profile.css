@@ -78,7 +78,7 @@
     height: 100%;
     border-radius: 12px;
     object-fit: cover;
-    border: 2px solid var(--primary-color);
+    /* border: 2px solid var(--primary-color); */
     box-shadow: var(--shadow-light);
     transition: all 0.3s ease;
 }
@@ -1044,7 +1044,7 @@
     height: 120px;
     border-radius: 12px;
     overflow: hidden;
-    border: 2px solid var(--primary-color);
+    border: 1px solid var(--primary-color);
     background: var(--card-background-color);
     display: flex;
     align-items: center;
@@ -1689,24 +1689,6 @@
     }
 }
 
-/* Modal Content Scrollbar Styling - Matching admin interface */
-.modal-content::-webkit-scrollbar {
-    width: 8px;
-}
-
-.modal-content::-webkit-scrollbar-track {
-    background: var(--table-row-even-background-color);
-    border-radius: 4px;
-}
-
-.modal-content::-webkit-scrollbar-thumb {
-    background: var(--primary-color);
-    border-radius: 4px;
-}
-
-.modal-content::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-color);
-}
 
 /* Document Cards Styling */
 .documents-grid {
@@ -2350,11 +2332,7 @@
 }
 
 /* Отключаем встроенные браузерные кнопки показа пароля для профиля */
-.password-input-container input[type="password"]::-webkit-credentials-auto-fill-button,
-.password-input-container input[type="password"]::-webkit-contacts-auto-fill-button,
-.password-input-container input[type="password"]::-webkit-strong-password-auto-fill-button {
-    display: none !important;
-}
+
 
 .password-input-container input[type="password"]::-ms-reveal,
 .password-input-container input[type="password"]::-ms-clear {

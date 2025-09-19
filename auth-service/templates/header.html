@@ -1,4 +1,5 @@
 {{ define "header" }}
+<!-- HEADER DEBUG: username=[{{ .username }}], short_name=[{{ .short_name }}], user=[{{ .user }}] -->
 <header class="header-container">
     <div class="header-logo-section"> <!-- Changed from top-left for consistency with CSS -->
         <a href="/menu">
@@ -9,7 +10,7 @@
 
     <!-- Desktop Header Controls -->
     <div class="header-controls-section">
-        {{if .username }} <!-- Assuming .username implies a logged-in user -->
+        <!-- TEMP: Removed {{if .username }} check for debugging -->
         <a href="/profile" class="header-profilr-link" title="Личный кабинет">
             <div class="avatar-section">
                 <div class="avatar-mini">
@@ -26,17 +27,18 @@
                 <span class="header-username">({{ .username }})</span>
             </div>
         </a>
-        {{end}}
+        <!-- TEMP: Removed {{end}} -->
         <div class="header-buttons">
             <button id="theme-switcher" title="Сменить тему">
                 <i class="fas fa-moon"></i> <!-- Icon changes via JS -->
             </button>
-            {{if .username }}
+            <!-- TEMP: Removed {{if .username }} check for logout button -->
             <a href="/logout" class="logout-btn" title="Выход">
                 <i class="fas fa-sign-out-alt"></i>
                 <!-- <span class="logout-text">Выход</span> --> <!-- Optional: text next to icon -->
             </a>
-            {{end}}
+            <!-- TEMP: Removed {{end}} -->
+        </div>
         </div>
     </div>
 

@@ -409,23 +409,6 @@
     background-color: var(--input-background-color);
 }
 
-.permissions-list::-webkit-scrollbar {
-    width: 8px;
-}
-
-.permissions-list::-webkit-scrollbar-track {
-    background: var(--table-row-even-background-color);
-    border-radius: 4px;
-}
-
-.permissions-list::-webkit-scrollbar-thumb {
-    background: var(--primary-color);
-    border-radius: 4px;
-}
-
-.permissions-list::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-color);
-}
 
 .edit-permission-item {
     display: flex;
@@ -786,24 +769,6 @@
     color: var(--text-color-secondary);
 }
 
-/* Скроллбар для контейнера ролей */
-.roles-container::-webkit-scrollbar {
-    width: 6px;
-}
-
-.roles-container::-webkit-scrollbar-track {
-    background: var(--table-row-even-background-color);
-    border-radius: 3px;
-}
-
-.roles-container::-webkit-scrollbar-thumb {
-    background: var(--primary-color);
-    border-radius: 3px;
-}
-
-.roles-container::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-color);
-}
 
 /* Адаптивность для мобильных устройств */
 @media (max-width: 768px) {

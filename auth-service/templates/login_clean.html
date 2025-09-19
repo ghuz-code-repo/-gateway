@@ -80,10 +80,10 @@
     <script src="/static/js/theme-switcher.js"></script>
     <script src="/static/js/layout-adjust.js"></script>
     <script src="/static/js/mobile-menu.js"></script>
-<script>
+        <script>
     particlesJS('particles-js', {
         "particles": {
-            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
             "color": { "value": "#c4a668" },
             "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
             "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
@@ -93,12 +93,13 @@
         },
         "interactivity": {
             "detect_on": "canvas",
-            "events": { "onhover": { "enable": true, "mode": "bubble" } },
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
             "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
         },
         "retina_detect": true
     });
-
+    </script>
+    <script>
     // Toggle password visibility
     function togglePassword() {
         const passwordInput = document.getElementById('password');
