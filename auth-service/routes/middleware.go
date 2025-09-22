@@ -211,8 +211,14 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		c.Set("full_name", user.GetFullName())
 		c.Set("short_name", user.GetShortName())
 
-		// Check if user is system admin
-		isSystemAdmin := user.Username == "administrator"
+		// Check if user is system admin (by role, not username)
+		isSystemAdmin := false
+		for _, roleName := range user.Roles {
+			if roleName == "admin" {
+				isSystemAdmin = true
+				break
+			}
+		}
 		
 		// If system admin, allow access to everything
 		if isSystemAdmin {
@@ -268,9 +274,13 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 
 // hasAdminRole checks if a user is a system administrator
 func hasAdminRole(user *models.User) bool {
-	// Only the 'administrator' user is a true system admin
-	// who can manage all services and access admin panel
-	return user.Username == "administrator"
+	// Check if user has 'admin' role (not username)
+	for _, roleName := range user.Roles {
+		if roleName == "admin" {
+			return true
+		}
+	}
+	return false
 }
 
 // hasServiceAdminRole checks if a user has admin role in a specific service

@@ -2045,8 +2045,17 @@ function initUserFormHandler() {
             console.log('Response data:', data);
             if (data.success && data.redirect) {
                 console.log('Redirecting to:', data.redirect);
-                // Redirect to the user edit page
-                window.location.href = data.redirect;
+                
+                // Force refresh avatars before redirect to clear cache
+                if (window.avatarCropInstance) {
+                    console.log('Refreshing avatars before redirect...');
+                    window.avatarCropInstance.refreshAllUserAvatars();
+                }
+                
+                // Longer delay to allow avatar refresh and cache clearing
+                setTimeout(() => {
+                    window.location.href = data.redirect;
+                }, 500);
             } else if (data.error) {
                 alert('Ошибка: ' + data.error);
             } else {

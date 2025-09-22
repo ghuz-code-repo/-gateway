@@ -1,0 +1,1 @@
+db.users.find({avatar_path: {$regex: "^/data/.*avatar.jpg$"}}, {_id: 1, name: 1, avatar_path: 1}).pretty();

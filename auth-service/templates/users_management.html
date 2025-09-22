@@ -140,23 +140,16 @@
                             
                             <!-- Кнопки действий -->
                             <div class="user-actions">
-                                <!-- Дропдаун с основными действиями -->
-                                <div class="dropdown">
-                                    <button class="btn small secondary dropdown-btn" onclick="toggleDropdown(this)">
-                                        <i class="fas fa-cog"></i> Действия
-                                    </button>
-                                    <div class="dropdown-content">
-                                        <button onclick="manageUserRoles('{{ .User.ID.Hex }}')">
-                                            <i class="fas fa-users-cog"></i> Управление пользователем и его ролями
-                                        </button>
-                                        <button onclick="showUserPassword('{{ .User.ID.Hex }}')">
-                                            <i class="fas fa-key"></i> Показать пароль
-                                        </button>
-                                    </div>
-                                </div>
+                                <!-- Основные действия в одной линии -->
+                                <button class="btn small primary" onclick="manageUserRoles('{{ .User.ID.Hex }}')">
+                                    <i class="fas fa-edit"></i> Изменить
+                                </button>
+                                <button class="btn small secondary" onclick="resetUserPassword('{{ .User.ID.Hex }}')">
+                                    <i class="fas fa-redo"></i> Восстановить пароль
+                                </button>
                                 
-                                <!-- Кнопки быстрых действий -->
-                                {{ if ne .User.Username "admin" }}
+                                <!-- Кнопки административных действий -->
+                                {{ if not (hasAdminRole .User.Roles) }}
                                 {{ if .User.IsBanned }}
                                 <button type="button" class="btn small success" onclick="unbanUser('{{ .User.ID.Hex }}')">
                                     <i class="fas fa-unlock"></i> Разблокировать
@@ -407,32 +400,6 @@
             window.open(`/users/${userId}`, '_blank');
         }
         
-        async function showUserPassword(userId) {
-            if (!confirm('Вы уверены, что хотите посмотреть пароль пользователя?')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/users/${userId}/password`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`Пароль пользователя: ${data.password}`);
-                } else {
-                    alert('Ошибка при получении пароля: ' + (data.error || 'Неизвестная ошибка'));
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Ошибка при получении пароля');
-            }
-        }
-        
         async function banUser(userId) {
             const reason = prompt('Укажите причину блокировки пользователя:');
             if (!reason) return;
@@ -504,6 +471,32 @@
             } catch (error) {
                 console.error('Error:', error);
                 alert('Ошибка при удалении пользователя');
+            }
+        }
+        
+        async function resetUserPassword(userId) {
+            if (!confirm('Отправить токен восстановления пароля на email пользователя?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/users/${userId}/reset-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Токен восстановления пароля успешно отправлен: ' + data.message);
+                } else {
+                    alert('Ошибка при отправке токена: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ошибка при отправке токена восстановления');
             }
         }
     </script>

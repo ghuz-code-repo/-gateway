@@ -4,10 +4,14 @@ import (
 	"auth-service/models"
 	"auth-service/routes"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +32,14 @@ func setupTemplateFunc() template.FuncMap {
 				return 0
 			}
 			return a / b
+		},
+		"hasAdminRole": func(roles []string) bool {
+			for _, role := range roles {
+				if role == "admin" {
+					return true
+				}
+			}
+			return false
 		},
 	}
 }
@@ -53,9 +65,17 @@ func checkAndCleanupAvatars() {
 	cleaned := 0
 	for _, user := range users {
 		if user.AvatarPath != "" {
-			// Конвертируем путь из URL в абсолютный файловый путь
-			// URL: /data/userID/avatar.jpg -> Файл: ./data/userID/avatar.jpg
-			filePath := "." + user.AvatarPath
+			var filePath string
+			
+			// Определяем правильный путь к файлу
+			if strings.HasPrefix(user.AvatarPath, "/avatar/") {
+				// Новый формат: /avatar/userID -> ./data/userID/avatar.jpg
+				userID := strings.TrimPrefix(user.AvatarPath, "/avatar/")
+				filePath = fmt.Sprintf("./data/%s/avatar.jpg", userID)
+			} else {
+				// Старый формат: /data/userID/avatar.jpg -> ./data/userID/avatar.jpg
+				filePath = "." + user.AvatarPath
+			}
 			
 			log.Printf("Проверяем файл аватарки: %s для пользователя %s", filePath, user.Email)
 			
@@ -151,7 +171,31 @@ func main() {
 
 	// Set up static file serving
 	router.Static("/static", "./static")
-	// Новая структура: обслуживаем всю папку data для доступа к пользовательским файлам
+	// Serve favicon
+	router.StaticFile("/vite.svg", "./static/img/vite.svg")
+	
+	// Setup avatar serving with no-cache headers BEFORE general /data route
+	router.GET("/avatar/:userID", func(c *gin.Context) {
+		userID := c.Param("userID")
+		avatarPath := filepath.Join("./data", userID, "avatar.jpg")
+		
+		// Set no-cache headers to prevent browser caching
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+		c.Header("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+		c.Header("ETag", fmt.Sprintf("\"%d\"", time.Now().Unix()))
+		
+		// Check if file exists
+		if _, err := os.Stat(avatarPath); os.IsNotExist(err) {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		
+		c.File(avatarPath)
+	})
+	
+	// Serve other data files normally (documents, etc.)
 	router.Static("/data", "./data")
 
 	// Set up custom template functions

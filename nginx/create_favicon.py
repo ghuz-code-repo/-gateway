@@ -1,6 +1,6 @@
 import base64
 
-# Простая favicon.ico (16x16) в base64 - Golden House icon
+# Простая vite.svg (16x16) в base64 - Golden House icon
 # Это минимальный ICO файл с нашей иконкой
 favicon_ico_data = """
 AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAA
@@ -25,7 +25,7 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
 favicon_data = base64.b64decode(favicon_ico_data.strip())
 
 # Записываем в файл
-with open('favicon.ico', 'wb') as f:
+with open('vite.svg', 'wb') as f:
     f.write(favicon_data)
 
-print("favicon.ico создан!")
+print("vite.svg создан!")

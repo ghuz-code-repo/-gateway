@@ -5,9 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/admin-service-form.css">
     <link rel="stylesheet" href="/static/css/user-form.css">
+    <link rel="stylesheet" href="/static/css/profile.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <script src="/static/js/user-form.js"></script>
@@ -35,7 +37,8 @@
     
     <div class="admin-page-container">
         <div class="admin-content">
-            <div class="enhanced-user-form">
+            <div class="profile-container">
+                <div class="enhanced-user-form">
                 <div class="page-title-section">
                     <h1>{{ .title }}</h1>
                     
@@ -52,7 +55,28 @@
                     {{ end }}
                 </div>
                 
-                <form action="{{ if .editingUser }}/users/{{ .editingUser.ID.Hex }}{{ else }}/users{{ end }}" method="post" enctype="multipart/form-data" id="userForm">
+                <!-- User Header с аватаром (как на профиле) -->
+                <div class="profile-header">
+                    <div class="avatar-section">
+                        <div class="avatar" id="avatarContainer">
+                            {{ if .editingUser.AvatarPath }}
+                                <img src="{{ .editingUser.AvatarPath }}?v={{ .timestamp }}" alt="Аватар" id="avatarImage">
+                            {{ else }}
+                                <i class="fas fa-user-circle" id="defaultAvatar"></i>
+                            {{ end }}
+                            <div class="avatar-overlay" id="avatarOverlay">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                        </div>
+                        <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="user-info">
+                        <h1>{{ if .editingUser }}{{ .editingUser.GetFullName }}{{ else }}Новый пользователь{{ end }}</h1>
+                        <p class="user-email">{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}</p>
+                    </div>
+                </div>
+                
+                <form action="{{ if .editingUser }}/users/{{ .editingUser.ID.Hex }}{{ else }}/users{{ end }}" method="post" enctype="multipart/form-data" id="userForm" autocomplete="off">
                     <div class="form-sections">
                         
                         <div class="form-section">
@@ -78,7 +102,6 @@
                                             Создать логин из почтового адреса
                                         </button>
                                     </div>
-                                    <span class="help-text">Автоматически заполняется из email</span>
                                 </div>
                                 
                                 <div class="form-group">
@@ -88,7 +111,7 @@
                                            name="email" 
                                            value="{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}" 
                                            required>
-                                    <span class="help-text">Будет использован для входа в систему</span>
+                                    <span class="help-text">Может быть использован для входа в систему</span>
                                 </div>
                                 
                                 <div class="form-group">
@@ -99,6 +122,8 @@
                                         <input type="password" 
                                                id="password" 
                                                name="password" 
+                                               autocomplete="new-password"
+                                               data-form-type="other"
                                                {{ if not .editingUser }}required{{ end }}>
                                         <button type="button" 
                                                 class="password-toggle-btn" 
@@ -113,7 +138,6 @@
                                             <i class="fas fa-random"></i>
                                         </button>
                                     </div>
-                                    <span class="help-text">Минимум 6 символов</span>
                                 </div>
                                 
                                 <div class="form-group">
@@ -122,7 +146,7 @@
                                            id="phone" 
                                            name="phone" 
                                            value="{{ if .editingUser }}{{ .editingUser.Phone }}{{ end }}" 
-                                           placeholder="+998 90 000 93 89">
+                                           placeholder="+998 12 345 67 89">
                                 </div>
                             </div>
                         </div>
@@ -292,7 +316,9 @@
                         </div>
                     </div>
                 </form>
+            </div>
         </div>
+    </div>
     
 
     <div id="documentModal" class="modal">
@@ -395,6 +421,72 @@
                     <button type="submit" class="btn btn-primary">Сохранить изменения</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для кропа аватарки -->
+    <div id="cropModal" class="modal crop-modal">
+        <div class="modal-content crop-modal-content">
+            <div class="modal-header">
+                <h3>Обрезать изображение</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body-actions">
+                <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancelCropBtn">Отмена</button>
+                <button type="button" class="btn btn-danger" id="removeAvatarModalBtn" style="display: none;">
+                    <i class="fas fa-trash"></i> Удалить аватар
+                </button>
+                <button type="button" class="btn btn-outline" id="changeFileBtn" style="display: none;">
+                    <i class="fas fa-exchange-alt"></i> Выбрать другой файл
+                </button>
+                <button type="button" class="btn btn-primary" id="saveCropBtn" style="display: none;">
+                    <i class="fas fa-upload"></i> Загрузить аватар
+                </button>
+                </div>
+                <div class="modal-body">
+                <div class="file-selection" id="fileSelection">
+                    <div class="file-upload-area" id="newAvatarArea">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Выберите изображение для аватара</p>
+                        <button type="button" class="btn btn-primary" id="selectFileBtn">
+                            <i class="fas fa-folder-open"></i> Выбрать файл
+                        </button>
+                        <p class="file-info">Поддерживаются: JPG, PNG, GIF (до 99MB)</p>
+                    </div>
+                </div>
+                <div class="crop-container" id="cropContainer" style="display: none;">
+                    <div class="crop-area">
+                        <img id="cropImage" src="" alt="Изображение для обрезки">
+                        <div class="crop-overlay">
+                            <div class="crop-box" id="cropBox">
+                                <div class="crop-handle crop-handle-nw"></div>
+                                <div class="crop-handle crop-handle-ne"></div>
+                                <div class="crop-handle crop-handle-sw"></div>
+                                <div class="crop-handle crop-handle-se"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="crop-preview">
+                        <h4>Предпросмотр</h4>
+                        <div class="preview-container">
+                            <div class="preview-item">
+                                <span>Квадратная</span>
+                                <div class="preview-square">
+                                    <canvas id="previewSquare" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                            <div class="preview-item">
+                                <span>Круглая</span>
+                                <div class="preview-circle">
+                                    <canvas id="previewCircle" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -554,6 +646,7 @@
     
     <script src="/static/js/theme-switcher.js"></script>
     <script src="/static/js/main.js"></script>
+    <script src="/static/js/avatar-crop.js"></script>
     <script>
     particlesJS('particles-js', {
         "particles": {
@@ -572,6 +665,48 @@
         },
         "retina_detect": true
     });
+    </script>
+    
+    <script>
+        // Данные пользователя для JavaScript
+        window.userData = {
+            id: {{ if .editingUser }}{{ .editingUser.ID }}{{ else }}""{{ end }},
+            fullName: "{{ if .editingUser }}{{ .editingUser.GetFullName }}{{ end }}",
+            shortName: "{{ if .editingUser }}{{ .editingUser.GetShortName }}{{ end }}",
+            email: "{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}",
+            phone: "{{ if .editingUser }}{{ .editingUser.Phone }}{{ end }}",
+            position: "{{ if .editingUser }}{{ .editingUser.Position }}{{ end }}",
+            department: "{{ if .editingUser }}{{ .editingUser.Department }}{{ end }}",
+            avatarPath: "{{ if .editingUser }}{{ .editingUser.AvatarPath }}{{ end }}"
+        };
+        
+        // Initialize Avatar Crop если есть элементы
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if AvatarCrop is already initialized
+            if (window.avatarCropInstance) {
+                console.log('AvatarCrop already initialized, skipping...');
+                return;
+            }
+
+            // Initialize AvatarCrop if elements exist
+            const avatarContainer = document.getElementById('avatarContainer');
+            const cropModal = document.getElementById('cropModal');
+            
+            if (avatarContainer && cropModal && typeof AvatarCrop !== 'undefined') {
+                try {
+                    console.log('Initializing AvatarCrop for user form...');
+                    window.avatarCropInstance = new AvatarCrop();
+                    console.log('AvatarCrop initialized successfully');
+                } catch (error) {
+                    console.error('Error initializing AvatarCrop:', error);
+                }
+            } else {
+                console.log('AvatarCrop elements not found or AvatarCrop class not available');
+                console.log('avatarContainer:', avatarContainer);
+                console.log('cropModal:', cropModal);
+                console.log('AvatarCrop class:', typeof AvatarCrop);
+            }
+        });
     </script>
 </body>
 </html>

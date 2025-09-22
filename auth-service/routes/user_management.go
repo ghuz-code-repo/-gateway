@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -306,6 +307,36 @@ func updateUserHandler(c *gin.Context) {
 		return
 	}
 
+	// Check if avatar file exists and sync with database
+	userDir := fmt.Sprintf("./data/%s", objectID.Hex())
+	avatarPath := filepath.Join(userDir, "avatar.jpg")
+	
+	if _, err := os.Stat(avatarPath); err == nil {
+		// Avatar file exists, make sure database has the correct path using new endpoint
+		relativeAvatarPath := fmt.Sprintf("/avatar/%s", objectID.Hex())
+		
+		// Find original file to set the path too
+		extensions := []string{".jpg", ".jpeg", ".png", ".gif"}
+		relativeOriginalPath := ""
+		for _, ext := range extensions {
+			originalTestPath := filepath.Join(userDir, "original"+ext)
+			if _, err := os.Stat(originalTestPath); err == nil {
+				relativeOriginalPath = fmt.Sprintf("/data/%s/original%s", objectID.Hex(), ext)
+				break
+			}
+		}
+		
+		// Update avatar paths in database if needed
+		if updatedUser.AvatarPath != relativeAvatarPath || updatedUser.OriginalAvatarPath != relativeOriginalPath {
+			err = models.UpdateUserAvatar(objectID, relativeAvatarPath)
+			if err != nil {
+				log.Printf("Warning: Failed to update avatar path in database: %v", err)
+			} else {
+				log.Printf("DEBUG: Synced avatar path in database: %s", relativeAvatarPath)
+			}
+		}
+	}
+
 	// Update service roles
 	// First, deactivate all existing service roles for this user
 	err = models.DeactivateUserServiceRoles(objectID)
@@ -482,8 +513,8 @@ func usersManagementHandler(c *gin.Context) {
 	})
 }
 
-// getUserPasswordHandler returns user password (admin only)
-func getUserPasswordHandler(c *gin.Context) {
+// sendPasswordResetHandler sends password reset token to user's email (admin only)
+func sendPasswordResetHandler(c *gin.Context) {
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
@@ -491,24 +522,38 @@ func getUserPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	_, err = models.GetUserByID(objectID.Hex())
+	user, err := models.GetUserByID(objectID.Hex())
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "Пользователь не найден"})
 		return
 	}
 
-	// For security reasons, we'll generate a new temporary password
-	// In a real system, you might want to implement a different approach
-	tempPassword, err := models.ResetUserPassword(objectID)
+	if user.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "У пользователя не указан email для восстановления пароля"})
+		return
+	}
+
+	// Create password reset token using existing logic (same as in forgotPasswordHandler)
+	token, err := models.CreatePasswordResetToken(user.Email)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при сбросе пароля"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при создании токена восстановления"})
+		return
+	}
+
+	// Generate reset link
+	resetLink := fmt.Sprintf("http://%s/reset-password?token=%s", c.Request.Host, token.Token)
+	
+	// Send email using existing template system
+	emailSubject, emailBody := models.GetPasswordResetEmail(user.GetFullName(), resetLink)
+	err = models.SendEmailNotification(user.Email, emailSubject, emailBody)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при отправке email: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":  true,
-		"password": tempPassword,
-		"message":  "Пароль был сброшен на временный",
+		"success": true,
+		"message": "Токен восстановления пароля отправлен на email " + user.Email,
 	})
 }
 

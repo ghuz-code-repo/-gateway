@@ -20,6 +20,9 @@ FROM alpine:3.21
 
 WORKDIR /root/
 
+# Create data directory for volumes BEFORE copying files
+RUN mkdir -p /root/data
+
 COPY --from=builder /app/auth-service .
 COPY --from=builder /app/templates/ ./templates/
 COPY --from=builder /app/static/ ./static/

@@ -1,6 +1,10 @@
 class AvatarCrop {
     constructor() {
         console.log('AvatarCrop class initialized');
+        
+        // Определяем тип страницы и настраиваем эндпоинты
+        this.setupEndpoints();
+        
         this.image = null;
         this.cropBox = null;
         this.cropBoxReady = false;
@@ -16,6 +20,51 @@ class AvatarCrop {
         this.isUploading = false; // Flag to prevent multiple uploads
         
         this.initEventListeners();
+    }
+    
+    setupEndpoints() {
+        // Определяем тип страницы по URL
+        const currentPath = window.location.pathname;
+        const isUserEditPage = currentPath.includes('/users/') && !currentPath.includes('/profile');
+        
+        if (isUserEditPage) {
+            // Страница редактирования пользователя
+            const userIdMatch = currentPath.match(/\/users\/([a-f0-9]{24})/);
+            if (userIdMatch) {
+                this.userId = userIdMatch[1];
+                this.targetUserId = userIdMatch[1]; // Set target user ID for admin mode
+                this.isAdminMode = true;
+                this.endpoints = {
+                    upload: `/users/${this.userId}/avatar`,
+                    original: `/users/${this.userId}/avatar/original`,
+                    originalFile: `/users/${this.userId}/avatar/original/file`,
+                    remove: `/users/${this.userId}/remove-avatar`
+                };
+                console.log('Admin mode detected for user:', this.userId);
+                console.log('Target user ID set to:', this.targetUserId);
+            } else {
+                console.error('Could not extract user ID from URL:', currentPath);
+                // Fallback to profile endpoints
+                this.setupProfileEndpoints();
+            }
+        } else {
+            // Страница профиля
+            this.setupProfileEndpoints();
+        }
+        
+        console.log('Endpoints configured:', this.endpoints);
+    }
+    
+    setupProfileEndpoints() {
+        this.isAdminMode = false;
+        this.targetUserId = null; // Clear target user ID in profile mode
+        this.endpoints = {
+            upload: '/profile/avatar',
+            original: '/profile/avatar/original',
+            originalFile: '/profile/avatar/original/file',
+            remove: '/profile/remove-avatar'
+        };
+        console.log('Profile mode detected');
     }
     
     initEventListeners() {
@@ -281,13 +330,16 @@ class AvatarCrop {
         console.log('Loading existing avatar for cropping:', avatarPath);
         
         // First, try to get original avatar info from server
-        fetch('/profile/avatar/original')
+        fetch(this.endpoints.original)
             .then(response => response.json())
             .then(data => {
-                if (data.original_avatar_path) {
-                    console.log('Found original avatar:', data.original_avatar_path);
-                    console.log('Crop coordinates:', data.crop_coordinates);
-                    this.loadImageForCropping(data.original_avatar_path, data.crop_coordinates, true);
+                if (data.original_path) {
+                    console.log('Found original avatar:', data.original_path);
+                    console.log('Image dimensions:', data.width, 'x', data.height);
+                    console.log('Crop coordinates from server:', data.crop_coordinates);
+                    
+                    // Use the original file endpoint to get the actual original image
+                    this.loadImageForCropping(this.endpoints.originalFile, data.crop_coordinates, true);
                 } else {
                     console.log('No original avatar found, using current avatar');
                     this.loadImageForCropping(avatarPath, null, true);
@@ -471,6 +523,8 @@ class AvatarCrop {
             if (savedCropCoords && existingAvatar) {
                 // Используем сохраненные координаты кропа
                 console.log('Using saved crop coordinates:', savedCropCoords);
+                console.log('Image dimensions:', {width: imageRect.width, height: imageRect.height});
+                console.log('Offset:', {offsetX, offsetY});
                 
                 // Координаты сохранены относительно оригинального изображения (0-1)
                 // Конвертируем их в пиксели текущего размера
@@ -478,15 +532,25 @@ class AvatarCrop {
                 const cropHeight = imageRect.height * savedCropCoords.height;
                 size = Math.min(cropWidth, cropHeight); // Используем меньшую сторону для квадрата
                 
-                left = offsetX + (imageRect.width * savedCropCoords.x);
-                top = offsetY + (imageRect.height * savedCropCoords.y);
+                // Позиция ПРЯМО относительно контейнера (координаты уже корректны)
+                left = imageRect.left - containerRect.left + (imageRect.width * savedCropCoords.x);
+                top = imageRect.top - containerRect.top + (imageRect.height * savedCropCoords.y);
+                
+                console.log('Calculated position:', {
+                    cropWidth, cropHeight, size,
+                    rawLeft: imageRect.width * savedCropCoords.x,
+                    rawTop: imageRect.height * savedCropCoords.y,
+                    finalLeft: left, finalTop: top
+                });
                 
                 // Убеждаемся что crop box не выходит за границы
                 if (left + size > offsetX + imageRect.width) {
                     left = offsetX + imageRect.width - size;
+                    console.log('Adjusted left to stay in bounds:', left);
                 }
                 if (top + size > offsetY + imageRect.height) {
                     top = offsetY + imageRect.height - size;
+                    console.log('Adjusted top to stay in bounds:', top);
                 }
                 
             } else if (existingAvatar) {
@@ -974,6 +1038,12 @@ class AvatarCrop {
         const relativeWidth = cropWidth / imageRect.width;
         const relativeHeight = cropHeight / imageRect.height;
         
+        console.log('DEBUG - Coordinate calculation:');
+        console.log('imageRect:', {width: imageRect.width, height: imageRect.height, left: imageRect.left, top: imageRect.top});
+        console.log('containerRect:', {left: containerRect.left, top: containerRect.top});
+        console.log('offsetX:', offsetX, 'offsetY:', offsetY);
+        console.log('cropBox pixels:', {left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight});
+        console.log('After offset adjustment:', {x: cropLeft - offsetX, y: cropTop - offsetY});
         console.log('Crop coordinates (relative):', {
             x: relativeX,
             y: relativeY, 
@@ -985,6 +1055,7 @@ class AvatarCrop {
         
         console.log('Preparing FormData...');
         console.log('isExistingAvatar flag:', this.isExistingAvatar);
+        console.log('DETAILED DEBUG: All FormData will be:');
         
         // Check if this is an existing avatar update or new upload
         if (this.isExistingAvatar) {
@@ -992,6 +1063,7 @@ class AvatarCrop {
             // This is a crop update of existing image
             formData.append('crop_update', 'true');
             formData.append('cropped_image', croppedImage);
+            console.log('DEBUG: Added crop_update=true and cropped_image to FormData');
         } else {
             console.log('Processing as new file upload');
             // This is a new file upload - use the saved file
@@ -1027,7 +1099,13 @@ class AvatarCrop {
         formData.append('crop_width', relativeWidth);
         formData.append('crop_height', relativeHeight);
         
-        fetch('/profile/avatar', {
+        // DEBUG: Log all FormData contents
+        console.log('FINAL FormData contents:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`${key}:`, value);
+        }
+        
+        fetch(this.endpoints.upload, {
             method: 'POST',
             body: formData,
             headers: {
@@ -1045,8 +1123,23 @@ class AvatarCrop {
                 this.isExistingAvatar = true;
                 console.log('File cleared, isExistingAvatar set to true');
                 
+                // Update saved crop coordinates if this was a crop update
+                if (this.isExistingAvatar && relativeX !== undefined) {
+                    this.savedCropCoords = {
+                        x: relativeX,
+                        y: relativeY,
+                        width: relativeWidth,
+                        height: relativeHeight
+                    };
+                    console.log('Updated savedCropCoords:', this.savedCropCoords);
+                }
+                
                 // Update avatar display
                 this.updateAvatarDisplay(data.avatar_path);
+                
+                // Force refresh all avatar instances on the page for this user
+                this.refreshAllUserAvatars();
+                
                 this.closeModal();
             } else {
                 this.showNotification(data.error || 'Ошибка загрузки аватарки', 'error');
@@ -1137,37 +1230,50 @@ class AvatarCrop {
             console.error('No avatar image or default avatar element found');
         }
         
-        // Also update header avatar if it exists
-        const headerAvatarImage = document.getElementById('headerAvatarImage');
-        const headerDefaultAvatar = document.getElementById('headerDefaultAvatar');
+        // Also update header avatar if it exists AND we're NOT in admin mode editing another user
+        // In admin mode, header should show admin's avatar, not the edited user's avatar
+        const isAdminEditingOtherUser = this.isAdminMode && this.targetUserId;
         
-        if (headerAvatarImage) {
-            console.log('Updating header avatar image');
-            headerAvatarImage.src = fullPath;
-            headerAvatarImage.style.display = 'block';
-            if (headerDefaultAvatar) headerDefaultAvatar.style.display = 'none';
-        } else if (headerDefaultAvatar) {
-            console.log('Creating new header avatar image to replace default');
-            // Replace icon with image in header
-            const newHeaderImg = document.createElement('img');
-            newHeaderImg.src = fullPath;
-            newHeaderImg.alt = 'Аватар';
-            newHeaderImg.id = 'headerAvatarImage';
-            newHeaderImg.style.display = 'block';
+        console.log('updateAvatarDisplay - Admin mode check:', {
+            isAdminMode: this.isAdminMode,
+            targetUserId: this.targetUserId,
+            isAdminEditingOtherUser: isAdminEditingOtherUser
+        });
+        
+        if (!isAdminEditingOtherUser) {
+            const headerAvatarImage = document.getElementById('headerAvatarImage');
+            const headerDefaultAvatar = document.getElementById('headerDefaultAvatar');
             
-            newHeaderImg.onload = () => {
-                console.log('New header avatar image loaded successfully');
+            if (headerAvatarImage) {
+                console.log('Updating header avatar image');
+                headerAvatarImage.src = fullPath;
+                headerAvatarImage.style.display = 'block';
+                if (headerDefaultAvatar) headerDefaultAvatar.style.display = 'none';
+            } else if (headerDefaultAvatar) {
+                console.log('Creating new header avatar image to replace default');
+                // Replace icon with image in header
+                const newHeaderImg = document.createElement('img');
+                newHeaderImg.src = fullPath;
+                newHeaderImg.alt = 'Аватар';
+                newHeaderImg.id = 'headerAvatarImage';
+                newHeaderImg.style.display = 'block';
+                
+                newHeaderImg.onload = () => {
+                    console.log('New header avatar image loaded successfully');
+                    headerDefaultAvatar.style.display = 'none';
+                };
+                
+                newHeaderImg.onerror = (e) => {
+                    console.error('New header avatar image failed to load:', e);
+                    newHeaderImg.remove();
+                    headerDefaultAvatar.style.display = 'block';
+                };
+                
+                headerDefaultAvatar.parentElement.appendChild(newHeaderImg);
                 headerDefaultAvatar.style.display = 'none';
-            };
-            
-            newHeaderImg.onerror = (e) => {
-                console.error('New header avatar image failed to load:', e);
-                newHeaderImg.remove();
-                headerDefaultAvatar.style.display = 'block';
-            };
-            
-            headerDefaultAvatar.parentElement.appendChild(newHeaderImg);
-            headerDefaultAvatar.style.display = 'none';
+            }
+        } else {
+            console.log('Admin mode: not updating header avatar (showing admin avatar, not edited user)');
         }
         
         // Update window.userData to reflect new avatar
@@ -1225,7 +1331,7 @@ class AvatarCrop {
         }
         
         try {
-            const response = await fetch('/profile/remove-avatar', {
+            const response = await fetch(this.endpoints.remove, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1271,6 +1377,78 @@ class AvatarCrop {
         if (defaultAvatar) {
             defaultAvatar.style.display = 'block';
         }
+    }
+    
+    refreshAllUserAvatars() {
+        console.log('Refreshing all user avatars on the page');
+        
+        // Get current user ID if we're in admin mode
+        const userId = this.targetUserId || (window.userData && window.userData.userID);
+        if (!userId) {
+            console.log('No user ID found, cannot refresh avatars');
+            return;
+        }
+        
+        const timestamp = Date.now();
+        const randomParam = Math.random().toString(36).substring(7);
+        
+        // Both old and new avatar paths for compatibility
+        const oldAvatarPath = `/data/${userId}/avatar.jpg`;
+        const newAvatarPath = `/avatar/${userId}`;
+        const avatarPathWithCacheBusting = `${newAvatarPath}?t=${timestamp}&r=${randomParam}`;
+        
+        console.log('Refreshing avatars for user:', userId);
+        console.log('Avatar path with cache busting:', avatarPathWithCacheBusting);
+        
+        // Update all avatar images on the page for this user
+        const avatarSelectors = [
+            `img[src*="/data/${userId}/avatar.jpg"]`, // Old path
+            `img[src*="/avatar/${userId}"]`, // New path
+            `img[src*="${oldAvatarPath}"]` // Direct old path match
+        ];
+        
+        avatarSelectors.forEach(selector => {
+            const avatarImages = document.querySelectorAll(selector);
+            console.log(`Found ${avatarImages.length} avatars with selector: ${selector}`);
+            
+            avatarImages.forEach((img, index) => {
+                console.log(`Updating avatar ${index + 1}:`, img.src);
+                
+                // Set up load handlers to handle success/error
+                const handleLoad = () => {
+                    console.log('Avatar refreshed successfully:', img.src);
+                    img.removeEventListener('load', handleLoad);
+                    img.removeEventListener('error', handleError);
+                };
+                
+                const handleError = () => {
+                    console.log('Avatar refresh failed:', img.src);
+                    img.removeEventListener('load', handleLoad);
+                    img.removeEventListener('error', handleError);
+                };
+                
+                img.addEventListener('load', handleLoad, { once: true });
+                img.addEventListener('error', handleError, { once: true });
+                
+                // Force reload with new timestamp and random parameter using new path
+                img.src = avatarPathWithCacheBusting;
+            });
+        });
+        
+        console.log('Avatar refresh initiated for all instances');
+        
+        // Also force refresh any background image styles
+        const elementsWithBgImage = document.querySelectorAll(`[style*="/data/${userId}/avatar.jpg"], [style*="/avatar/${userId}"]`);
+        elementsWithBgImage.forEach((element, index) => {
+            const currentStyle = element.style.backgroundImage;
+            if (currentStyle.includes(oldAvatarPath) || currentStyle.includes(newAvatarPath)) {
+                console.log(`Updating background image ${index + 1}:`, currentStyle);
+                element.style.backgroundImage = currentStyle.replace(
+                    /\/(?:data\/[^\/]+\/avatar\.jpg|avatar\/[^\/]+)[^")]*/, 
+                    avatarPathWithCacheBusting
+                );
+            }
+        });
     }
 }
 
