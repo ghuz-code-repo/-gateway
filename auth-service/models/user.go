@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -506,7 +507,7 @@ func EnsureAdminExists() {
 
 		adminUser := User{
 			Username: "admin",
-			Email:    "admin@example.com",
+			Email:    "d.tolkunov@gh.uz",
 			Password: string(hashedPassword),
 			Roles:    []string{"admin"},
 		}
@@ -936,34 +937,78 @@ func UpdateUser(id primitive.ObjectID, username, email, password, fullName strin
 		// Get Russian email template
 		subject, body := GetAccountUpdatedEmail(fullName, username, email, password, roles)
 
-		go SendEmailNotification(email, subject, body)
+		go SendEmailNotificationNew(email, subject, body)
 	}
 
 	return nil
 }
 
-// DeleteUser deletes a user from the database
+// DeleteUser deletes a user from the database and all related data/files
 func DeleteUser(id primitive.ObjectID) error {
-	// Get the user first so we have their email
+	// Get the user first so we have their email and file information
 	user, err := GetUserByObjectID(id)
 	if err != nil {
 		return fmt.Errorf("user not found: %v", err)
 	}
 
-	// Store user data before deletion for email
+	// Store user data before deletion for email and cleanup
 	email := user.Email
 	username := user.Username
 	fullName := user.FullName
+	userIDHex := id.Hex()
 
 	// Get a handle to the users collection
 	collection := client.Database("authdb").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Delete the user
-	_, err = collection.DeleteOne(ctx, bson.M{"_id": id})
+	log.Printf("Starting deletion of user %s (ID: %s) and all related data", username, userIDHex)
+
+	// Delete all related data first
+	// 1. Remove all user service roles
+	err = RemoveAllUserServiceRoles(id)
+	if err != nil {
+		log.Printf("Warning: Failed to remove user service roles during deletion: %v", err)
+	}
+
+	// 2. Delete all password reset tokens
+	tokensCol := getPasswordResetTokensCollection()
+	tokenDeleteResult, err := tokensCol.DeleteMany(ctx, bson.M{"user_id": id})
+	if err != nil {
+		log.Printf("Warning: Failed to delete password reset tokens during user deletion: %v", err)
+	} else if tokenDeleteResult.DeletedCount > 0 {
+		log.Printf("Deleted %d password reset tokens for user %s", tokenDeleteResult.DeletedCount, username)
+	}
+
+	// 3. Delete all blacklisted tokens
+	blacklistCol := getBlacklistedTokensCollection()
+	blacklistDeleteResult, err := blacklistCol.DeleteMany(ctx, bson.M{"user_id": id})
+	if err != nil {
+		log.Printf("Warning: Failed to delete blacklisted tokens during user deletion: %v", err)
+	} else if blacklistDeleteResult.DeletedCount > 0 {
+		log.Printf("Deleted %d blacklisted tokens for user %s", blacklistDeleteResult.DeletedCount, username)
+	}
+
+	// 4. Delete all related records from other collections
+	err = deleteUserRelatedRecords(id, username)
+	if err != nil {
+		log.Printf("Warning: Failed to delete user related records: %v", err)
+	}
+
+	// 5. Delete all user files and folders
+	err = deleteUserFiles(user)
+	if err != nil {
+		log.Printf("Warning: Failed to delete user files during deletion: %v", err)
+	}
+
+	// Delete the user from database
+	result, err := collection.DeleteOne(ctx, bson.M{"_id": id})
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %v", err)
+	}
+	
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("user not found or already deleted")
 	}
 
 	// Send email notification if email is available
@@ -971,9 +1016,153 @@ func DeleteUser(id primitive.ObjectID) error {
 		// Get Russian email template
 		subject, body := GetAccountDeletedEmail(fullName, username)
 
-		go SendEmailNotification(email, subject, body)
+		go SendEmailNotificationNew(email, subject, body)
+	}
+	
+	log.Printf("User %s (ID: %s) successfully deleted with all related data", username, userIDHex)
+
+	return nil
+}
+
+// deleteUserFiles removes all files and directories associated with a user
+func deleteUserFiles(user *User) error {
+	userIDHex := user.ID.Hex()
+	deletedFilesCount := 0
+	
+	// 1. Delete avatar files
+	userDir := fmt.Sprintf("./data/%s", userIDHex)
+	
+	// Delete avatar file
+	avatarPath := filepath.Join(userDir, "avatar.jpg")
+	if err := os.Remove(avatarPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("Warning: Failed to delete avatar file %s: %v", avatarPath, err)
+	} else if err == nil {
+		deletedFilesCount++
+		log.Printf("Deleted avatar file: %s", avatarPath)
+	}
+	
+	// Delete original avatar files (multiple formats possible)
+	originalExts := []string{".jpg", ".jpeg", ".png", ".gif", ".webp"}
+	for _, ext := range originalExts {
+		originalPath := filepath.Join(userDir, "original"+ext)
+		if err := os.Remove(originalPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("Warning: Failed to delete original avatar file %s: %v", originalPath, err)
+		} else if err == nil {
+			deletedFilesCount++
+			log.Printf("Deleted original avatar file: %s", originalPath)
+		}
 	}
 
+	// 2. Delete document attachment files
+	for _, document := range user.Documents {
+		for _, attachment := range document.Attachments {
+			if attachment.FilePath != "" {
+				// Handle both relative and absolute paths
+				filePath := attachment.FilePath
+				if !filepath.IsAbs(filePath) && !strings.HasPrefix(filePath, "./") {
+					filePath = "./" + filePath
+				}
+				
+				if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+					log.Printf("Warning: Failed to delete document attachment %s: %v", filePath, err)
+				} else if err == nil {
+					deletedFilesCount++
+					log.Printf("Deleted document attachment: %s", filePath)
+				}
+			}
+		}
+	}
+
+	// 3. Delete legacy document files
+	for _, legacyDoc := range user.LegacyDocs {
+		if legacyDoc.FilePath != "" {
+			filePath := legacyDoc.FilePath
+			if !filepath.IsAbs(filePath) && !strings.HasPrefix(filePath, "./") {
+				filePath = "./" + filePath
+			}
+			
+			if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+				log.Printf("Warning: Failed to delete legacy document %s: %v", filePath, err)
+			} else if err == nil {
+				deletedFilesCount++
+				log.Printf("Deleted legacy document: %s", filePath)
+			}
+		}
+	}
+
+	// 4. Try to remove the user directory if it's empty
+	if err := os.Remove(userDir); err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("Info: User directory %s not empty or could not be removed: %v", userDir, err)
+		}
+	} else {
+		log.Printf("Removed empty user directory: %s", userDir)
+	}
+
+	log.Printf("File cleanup completed for user %s: %d files deleted", user.Username, deletedFilesCount)
+	return nil
+}
+
+// deleteUserRelatedRecords removes all related records from other collections
+func deleteUserRelatedRecords(userID primitive.ObjectID, username string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	deletedRecordsCount := 0
+
+	// 1. Delete all import logs where this user was the admin
+	importLogsCol := client.Database("authdb").Collection("import_logs")
+	importLogResult, err := importLogsCol.DeleteMany(ctx, bson.M{"admin_username": username})
+	if err != nil {
+		log.Printf("Warning: Failed to delete import logs for user %s: %v", username, err)
+	} else if importLogResult.DeletedCount > 0 {
+		deletedRecordsCount += int(importLogResult.DeletedCount)
+		log.Printf("Deleted %d import logs for user %s", importLogResult.DeletedCount, username)
+	}
+
+	// 2. Delete all user service roles (this should already be done by RemoveAllUserServiceRoles, but double-check)
+	userServiceRolesCol := client.Database("authdb").Collection("user_service_roles")
+	serviceRolesResult, err := userServiceRolesCol.DeleteMany(ctx, bson.M{"user_id": userID})
+	if err != nil {
+		log.Printf("Warning: Failed to delete service roles for user %s: %v", username, err)
+	} else if serviceRolesResult.DeletedCount > 0 {
+		deletedRecordsCount += int(serviceRolesResult.DeletedCount)
+		log.Printf("Deleted %d additional service roles for user %s", serviceRolesResult.DeletedCount, username)
+	}
+
+	// 3. Delete any user-related activity logs (if such collection exists)
+	activityLogsCol := client.Database("authdb").Collection("activity_logs")
+	activityResult, err := activityLogsCol.DeleteMany(ctx, bson.M{"user_id": userID})
+	if err != nil {
+		log.Printf("Info: No activity logs collection or failed to delete for user %s: %v", username, err)
+	} else if activityResult.DeletedCount > 0 {
+		deletedRecordsCount += int(activityResult.DeletedCount)
+		log.Printf("Deleted %d activity logs for user %s", activityResult.DeletedCount, username)
+	}
+
+	// 4. Delete any user sessions (if such collection exists)
+	userSessionsCol := client.Database("authdb").Collection("user_sessions")
+	sessionsResult, err := userSessionsCol.DeleteMany(ctx, bson.M{"user_id": userID})
+	if err != nil {
+		log.Printf("Info: No user sessions collection or failed to delete for user %s: %v", username, err)
+	} else if sessionsResult.DeletedCount > 0 {
+		deletedRecordsCount += int(sessionsResult.DeletedCount)
+		log.Printf("Deleted %d user sessions for user %s", sessionsResult.DeletedCount, username)
+	}
+
+	// 5. Remove user references from assignments where this user assigned roles to others
+	assignmentResult, err := userServiceRolesCol.UpdateMany(
+		ctx,
+		bson.M{"assigned_by": userID},
+		bson.M{"$set": bson.M{"assigned_by": primitive.NilObjectID}},
+	)
+	if err != nil {
+		log.Printf("Warning: Failed to update assignment references for user %s: %v", username, err)
+	} else if assignmentResult.ModifiedCount > 0 {
+		log.Printf("Updated %d role assignments where user %s was the assigner", assignmentResult.ModifiedCount, username)
+	}
+
+	log.Printf("Related records cleanup completed for user %s: %d records deleted", username, deletedRecordsCount)
 	return nil
 }
 
@@ -1143,7 +1332,7 @@ func CreateUserWithNames(username, email, password, lastName, firstName, middleN
 		// Get Russian email template - use GetFullName() method
 		subject, body := GetAccountCreatedEmail(user.GetFullName(), username, password, roleNames)
 
-		SendEmailNotification(email, subject, body)
+		SendEmailNotificationNew(email, subject, body)
 	}
 
 	return result.InsertedID.(primitive.ObjectID), nil
@@ -1178,7 +1367,7 @@ func CreateUser(username, email, password string, fullName string, roleNames []s
 		// Get Russian email template
 		subject, body := GetAccountCreatedEmail(fullName, username, password, roleNames)
 
-		SendEmailNotification(email, subject, body)
+		SendEmailNotificationNew(email, subject, body)
 	}
 
 	return result.InsertedID.(primitive.ObjectID), nil
@@ -2513,6 +2702,15 @@ func generateRandomPassword(length int) string {
 	return string(password)
 }
 
+// HashPassword hashes a password using bcrypt
+func HashPassword(password string) (string, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedPassword), nil
+}
+
 // BanUser bans a user with reason
 func BanUser(userID primitive.ObjectID, reason string) error {
 	ctx := context.Background()
@@ -2813,3 +3011,4 @@ func UpdateUserDocuments(userID primitive.ObjectID, documents []UserDocument) er
 	
 	return nil
 }
+

@@ -229,12 +229,14 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 
 		// For service-specific routes, check if user is admin of that service
 		serviceID := c.Param("id")
+		serviceKey := c.Param("serviceKey")
 		
 		// If no serviceID in URL params, check query params
 		if serviceID == "" {
 			serviceID = c.Query("serviceId")
 		}
 		
+		// Handle service routes by ID (existing services management routes)
 		if serviceID != "" {
 			// Get service by ID
 			objID, err := primitive.ObjectIDFromHex(serviceID)
@@ -247,6 +249,27 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 			}
 
 			service, err := models.GetServiceByID(objID)
+			if err != nil {
+				c.HTML(http.StatusNotFound, "error.html", gin.H{
+					"error": "Сервис не найден",
+				})
+				c.Abort()
+				return
+			}
+
+			// Check if user is admin of this service
+			if hasServiceAdminRole(user, service.Key) {
+				c.Set("isSystemAdmin", false)
+				c.Set("serviceKey", service.Key)
+				c.Next()
+				return
+			}
+		}
+		
+		// Handle service routes by key (new excel import/export routes)
+		if serviceKey != "" {
+			// Get service by key
+			service, err := models.GetServiceByKey(serviceKey)
 			if err != nil {
 				c.HTML(http.StatusNotFound, "error.html", gin.H{
 					"error": "Сервис не найден",
@@ -301,6 +324,40 @@ func hasServiceAdminRole(user *models.User, serviceKey string) bool {
 	}
 	
 	fmt.Printf("Пользователь %s НЕ является админом сервиса %s\n", user.Username, serviceKey)
+	return false
+}
+
+// hasAnyRoleInService checks if a user has any active role in a specific service
+func hasAnyRoleInService(user *models.User, serviceKey string) bool {
+	// Get user's service roles using ADR-001 system
+	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
+	if err != nil {
+		fmt.Printf("Ошибка получения ролей для пользователя %s: %v\n", user.Username, err)
+		return false
+	}
+	
+	// Check if user has any active role in this specific service
+	for _, role := range userServiceRoles {
+		if role.ServiceKey == serviceKey && role.IsActive {
+			fmt.Printf("Пользователь %s имеет роль %s в сервисе %s\n", user.Username, role.RoleName, serviceKey)
+			return true
+		}
+	}
+	
+	// Also check old roles system for backward compatibility
+	roles, err := models.GetAllRoles()
+	if err == nil {
+		for _, userRole := range user.Roles {
+			for _, role := range roles {
+				if role.Name == userRole && role.ServiceKey == serviceKey {
+					fmt.Printf("Пользователь %s имеет старую роль %s в сервисе %s\n", user.Username, userRole, serviceKey)
+					return true
+				}
+			}
+		}
+	}
+	
+	fmt.Printf("Пользователь %s НЕ имеет ролей в сервисе %s\n", user.Username, serviceKey)
 	return false
 }
 

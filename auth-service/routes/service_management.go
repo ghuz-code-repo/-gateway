@@ -158,6 +158,9 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		serviceUsers = []models.UserWithServiceRoles{}
 	}
 
+	// Determine manage mode - true if user is service admin but not system admin
+	manageMode := !isSystemAdmin && hasServiceAdminRole(user, service.Key)
+	
 	c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
 		"title":         "Детали сервиса",
 		"service":       service,
@@ -168,6 +171,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		"short_name":    user.GetShortName(),
 		"user":          user,
 		"isSystemAdmin": isSystemAdmin,
+		"manageMode":    manageMode,
 	})
 }
 

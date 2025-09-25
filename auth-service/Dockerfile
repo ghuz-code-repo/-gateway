@@ -16,7 +16,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -o auth-service .
 # Final stage
 FROM alpine:3.21
 
-# RUN apk --no-cache add ca-certificates
+# Install timezone data and ca-certificates
+RUN apk --no-cache add ca-certificates tzdata
+
+# Set timezone
+ENV TZ=Asia/Tashkent
 
 WORKDIR /root/
 
@@ -26,6 +30,7 @@ RUN mkdir -p /root/data
 COPY --from=builder /app/auth-service .
 COPY --from=builder /app/templates/ ./templates/
 COPY --from=builder /app/static/ ./static/
+COPY --from=builder /app/resources/ ./resources/
 
 EXPOSE 8080
 

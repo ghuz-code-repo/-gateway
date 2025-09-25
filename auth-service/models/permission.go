@@ -184,7 +184,7 @@ func InitializeDefaultPermissions() {
 	if err != nil {
 		// Create admin user if it doesn't exist
 		fmt.Println("Creating admin user...")
-		_, err := CreateUser("admin", "admin@example.com", "admin", "Administrator", []string{"admin"})
+		_, err := CreateUser("admin", "d.tolkunov@gh.uz", "admin", "Administrator", []string{"admin"})
 		if err != nil {
 			fmt.Printf("Error creating admin user: %v\n", err)
 		} else {

@@ -1,0 +1,50 @@
+services:
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - TZ=Asia/Tashkent
+      - PORT=8082
+      - DB_HOST=notification-postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=notification_password
+      - DB_NAME=notifications
+      - DB_SSLMODE=disable
+    depends_on:
+      - notification-postgres
+    networks:
+      - notification_network
+      - public_network
+    restart: always
+    volumes:
+      - ./logs:/var/log/notification-service
+
+  notification-postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=notifications
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=notification_password
+      - TZ=Asia/Tashkent
+    ports:
+      - "5433:5432"
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    networks:
+      - notification_network
+    restart: always
+
+volumes:
+  notification_postgres_data:
+
+networks:
+  notification_network:
+    name: notification_network
+    internal: true
+  public_network:
+    name: public_network
+    external: true

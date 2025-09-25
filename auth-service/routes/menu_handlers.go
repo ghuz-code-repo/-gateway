@@ -66,6 +66,10 @@ func menuHandler(c *gin.Context) {
 	// Create a slice of service infos with display names
 	serviceInfos := []gin.H{}
 	for _, serviceKey := range accessibleServices {
+		// Check user's role in this service
+		hasServiceAdmin := hasServiceAdminRole(user, serviceKey)
+		hasAnyServiceRole := hasAnyRoleInService(user, serviceKey)
+		
 		serviceInfo := gin.H{
 			"id":          serviceKey,
 			"displayName": getServiceDisplayName(serviceKey),
@@ -73,22 +77,27 @@ func menuHandler(c *gin.Context) {
 			"description": getServiceDescription(serviceKey),
 		}
 		
-		// Check if user can manage this service (system admin OR service admin)
-		canManageService := isAdmin || hasServiceAdminRole(user, serviceKey)
+		// Can manage service if: system admin OR service admin
+		canManageService := isAdmin || hasServiceAdmin
 		serviceInfo["canManage"] = canManageService
 		
-		if canManageService {
-			service, err := models.GetServiceByKey(serviceKey)
-			if err == nil && service != nil {
-				serviceInfo["serviceId"] = service.ID.Hex()
-				fmt.Printf("Добавлен serviceId для %s: %s (isSystemAdmin: %v, isServiceAdmin: %v)\n", 
-					serviceKey, service.ID.Hex(), isAdmin, hasServiceAdminRole(user, serviceKey))
-			} else {
-				fmt.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
-			}
-		}
+		// Show service card if: system admin OR has any role in service (including admin)
+		showServiceCard := isAdmin || hasAnyServiceRole
 		
-		serviceInfos = append(serviceInfos, serviceInfo)
+		if showServiceCard {
+			if canManageService {
+				service, err := models.GetServiceByKey(serviceKey)
+				if err == nil && service != nil {
+					serviceInfo["serviceId"] = service.ID.Hex()
+					fmt.Printf("Добавлен serviceId для %s: %s (isSystemAdmin: %v, isServiceAdmin: %v)\n", 
+						serviceKey, service.ID.Hex(), isAdmin, hasServiceAdmin)
+				} else {
+					fmt.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
+				}
+			}
+			
+			serviceInfos = append(serviceInfos, serviceInfo)
+		}
 	}
 
 	c.HTML(http.StatusOK, "menu.html", gin.H{

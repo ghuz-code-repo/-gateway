@@ -2,6 +2,7 @@ package routes
 
 import (
 	"auth-service/models"
+	"auth-service/handlers"
 	"fmt"
 	"log"
 	"net/http"
@@ -120,7 +121,7 @@ func createUserHandler(c *gin.Context) {
 	position := c.PostForm("position")
 	department := c.PostForm("department")
 	systemAdmin := c.PostForm("system_admin") // New system admin toggle
-	serviceRoles := c.PostFormArray("service_roles") // Format: "serviceKey:roleName"
+	serviceRoles := c.PostFormArray("roles") // Format: "serviceKey-roleName" from template
 
 	// Validate required fields
 	if username == "" || email == "" || password == "" || lastName == "" || firstName == "" {
@@ -176,7 +177,7 @@ func createUserHandler(c *gin.Context) {
 
 	// Assign service roles
 	for _, serviceRole := range serviceRoles {
-		parts := strings.Split(serviceRole, ":")
+		parts := strings.Split(serviceRole, "-")
 		if len(parts) == 2 {
 			serviceKey := parts[0]
 			roleName := parts[1]
@@ -197,9 +198,85 @@ func createUserHandler(c *gin.Context) {
 		}
 	}
 
+	// Send email notification to new user (CRITICAL)
+	emailSubject := "Ваш аккаунт создан в системе Golden House"
+	emailBody := fmt.Sprintf(`Здравствуйте!
+
+Для вас был создан аккаунт в системе Golden House.
+
+Данные для входа:
+- Email: %s
+- Пароль: %s
+
+Рекомендуем сменить пароль после первого входа.
+
+Ссылка для входа: http://localhost/login
+
+С уважением,
+Команда Golden House`, email, password)
+
+	// Try to send email with retry mechanism
+	const maxRetries = 3
+	var emailSent bool
+	var lastError error
+	
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		log.Printf("Email attempt %d/%d to %s", attempt, maxRetries, email)
+		
+		err := models.SendEmailNotificationNew(email, emailSubject, emailBody)
+		if err == nil {
+			log.Printf("Email successfully sent to %s on attempt %d", email, attempt)
+			emailSent = true
+			break
+		}
+		
+		lastError = err
+		log.Printf("Email attempt %d failed for %s: %v", attempt, email, err)
+		
+		// If this is not the last attempt, wait before retrying
+		if attempt < maxRetries {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+	}
+	
+	// If email failed, send notification to admin
+	if !emailSent {
+		log.Printf("CRITICAL: All email attempts failed for new user %s: %v", email, lastError)
+		
+		// Try to notify admin
+		adminEmail := os.Getenv("ADMIN_EMAIL")
+		if adminEmail == "" {
+			adminEmail = "admin@gh.uz"
+		}
+		
+		fallbackSubject := "КРИТИЧНО: Не удалось отправить email новому пользователю"
+		fallbackBody := fmt.Sprintf(`ВНИМАНИЕ! Критическая ошибка при создании пользователя.
+
+Пользователь создан, но НЕ получил email с данными для входа:
+- Email: %s
+- Username: %s
+- Пароль: %s
+
+Ошибка отправки: %v
+
+ТРЕБУЕТСЯ РУЧНАЯ ОТПРАВКА ДАННЫХ ПОЛЬЗОВАТЕЛЮ!`, email, username, password, lastError)
+		
+		adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
+		if adminErr != nil {
+			log.Printf("CRITICAL: Failed to send admin notification: %v", adminErr)
+		}
+		
+		// Return error - user creation should fail if email can't be sent
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Пользователь создан, но не удалось отправить email уведомление. Администратор уведомлен.",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success":  true,
-		"message":  "Пользователь успешно создан",
+		"message":  "Пользователь успешно создан и уведомлен по email",
 		"redirect": "/users/" + userID.Hex(),
 	})
 }
@@ -254,7 +331,7 @@ func updateUserHandler(c *gin.Context) {
 	position := c.PostForm("position")
 	department := c.PostForm("department")
 	systemAdmin := c.PostForm("system_admin") // New system admin toggle
-	serviceRoles := c.PostFormArray("service_roles") // Format: "serviceKey:roleName"
+	serviceRoles := c.PostFormArray("roles") // Format: "serviceKey-roleName" from template
 
 	// Get existing user
 	existingUser, err := models.GetUserByID(objectID.Hex())
@@ -346,7 +423,7 @@ func updateUserHandler(c *gin.Context) {
 
 	// Then assign new service roles
 	for _, serviceRole := range serviceRoles {
-		parts := strings.Split(serviceRole, ":")
+		parts := strings.Split(serviceRole, "-")
 		if len(parts) == 2 {
 			serviceKey := parts[0]
 			roleName := parts[1]
@@ -367,11 +444,118 @@ func updateUserHandler(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Пользователь успешно обновлен",
-		"redirect": "/users/" + objectID.Hex(),
-	})
+	// Check if user data changed significantly to warrant email notification
+	dataChanged := existingUser.Email != updatedUser.Email ||
+		existingUser.LastName != updatedUser.LastName ||
+		existingUser.FirstName != updatedUser.FirstName ||
+		existingUser.MiddleName != updatedUser.MiddleName ||
+		existingUser.Suffix != updatedUser.Suffix ||
+		existingUser.Phone != updatedUser.Phone ||
+		existingUser.Department != updatedUser.Department ||
+		existingUser.Position != updatedUser.Position
+	
+	passwordChanged := password != ""
+	
+	// Send email notification if data or password changed
+	if dataChanged || passwordChanged {
+		emailSubject := "Ваш аккаунт обновлен в системе Golden House"
+		emailBody := fmt.Sprintf(`Здравствуйте!
+
+Ваш аккаунт в системе Golden House был обновлен.
+
+Email: %s`, updatedUser.Email)
+
+		if passwordChanged {
+			emailBody += fmt.Sprintf(`
+
+Новый пароль: %s
+
+Рекомендуем сменить пароль после входа.`, password)
+		}
+
+		emailBody += `
+
+Ссылка для входа: http://localhost/login
+
+С уважением,
+Команда Golden House`
+
+		// Try to send email with retry mechanism
+		const maxRetries = 3
+		var emailSent bool
+		var lastError error
+		
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			log.Printf("Email attempt %d/%d to %s for update", attempt, maxRetries, updatedUser.Email)
+			
+			err := models.SendEmailNotificationNew(updatedUser.Email, emailSubject, emailBody)
+			if err == nil {
+				log.Printf("Update email successfully sent to %s on attempt %d", updatedUser.Email, attempt)
+				emailSent = true
+				break
+			}
+			
+			lastError = err
+			log.Printf("Update email attempt %d failed for %s: %v", attempt, updatedUser.Email, err)
+			
+			if attempt < maxRetries {
+				time.Sleep(time.Duration(attempt) * time.Second)
+			}
+		}
+		
+		// If email failed, send notification to admin
+		if !emailSent {
+			log.Printf("CRITICAL: All update email attempts failed for user %s: %v", updatedUser.Email, lastError)
+			
+			adminEmail := os.Getenv("ADMIN_EMAIL")
+			if adminEmail == "" {
+				adminEmail = "admin@gh.uz"
+			}
+			
+			fallbackSubject := "КРИТИЧНО: Не удалось отправить email при обновлении пользователя"
+			fallbackBody := fmt.Sprintf(`ВНИМАНИЕ! Критическая ошибка при обновлении пользователя.
+
+Пользователь обновлен, но НЕ получил email уведомление:
+- Email: %s
+- Username: %s`, updatedUser.Email, updatedUser.Username)
+
+			if passwordChanged {
+				fallbackBody += fmt.Sprintf(`
+- Новый пароль: %s`, password)
+			}
+
+			fallbackBody += fmt.Sprintf(`
+
+Ошибка отправки: %v
+
+ТРЕБУЕТСЯ РУЧНОЕ УВЕДОМЛЕНИЕ ПОЛЬЗОВАТЕЛЯ!`, lastError)
+			
+			adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
+			if adminErr != nil {
+				log.Printf("CRITICAL: Failed to send admin notification for update: %v", adminErr)
+			}
+			
+			// Return error - update should fail if email can't be sent and data/password changed
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"error":   "Пользователь обновлен, но не удалось отправить email уведомление. Администратор уведомлен.",
+			})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "Пользователь успешно обновлен и уведомлен по email",
+			"redirect": "/users/" + objectID.Hex(),
+		})
+	} else {
+		// No significant changes, no email needed
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "Пользователь успешно обновлен",
+			"redirect": "/users/" + objectID.Hex(),
+		})
+	}
 }
 
 // deleteUserHandler deletes a user
@@ -380,19 +564,34 @@ func deleteUserHandler(c *gin.Context) {
 	
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID пользователя"})
+		// Check if this is an AJAX request
+		if c.GetHeader("Content-Type") == "application/json" || c.GetHeader("Accept") == "application/json" {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Неверный формат ID пользователя"})
+		} else {
+			c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID пользователя"})
+		}
 		return
 	}
 
 	err = models.DeleteUser(objectID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Не удалось удалить пользователя: " + err.Error(),
-		})
+		// Check if this is an AJAX request
+		if c.GetHeader("Content-Type") == "application/json" || c.GetHeader("Accept") == "application/json" {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Не удалось удалить пользователя: " + err.Error()})
+		} else {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+				"error": "Не удалось удалить пользователя: " + err.Error(),
+			})
+		}
 		return
 	}
 
-	c.Redirect(http.StatusFound, "/users")
+	// Check if this is an AJAX request
+	if c.GetHeader("Content-Type") == "application/json" || c.GetHeader("Accept") == "application/json" {
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Пользователь успешно удален"})
+	} else {
+		c.Redirect(http.StatusFound, "/users")
+	}
 }
 
 // Placeholder for user import functionality
@@ -408,7 +607,8 @@ func showUserImportFormHandler(c *gin.Context) {
 }
 
 func importUsersHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "User import functionality not implemented yet"})
+	// Use the new import handler from handlers package
+	handlers.ImportUsersFromExcel(c)
 }
 
 // updateUserEmailPageHandler shows the form for updating user email
@@ -545,7 +745,7 @@ func sendPasswordResetHandler(c *gin.Context) {
 	
 	// Send email using existing template system
 	emailSubject, emailBody := models.GetPasswordResetEmail(user.GetFullName(), resetLink)
-	err = models.SendEmailNotification(user.Email, emailSubject, emailBody)
+	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при отправке email: " + err.Error()})
 		return
@@ -604,97 +804,83 @@ func unbanUserHandler(c *gin.Context) {
 
 // exportUsersHandler exports all users to Excel
 func exportUsersHandler(c *gin.Context) {
-	users, err := models.GetAllUsers()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователей"})
-		return
-	}
-
-	// Prepare users with their service roles for export
-	type UserExportData struct {
-		Username   string
-		LastName   string
-		FirstName  string
-		MiddleName string
-		Suffix     string
-		Email      string
-		Phone      string
-		Roles      string
-	}
-
-	var exportData []UserExportData
-	for _, user := range users {
-		serviceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-		if err != nil {
-			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
-			serviceRoles = []models.UserServiceRole{}
-		}
-
-		// Combine system roles and service roles
-		allRoles := make([]string, len(user.Roles))
-		copy(allRoles, user.Roles)
-		
-		for _, serviceRole := range serviceRoles {
-			if serviceRole.IsActive {
-				allRoles = append(allRoles, fmt.Sprintf("%s:%s", serviceRole.ServiceKey, serviceRole.RoleName))
-			}
-		}
-
-		exportData = append(exportData, UserExportData{
-			Username:   user.Username,
-			LastName:   user.LastName,
-			FirstName:  user.FirstName,
-			MiddleName: user.MiddleName,
-			Suffix:     user.Suffix,
-			Email:      user.Email,
-			Phone:      user.Phone,
-			Roles:      strings.Join(allRoles, ", "),
-		})
-	}
-
-	// Convert to interface{} slice
-	interfaceData := make([]interface{}, len(exportData))
-	for i, v := range exportData {
-		interfaceData[i] = v
-	}
-	
-	filename, err := models.ExportUsersToExcel(interfaceData)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при создании файла экспорта"})
-		return
-	}
-
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Header("Content-Disposition", "attachment; filename="+filename)
-	c.File(filename)
-
-	// Clean up temporary file
-	go func() {
-		time.Sleep(5 * time.Second)
-		os.Remove(filename)
-	}()
+	// Use the new export handler from handlers package
+	handlers.ExportUsersToExcel(c)
 }
 
 // downloadUsersTemplateHandler downloads Excel template for user import
 func downloadUsersTemplateHandler(c *gin.Context) {
-	filename, err := models.GenerateUsersImportTemplate()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при создании шаблона"})
+	// Use the new template generator from handlers package
+	handlers.DownloadUsersTemplate(c)
+}
+
+// Service-specific Excel import/export handlers
+
+// serviceImportPageHandler shows the import page for service administrators
+func serviceImportPageHandler(c *gin.Context) {
+	handlers.ServiceImportPageHandler(c)
+}
+
+// serviceImportHandler processes Excel import for service administrators
+func serviceImportHandler(c *gin.Context) {
+	handlers.ServiceImportHandler(c)
+}
+
+// serviceExportHandler exports users for service administrators
+func serviceExportHandler(c *gin.Context) {
+	handlers.ServiceExportHandler(c)
+}
+
+// serviceImportLogsHandler retrieves import logs for a specific service
+func serviceImportLogsHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	
+	// Get current user and verify service admin permissions
+	currentUser := c.MustGet("user").(*models.User)
+	
+	// Verify user has admin rights for this service
+	hasServiceAccess := false
+	// Check if user has admin role
+	for _, role := range currentUser.Roles {
+		if role == "admin" {
+			hasServiceAccess = true
+			break
+		}
+	}
+	
+	if !hasServiceAccess {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Access denied: insufficient permissions for this service",
+		})
 		return
 	}
-
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Header("Content-Disposition", "attachment; filename=users_import_template.xlsx")
-	c.File(filename)
-
-	// Clean up temporary file
-	go func() {
-		time.Sleep(5 * time.Second)
-		os.Remove(filename)
-	}()
+	
+	// Get import logs for service
+	logs, err := models.GetServiceImportLogs(serviceKey, 10) // Last 10 logs
+	if err != nil {
+		log.Printf("Error getting service import logs for %s: %v", serviceKey, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to retrieve import logs",
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"logs": logs,
+	})
 }
+
+// showImportLogsHandler shows import logs page
+func showImportLogsHandler(c *gin.Context) {
+	handlers.ShowImportLogsPage(c)
+}
+
+// showImportLogDetailsHandler shows detailed import log
+func showImportLogDetailsHandler(c *gin.Context) {
+	handlers.ShowImportLogDetails(c)
+}
+
+
 
 // showEnhancedUserFormHandler shows the enhanced user creation/edit form
 func showEnhancedUserFormHandler(c *gin.Context) {
@@ -744,6 +930,45 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 			userServiceRoles = []models.UserServiceRole{}
 		}
 		log.Printf("DEBUG: User has %d service roles", len(userServiceRoles))
+		log.Printf("DEBUG: User old roles: %v", user.Roles)
+
+		// If user has no service roles in new system but has old roles, we need to migrate them
+		if len(userServiceRoles) == 0 && len(user.Roles) > 0 {
+			log.Printf("DEBUG: User has old roles but no new service roles, attempting to show old roles for migration")
+			// Convert old roles to display format for migration assistance
+			oldRolesInfo := make([]models.UserServiceRole, 0)
+			
+			// Get all roles to find service mappings
+			allRoles, err := models.GetAllRoles()
+			if err == nil {
+				for _, userRoleName := range user.Roles {
+					if userRoleName == "admin" {
+						continue // Skip system admin role
+					}
+					
+					// Find this role in the roles collection
+					for _, role := range allRoles {
+						if role.Name == userRoleName && role.ServiceKey != "" {
+							oldRoleInfo := models.UserServiceRole{
+								UserID:      user.ID,
+								ServiceKey:  role.ServiceKey,
+								RoleName:    role.Name,
+								IsActive:    true,
+								// Add a marker to show this is from old system
+							}
+							oldRolesInfo = append(oldRolesInfo, oldRoleInfo)
+							log.Printf("DEBUG: Found old role mapping: %s -> %s:%s", userRoleName, role.ServiceKey, role.Name)
+						}
+					}
+				}
+			}
+			
+			// Use old roles info if available
+			if len(oldRolesInfo) > 0 {
+				userServiceRoles = oldRolesInfo
+				log.Printf("DEBUG: Using %d converted old roles for display", len(oldRolesInfo))
+			}
+		}
 
 		// Check if user is system admin (has "admin" role)
 		isSystemAdmin := false
