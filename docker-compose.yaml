@@ -12,6 +12,8 @@ services:
     volumes:
       - ./nginx/conf:/etc/nginx/conf
       - ./nginx/certs:/etc/nginx/certs
+    environment:
+      - TZ=Asia/Tashkent
     networks:
       - public_network
       - auth_network
@@ -26,15 +28,51 @@ services:
       - ./auth-service/.env
     depends_on:
       - mongo
+      - notification-service
     networks:
       - auth_network
       - data_network
       - public_network
+      - notification_network
     volumes:
       - ./auth-service/data:/root/data
       - ./auth-service/static:/root/static
       - ./auth-service/templates:/root/templates
+    environment:
+      - TZ=Asia/Tashkent
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8082
+    restart: always
 
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./notification-service/.env
+    ports:
+      - "8082:8082"
+    depends_on:
+      - notification-postgres
+    networks:
+      - notification_network
+      - public_network
+    environment:
+      - TZ=Asia/Tashkent
+    restart: always
+    volumes:
+      - ./notification-service/logs:/var/log/notification-service
+
+  notification-postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=notifications
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=notification_password
+      - TZ=Asia/Tashkent
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    networks:
+      - notification_network
     restart: always
 
   mongo:
@@ -49,6 +87,10 @@ services:
       - ./mongo_data:/data/db
     environment:
       - MONGO_INITDB_DATABASE=authdb
+      - TZ=Asia/Tashkent
+
+volumes:
+  notification_postgres_data:
 
 networks:
   public_network:
@@ -61,4 +103,7 @@ networks:
     internal: true
   data_network:
     name: data_network
+    internal: true
+  notification_network:
+    name: notification_network
     internal: true

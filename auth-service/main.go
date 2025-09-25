@@ -117,6 +117,17 @@ func main() {
 		log.Fatalf("Failed to connect to MongoDB: %v", err)
 	}
 
+	// Log existing services for debugging
+	services, err := models.GetAllServices()
+	if err != nil {
+		log.Printf("WARNING: Could not retrieve services: %v", err)
+	} else {
+		log.Printf("STARTUP DEBUG: Found %d services in database:", len(services))
+		for i, service := range services {
+			log.Printf("STARTUP DEBUG: Service %d - Key: '%s', Name: '%s'", i+1, service.Key, service.Name)
+		}
+	}
+
 	// Create an admin user if it doesn't exist
 	models.EnsureAdminExists()
 
@@ -163,6 +174,12 @@ func main() {
 	// Check and cleanup avatar files
 	checkAndCleanupAvatars()
 
+	// Initialize notification service client
+	InitNotificationClient()
+
+	// Configure notification service with current SMTP settings
+	ConfigureNotificationService()
+
 	// Setup router
 	router := gin.Default()
 
@@ -173,6 +190,7 @@ func main() {
 	router.Static("/static", "./static")
 	// Serve favicon
 	router.StaticFile("/vite.svg", "./static/img/vite.svg")
+	router.StaticFile("/favicon.ico", "./static/img/favicon.ico")
 	
 	// Setup avatar serving with no-cache headers BEFORE general /data route
 	router.GET("/avatar/:userID", func(c *gin.Context) {

@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/users-management.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -179,7 +180,7 @@
 
                 
                 <div style="margin-top: 30px;">
-                    <a href="/admin-menu" class="back-link">Назад к панели управления</a>
+                    <a href="/menu" class="back-link">Назад к панели управления</a>
                 </div>
             </div>
         
@@ -458,19 +459,22 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                     }
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
+                    // Show success message briefly then reload
+                    alert('Пользователь успешно удален');
                     location.reload();
                 } else {
                     alert('Ошибка при удалении: ' + (data.error || 'Неизвестная ошибка'));
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Ошибка при удалении пользователя');
+                alert('Ошибка при удалении пользователя: ' + error.message);
             }
         }
         
@@ -484,6 +488,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                     }
                 });
                 
@@ -496,7 +501,7 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Ошибка при отправке токена восстановления');
+                alert('Ошибка при отправке токена восстановления: ' + error.message);
             }
         }
     </script>

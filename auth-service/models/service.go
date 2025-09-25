@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -106,6 +107,11 @@ func GetAllServices() ([]Service, error) {
 		return nil, err
 	}
 
+	log.Printf("DEBUG: GetAllServices found %d services:", len(services))
+	for i, service := range services {
+		log.Printf("DEBUG: Service %d - Key: '%s', Name: '%s'", i+1, service.Key, service.Name)
+	}
+
 	return services, nil
 }
 
@@ -125,9 +131,26 @@ func GetServiceByID(id primitive.ObjectID) (*Service, error) {
 // GetServiceByKey retrieves a service by its key
 func GetServiceByKey(key string) (*Service, error) {
 	ctx := context.Background()
+	
+	log.Printf("DEBUG: Searching for service with key: '%s'", key)
 
 	var service Service
 	err := servicesCol.FindOne(ctx, bson.M{"key": key}).Decode(&service)
+	if err != nil {
+		log.Printf("DEBUG: Service with key '%s' not found in database: %v", key, err)
+		return nil, err
+	}
+
+	log.Printf("DEBUG: Found service with key '%s', name: '%s'", service.Key, service.Name)
+	return &service, nil
+}
+
+// GetServiceByName retrieves a service by its name
+func GetServiceByName(name string) (*Service, error) {
+	ctx := context.Background()
+
+	var service Service
+	err := servicesCol.FindOne(ctx, bson.M{"name": name}).Decode(&service)
 	if err != nil {
 		return nil, err
 	}

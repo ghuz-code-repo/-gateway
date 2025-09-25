@@ -1,0 +1,424 @@
+package main
+
+import (
+	"crypto/tls"
+	"fmt"
+	"log"
+	"net"
+	"net/smtp"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+	"github.com/google/uuid"
+)
+
+// processBatch processes all notifications in a batch
+func (ns *NotificationService) processBatch(batchID string) {
+	log.Printf("Processing batch: %s", batchID)
+
+	// Get batch
+	var batch NotificationBatch
+	if err := ns.db.First(&batch, "id = ?", batchID).Error; err != nil {
+		log.Printf("Failed to get batch %s: %v", batchID, err)
+		return
+	}
+
+	// Get notifications for this batch
+	var notifications []Notification
+	if err := ns.db.Where("batch_id = ? AND status = ?", batchID, StatusPending).Find(&notifications).Error; err != nil {
+		log.Printf("Failed to get notifications for batch %s: %v", batchID, err)
+		return
+	}
+
+	// Get current config from database
+	config := ns.getConfigFromDB()
+	
+	// Process notifications with rate limiting
+	batchSize := config.BatchSize
+	delayBetweenBatches := time.Duration(config.DelayBetweenBatchesMS) * time.Millisecond
+
+	for i := 0; i < len(notifications); i += batchSize {
+		end := i + batchSize
+		if end > len(notifications) {
+			end = len(notifications)
+		}
+
+		// Process batch of notifications
+		for j := i; j < end; j++ {
+			ns.processNotification(&notifications[j])
+		}
+
+		// Update batch statistics
+		ns.updateBatchStats(batchID)
+
+		// Wait before next batch (except for the last one)
+		if end < len(notifications) {
+			time.Sleep(delayBetweenBatches)
+		}
+	}
+
+	// Final update of batch status
+	ns.updateBatchStats(batchID)
+	
+	// Mark batch as completed
+	ns.db.Model(&batch).Where("id = ?", batchID).Update("status", "completed")
+	
+	log.Printf("Batch %s processing completed", batchID)
+}
+
+// processNotification processes a single notification
+func (ns *NotificationService) processNotification(notification *Notification) {
+	log.Printf("Processing notification %d (type: %s, recipient: %s)", 
+		notification.ID, notification.Type, notification.Recipient)
+
+	// Update status to sending
+	ns.db.Model(notification).Updates(Notification{
+		Status: StatusSending,
+	})
+
+	var err error
+	config := ns.getConfigFromDB()
+	maxAttempts := config.MaxRetryAttempts
+	
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		notification.Attempts = attempt
+		
+		switch notification.Type {
+		case NotificationTypeEmail:
+			err = ns.sendEmail(notification)
+		case NotificationTypeSMS:
+			err = ns.sendSMS(notification)
+		case NotificationTypePush:
+			err = ns.sendPush(notification)
+		default:
+			err = fmt.Errorf("unsupported notification type: %s", notification.Type)
+		}
+
+		if err == nil {
+			// Success
+			now := time.Now().Unix()
+			ns.db.Model(notification).Updates(Notification{
+				Status: StatusSent,
+				SentAt: &now,
+				Attempts: attempt,
+			})
+			log.Printf("Notification %d sent successfully on attempt %d", notification.ID, attempt)
+			return
+		}
+
+		// Check if error is permanent
+		if isPermanentError(err) {
+			log.Printf("Permanent error for notification %d: %v", notification.ID, err)
+			break
+		}
+
+		log.Printf("Attempt %d failed for notification %d: %v", attempt, notification.ID, err)
+		
+		// Wait before retry (exponential backoff)
+		if attempt < maxAttempts {
+			waitTime := time.Duration(attempt*attempt) * time.Second
+			time.Sleep(waitTime)
+		}
+	}
+
+	// All attempts failed
+	ns.db.Model(notification).Updates(Notification{
+		Status:    StatusFailed,
+		LastError: err.Error(),
+		Attempts:  maxAttempts,
+	})
+	log.Printf("Notification %d failed after %d attempts: %v", notification.ID, maxAttempts, err)
+}
+
+// sendEmail sends an email notification
+func (ns *NotificationService) sendEmail(notification *Notification) error {
+	config := ns.getEmailConfig()
+
+	// Validate configuration
+	if config.Host == "" || config.Port == "" {
+		return fmt.Errorf("SMTP configuration not complete")
+	}
+
+	if config.UseAuth && (config.Username == "" || config.Password == "") {
+		return fmt.Errorf("SMTP authentication required but credentials not provided")
+	}
+
+	// Compose message
+	message := []string{
+		"From: " + config.From,
+		"To: " + notification.Recipient,
+		"Subject: " + notification.Subject,
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=UTF-8",
+		"",
+		notification.Content,
+	}
+
+	messageBody := strings.Join(message, "\r\n")
+	addr := fmt.Sprintf("%s:%s", config.Host, config.Port)
+
+	// Create SMTP client
+	var client *smtp.Client
+	var err error
+
+	if config.UseTLS {
+		tlsConfig := getTLSConfig(config.Host)
+		conn, err := tls.Dial("tcp", addr, tlsConfig)
+		if err != nil {
+			return fmt.Errorf("TLS dial error: %v", err)
+		}
+
+		client, err = smtp.NewClient(conn, config.Host)
+		if err != nil {
+			return fmt.Errorf("SMTP client error: %v", err)
+		}
+	} else {
+		client, err = smtp.Dial(addr)
+		if err != nil {
+			return fmt.Errorf("SMTP dial error: %v", err)
+		}
+
+		// Start TLS if available
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			tlsConfig := getTLSConfig(config.Host)
+			if err = client.StartTLS(tlsConfig); err != nil {
+				return fmt.Errorf("start TLS error: %v", err)
+			}
+		}
+	}
+	defer client.Quit()
+
+	// Authenticate if needed
+	if config.UseAuth {
+		var auth smtp.Auth
+		switch strings.ToLower(config.AuthMethod) {
+		case "plain":
+			auth = smtp.PlainAuth("", config.Username, config.Password, config.Host)
+		case "login":
+			auth = LoginAuth(config.Username, config.Password)
+		case "crammd5":
+			auth = smtp.CRAMMD5Auth(config.Username, config.Password)
+		default:
+			auth = smtp.PlainAuth("", config.Username, config.Password, config.Host)
+		}
+
+		if err = client.Auth(auth); err != nil {
+			return fmt.Errorf("SMTP authentication error: %v", err)
+		}
+	}
+
+	// Set sender and recipient
+	if err = client.Mail(config.From); err != nil {
+		return fmt.Errorf("SMTP MAIL command error: %v", err)
+	}
+
+	if err = client.Rcpt(notification.Recipient); err != nil {
+		return fmt.Errorf("SMTP RCPT command error: %v", err)
+	}
+
+	// Send email body
+	wc, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("SMTP DATA command error: %v", err)
+	}
+
+	_, err = fmt.Fprint(wc, messageBody)
+	if err != nil {
+		return fmt.Errorf("SMTP body write error: %v", err)
+	}
+
+	err = wc.Close()
+	if err != nil {
+		return fmt.Errorf("SMTP data close error: %v", err)
+	}
+
+	return nil
+}
+
+// sendSMS sends an SMS notification (placeholder)
+func (ns *NotificationService) sendSMS(notification *Notification) error {
+	// TODO: Implement SMS sending
+	log.Printf("SMS sending not implemented yet for notification %d", notification.ID)
+	return fmt.Errorf("SMS sending not implemented")
+}
+
+// sendPush sends a push notification (placeholder)
+func (ns *NotificationService) sendPush(notification *Notification) error {
+	// TODO: Implement push notification sending
+	log.Printf("Push notification sending not implemented yet for notification %d", notification.ID)
+	return fmt.Errorf("push notification sending not implemented")
+}
+
+// updateBatchStats updates batch statistics
+func (ns *NotificationService) updateBatchStats(batchID string) {
+	var stats struct {
+		ProcessedCount int64 `json:"processed_count"`
+		SuccessCount   int64 `json:"success_count"`
+		FailedCount    int64 `json:"failed_count"`
+	}
+
+	// Count processed notifications
+	ns.db.Model(&Notification{}).
+		Where("batch_id = ? AND status IN (?)", batchID, []string{string(StatusSent), string(StatusFailed)}).
+		Count(&stats.ProcessedCount)
+
+	// Count successful notifications
+	ns.db.Model(&Notification{}).
+		Where("batch_id = ? AND status = ?", batchID, StatusSent).
+		Count(&stats.SuccessCount)
+
+	// Count failed notifications
+	ns.db.Model(&Notification{}).
+		Where("batch_id = ? AND status = ?", batchID, StatusFailed).
+		Count(&stats.FailedCount)
+
+	// Update batch
+	ns.db.Model(&NotificationBatch{}).
+		Where("id = ?", batchID).
+		Updates(NotificationBatch{
+			ProcessedCount: int(stats.ProcessedCount),
+			SuccessCount:   int(stats.SuccessCount),
+			FailedCount:    int(stats.FailedCount),
+		})
+}
+
+// EmailConfig holds SMTP configuration
+type EmailConfig struct {
+	Host       string
+	Port       string
+	Username   string
+	Password   string
+	From       string
+	UseTLS     bool
+	UseAuth    bool
+	AuthMethod string
+	Debug      bool
+}
+
+// getEmailConfig loads email configuration from database
+func (ns *NotificationService) getEmailConfig() EmailConfig {
+	dbConfig := ns.getConfigFromDB()
+	debug, _ := strconv.ParseBool(os.Getenv("SMTP_DEBUG"))
+
+	config := EmailConfig{
+		Host:       dbConfig.SMTPHost,
+		Port:       dbConfig.SMTPPort,
+		Username:   dbConfig.SMTPUsername,
+		Password:   dbConfig.SMTPPassword,
+		From:       dbConfig.SMTPFrom,
+		UseTLS:     dbConfig.SMTPUseTLS,
+		UseAuth:    dbConfig.SMTPUseAuth,
+		AuthMethod: dbConfig.SMTPAuthMethod,
+		Debug:      debug,
+	}
+
+	// Use fallback values if database values are empty
+	if config.Host == "" {
+		config.Host = "smtp.gmail.com"
+	}
+	if config.Port == "" {
+		config.Port = "587"
+	}
+	if config.From == "" {
+		config.From = config.Username
+	}
+	if config.AuthMethod == "" {
+		config.AuthMethod = "plain"
+	}
+
+	return config
+}
+
+// isIPAddress checks if the given string is an IP address
+func isIPAddress(host string) bool {
+	return net.ParseIP(host) != nil
+}
+
+// getTLSConfig creates appropriate TLS configuration
+func getTLSConfig(host string) *tls.Config {
+	if isIPAddress(host) {
+		return &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	} else {
+		return &tls.Config{
+			ServerName: host,
+		}
+	}
+}
+
+// isPermanentError determines if an error is permanent and shouldn't be retried
+func isPermanentError(err error) bool {
+	errStr := strings.ToLower(err.Error())
+	
+	// Common permanent SMTP errors
+	permanentErrors := []string{
+		"no such user",
+		"user unknown",
+		"mailbox unavailable",
+		"recipient address rejected",
+		"invalid recipient",
+		"550", // Requested action not taken: mailbox unavailable
+	}
+
+	for _, permErr := range permanentErrors {
+		if strings.Contains(errStr, permErr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// LoginAuth implements the LOGIN authentication mechanism
+type loginAuth struct {
+	username, password string
+}
+
+// LoginAuth returns an Auth that implements the LOGIN authentication mechanism
+func LoginAuth(username, password string) smtp.Auth {
+	return &loginAuth{username, password}
+}
+
+// Start begins an authentication with the server
+func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	return "LOGIN", []byte{}, nil
+}
+
+// Next continues the authentication
+func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if more {
+		switch string(fromServer) {
+		case "Username:":
+			return []byte(a.username), nil
+		case "Password:":
+			return []byte(a.password), nil
+		default:
+			return nil, fmt.Errorf("unknown LOGIN challenge: %s", fromServer)
+		}
+	}
+	return nil, nil
+}
+
+// Utility functions
+func init() {
+	// Update getCurrentTimestamp to return actual timestamp
+	getCurrentTimestamp = func() int64 {
+		return time.Now().Unix()
+	}
+	
+	// Update generateBatchID to use proper UUID
+	generateBatchID = func() string {
+		return "batch_" + uuid.New().String()
+	}
+}
+
+// Global functions that can be overridden
+var getCurrentTimestamp = func() int64 {
+	return time.Now().Unix()
+}
+
+var generateBatchID = func() string {
+	return "batch_" + uuid.New().String()
+}

@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/admin-service-form.css">
     <link rel="stylesheet" href="/static/css/service-tabs.css">
+    <link rel="icon" type="image/svg+xml" href="/vite.svg?v=3">
 </head>
 <body>
     <!-- Контейнер для уведомлений -->
@@ -138,6 +139,12 @@
                         <button type="button" class="add-button" onclick="openCreateRoleModal()">
                             + Создать новую роль
                         </button>
+                        {{ if .manageMode }}
+                        <div class="info-message">
+                            <i class="fas fa-info-circle"></i>
+                            Вы можете управлять всеми ролями кроме роли "admin"
+                        </div>
+                        {{ end }}
                     </div>
                     
                     <!-- Поиск ролей -->
@@ -284,6 +291,15 @@
                     <div class="add-permission-section">
                         <button type="button" class="add-button" onclick="openAddUserModal()">
                             <i class="fas fa-user-plus"></i> Добавить пользователя
+                        </button>
+                        
+                        <!-- Service Import/Export Buttons -->
+                        <button type="button" class="add-button import-button" onclick="goToServiceImport()">
+                            <i class="fas fa-file-import"></i> Импорт пользователей
+                        </button>
+                        
+                        <button type="button" class="add-button export-button" onclick="exportServiceUsers()">
+                            <i class="fas fa-file-export"></i> Экспорт пользователей
                         </button>
                     </div>
 
@@ -792,6 +808,33 @@
             document.getElementById('addUserModal').style.display = 'none';
             document.getElementById('addUserForm').reset();
             resetUserIndicators();
+        }
+
+        // Перейти на страницу импорта пользователей сервиса
+        function goToServiceImport() {
+            const serviceKey = '{{ .service.Key }}';
+            window.location.href = `/service/${serviceKey}/import`;
+        }
+
+        // Экспортировать пользователей сервиса
+        function exportServiceUsers() {
+            const serviceKey = '{{ .service.Key }}';
+            const exportUrl = `/service/${serviceKey}/export`;
+            
+            // Создаем временную ссылку для скачивания
+            const link = document.createElement('a');
+            link.href = exportUrl;
+            link.download = `users_${serviceKey}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            
+            // Добавляем ссылку в документ и кликаем по ней
+            document.body.appendChild(link);
+            link.click();
+            
+            // Удаляем ссылку из документа
+            document.body.removeChild(link);
+            
+            // Показываем уведомление
+            showNotification('Экспорт пользователей начат. Файл будет загружен автоматически.', 'success');
         }
 
         // Сбросить индикаторы пользователя
@@ -2631,6 +2674,58 @@
         "retina_detect": true
     });
     </script>
+    <style>
+        /* Service Import/Export Buttons */
+        .add-permission-section {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .import-button {
+            background-color: #28a745 !important;
+        }
+        
+        .import-button:hover {
+            background-color: #218838 !important;
+        }
+        
+        .export-button {
+            background-color: #17a2b8 !important;
+        }
+        
+        .export-button:hover {
+            background-color: #138496 !important;
+        }
+        
+        .import-button, .export-button {
+            color: white !important;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
+        }
+        
+        .import-button i, .export-button i {
+            margin-right: 5px;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .add-permission-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .add-button, .import-button, .export-button {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+        }
+    </style>
 </body>
 </html>
 {{ end }}

@@ -1,0 +1,307 @@
+{{ define "import_log_details.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+      body {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity .05s ease-in-out;
+      }
+    </style>
+</head>
+<body>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{{ .title }}</h1>
+            <a href="/users/import/logs" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Назад к списку
+            </a>
+        </div>
+        
+        <!-- Общая информация -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-info-circle"></i> Общая информация</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Дата и время:</strong> {{.log.Timestamp.Format "02.01.2006 15:04:05"}}</p>
+                        <p><strong>Администратор:</strong> {{.log.AdminUsername}}</p>
+                        <p><strong>Файл:</strong> {{.log.FileName}}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Статус:</strong> 
+                            {{if .log.Success}}
+                                <span class="badge badge-success">Успешно</span>
+                            {{else}}
+                                <span class="badge badge-danger">Ошибка</span>
+                            {{end}}
+                        </p>
+                        {{if .log.ErrorMessage}}
+                        <p><strong>Ошибка:</strong> <span class="text-danger">{{.log.ErrorMessage}}</span></p>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-chart-bar"></i> Статистика обработки</h3>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="stat-card bg-primary">
+                            <h4>{{.log.Result.ProcessedRows}}</h4>
+                            <p>Обработано строк</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card bg-success">
+                            <h4>{{len .log.Result.CreatedUsers}}</h4>
+                            <p>Создано пользователей</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card bg-info">
+                            <h4>{{len .log.Result.UpdatedUsers}}</h4>
+                            <p>Обновлено пользователей</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card bg-danger">
+                            <h4>{{len .log.Result.Errors}}</h4>
+                            <p>Ошибок</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Созданные пользователи -->
+        {{if .log.Result.CreatedUsers}}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-user-plus"></i> Созданные пользователи ({{len .log.Result.CreatedUsers}})</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>ФИО</th>
+                                <th>Сервисы</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .log.Result.CreatedUsers}}
+                            <tr>
+                                <td>{{.Username}}</td>
+                                <td>{{.Email}}</td>
+                                <td>{{.LastName}} {{.FirstName}} {{.MiddleName}}</td>
+                                <td>
+                                    {{range $service, $roles := .ServiceRoles}}
+                                    <span class="badge badge-primary">{{$service}}: {{$roles}}</span><br>
+                                    {{end}}
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Обновленные пользователи -->
+        {{if .log.Result.UpdatedUsers}}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-user-edit"></i> Обновленные пользователи ({{len .log.Result.UpdatedUsers}})</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>ФИО</th>
+                                <th>Изменения</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .log.Result.UpdatedUsers}}
+                            <tr>
+                                <td>{{.Username}}</td>
+                                <td>{{.Email}}</td>
+                                <td>{{.LastName}} {{.FirstName}} {{.MiddleName}}</td>
+                                <td>
+                                    <span class="badge badge-info">Профиль обновлен</span>
+                                    {{if .PasswordChanged}}
+                                    <span class="badge badge-warning">Пароль изменен</span>
+                                    {{end}}
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Ошибки -->
+        {{if .log.Result.Errors}}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-exclamation-triangle"></i> Ошибки ({{len .log.Result.Errors}})</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Строка</th>
+                                <th>Поле</th>
+                                <th>Значение</th>
+                                <th>Описание ошибки</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .log.Result.Errors}}
+                            <tr>
+                                <td>{{.Row}}</td>
+                                <td>{{.Field}}</td>
+                                <td><code>{{.Value}}</code></td>
+                                <td class="text-danger">{{.Message}}</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Отправленные уведомления -->
+        {{if .log.Result.EmailNotifications}}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-envelope"></i> Email уведомления ({{len .log.Result.EmailNotifications}})</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Тип</th>
+                                <th>Статус</th>
+                                <th>Время отправки</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .log.Result.EmailNotifications}}
+                            <tr>
+                                <td>{{.RecipientEmail}}</td>
+                                <td>
+                                    {{if eq .Type "created"}}
+                                    <span class="badge badge-success">Создание</span>
+                                    {{else if eq .Type "updated"}}
+                                    <span class="badge badge-info">Обновление</span>
+                                    {{else}}
+                                    <span class="badge badge-secondary">{{.Type}}</span>
+                                    {{end}}
+                                </td>
+                                <td>
+                                    {{if .Success}}
+                                    <span class="badge badge-success">Отправлено</span>
+                                    {{else}}
+                                    <span class="badge badge-danger">Ошибка</span>
+                                    {{end}}
+                                </td>
+                                <td>{{.SentAt.Format "15:04:05"}}</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {{end}}
+    </div>
+
+    <style>
+    .stat-card {
+        padding: 20px;
+        border-radius: 8px;
+        color: white;
+        margin-bottom: 10px;
+    }
+    .stat-card h4 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .stat-card p {
+        margin: 5px 0 0 0;
+        font-size: 0.9rem;
+    }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+    <script>
+    particlesJS('particles-js', {
+        "particles": {
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
+            "color": { "value": "#c4a668" },
+            "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+            "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+            "size": { "value": 4, "random": true },
+            "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+            "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
+            "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+        },
+        "retina_detect": true
+    });
+    </script>
+</body>
+</html>
+{{ end }}

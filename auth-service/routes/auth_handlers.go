@@ -241,7 +241,7 @@ func forgotPasswordHandler(c *gin.Context) {
 	emailSubject, emailBody := models.GetPasswordResetEmail(user.FullName, resetLink)
 	
 	// Try to send email
-	err = models.SendEmailNotification(user.Email, emailSubject, emailBody)
+	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
 	if err != nil {
 		log.Printf("Failed to send password reset email to %s: %v", user.Email, err)
 		c.HTML(http.StatusInternalServerError, "forgot-password-result.html", gin.H{

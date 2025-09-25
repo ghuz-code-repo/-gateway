@@ -219,6 +219,26 @@ func SendEmailNotification(to, subject, body string) error {
 	return nil
 }
 
+// SendEmailNotificationViaService sends an email notification via the external notification service
+// This function is defined in notification_client.go but needs to be accessible from models package
+var SendEmailNotificationViaService func(to, subject, body string) error
+
+// SendEmailNotificationNew sends an email notification, trying the new service first, then fallback to old method
+func SendEmailNotificationNew(to, subject, body string) error {
+	// Try new notification service first
+	if SendEmailNotificationViaService != nil {
+		err := SendEmailNotificationViaService(to, subject, body)
+		if err == nil {
+			return nil
+		}
+		// Log error but continue to fallback
+		log.Printf("Notification service failed, falling back to direct SMTP: %v", err)
+	}
+
+	// Fallback to old method
+	return SendEmailNotification(to, subject, body)
+}
+
 // LoginAuth is a custom implementation of the LOGIN authentication mechanism
 type loginAuth struct {
 	username, password string

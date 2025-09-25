@@ -65,6 +65,19 @@ func GetAllRoles() ([]Role, error) {
 	return roles, nil
 }
 
+// GetRoleByName retrieves a role by its name
+func GetRoleByName(name string) (*Role, error) {
+	ctx := context.Background()
+
+	var role Role
+	err := rolesCol.FindOne(ctx, bson.M{"name": name}).Decode(&role)
+	if err != nil {
+		return nil, err
+	}
+
+	return &role, nil
+}
+
 // GetSystemRoles returns only system roles (not service-specific roles)
 // Prioritizes roles with service="system" over legacy roles without service field
 func GetSystemRoles() ([]Role, error) {

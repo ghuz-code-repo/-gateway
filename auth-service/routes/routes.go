@@ -65,6 +65,8 @@ func SetupAdminRoutes(router *gin.Engine) {
 		users.DELETE("/:id/remove-avatar", adminRemoveAvatarHandler)
 		users.GET("/import", showUserImportFormHandler)
 		users.POST("/import", importUsersHandler)
+		users.GET("/import/logs", showImportLogsHandler)
+		users.GET("/import/logs/:id", showImportLogDetailsHandler)
 		users.GET("/export", exportUsersHandler)
 		users.GET("/template", downloadUsersTemplateHandler)
 		// Document management for specific users (admin access)
@@ -87,6 +89,11 @@ func SetupAdminRoutes(router *gin.Engine) {
 		admin.GET("/update-user-email", updateUserEmailPageHandler)
 		admin.POST("/update-user-email", updateUserEmailHandler)
 	}
+	
+	// Notification service settings (only for system admins) - separate routing
+	router.GET("/notification-settings", adminAuthRequired(), getNotificationSettings)
+	router.POST("/notification-settings", adminAuthRequired(), updateNotificationSettings)
+	router.POST("/notification-settings/test", adminAuthRequired(), testNotificationSettings)
 
 	// Service management
 	services := router.Group("/services")
@@ -117,6 +124,16 @@ func SetupAdminRoutes(router *gin.Engine) {
 
 	// Check user existence endpoint
 	router.GET("/check-user-exists", serviceAdminAuthRequired(), checkUserExistsHandler)
+
+	// Service-specific Excel import/export routes
+	serviceExcel := router.Group("/service")
+	serviceExcel.Use(serviceAdminAuthRequired())
+	{
+		serviceExcel.GET("/:serviceKey/import", serviceImportPageHandler)           // Show import page for service
+		serviceExcel.POST("/:serviceKey/import", serviceImportHandler)             // Process Excel import for service
+		serviceExcel.GET("/:serviceKey/export", serviceExportHandler)              // Export users for service
+		serviceExcel.GET("/:serviceKey/import/logs", serviceImportLogsHandler)     // Get import logs for service
+	}
 
 	// Migration management (placeholder for now)
 	migration := router.Group("/migration")

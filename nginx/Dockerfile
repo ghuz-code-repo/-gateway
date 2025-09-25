@@ -1,5 +1,11 @@
 FROM nginx:alpine
 
+# Install timezone data
+RUN apk --no-cache add tzdata
+
+# Set timezone
+ENV TZ=Asia/Tashkent
+
 COPY ./conf/nginx.conf /etc/nginx/nginx.conf
 COPY ./conf/default.conf /etc/nginx/conf.d/default.conf
 COPY ./html/favicon.ico /usr/share/nginx/html/favicon.ico
