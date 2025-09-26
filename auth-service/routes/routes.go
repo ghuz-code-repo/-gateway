@@ -102,38 +102,35 @@ func SetupAdminRoutes(router *gin.Engine) {
 		services.GET("/", listServicesHandlerWithAccess)
 		services.GET("/new", showServiceFormHandler)
 		services.POST("/", createServiceHandler)
-		services.GET("/:id", getServiceHandlerWithAccess)
-		services.POST("/:id", updateServiceHandlerWithAccess)
-		services.POST("/:id/delete", deleteServiceHandler)
-		services.POST("/:id/permissions", addServicePermissionHandler)
-		services.PUT("/:id/permissions/:permName", updateServicePermissionHandler)
-		services.POST("/:id/permissions/:permName/delete", deleteServicePermissionHandler)
+		services.GET("/:serviceKey", getServiceHandlerWithAccess)
+		services.POST("/:serviceKey", updateServiceHandlerWithAccess)
+		services.POST("/:serviceKey/delete", deleteServiceHandler)
+		services.POST("/:serviceKey/permissions", addServicePermissionHandler)
+		services.PUT("/:serviceKey/permissions/:permName", updateServicePermissionHandler)
+		services.POST("/:serviceKey/permissions/:permName/delete", deleteServicePermissionHandler)
 		
 		// Service roles management
-		services.POST("/:id/roles", createServiceRoleHandler)
-		services.GET("/:id/roles/:roleId", getServiceRoleHandler)
-		services.POST("/:id/roles/:roleId", updateServiceRoleHandler)
-		services.POST("/:id/roles/:roleId/delete", deleteServiceRoleHandler)
-		services.POST("/:id/assign-role", assignUserToServiceRoleHandler)
+		services.POST("/:serviceKey/roles", createServiceRoleHandler)
+		services.GET("/:serviceKey/roles/:roleId", getServiceRoleHandler)
+		services.POST("/:serviceKey/roles/:roleId", updateServiceRoleHandler)
+		services.POST("/:serviceKey/roles/:roleId/delete", deleteServiceRoleHandler)
+		services.POST("/:serviceKey/assign-role", assignUserToServiceRoleHandler)
 
 		// User management for services
-		services.GET("/:id/users", getServiceUsersHandler)
-		services.POST("/:id/users", addUserToServiceHandler)
-		services.PUT("/:id/users/:userId/roles", updateUserServiceRolesHandler)
+		services.GET("/:serviceKey/users", getServiceUsersHandler)
+		services.POST("/:serviceKey/users", addUserToServiceHandler)
+		services.PUT("/:serviceKey/users/:userId/roles", updateUserServiceRolesHandler)
 	}
 
 	// Check user existence endpoint
 	router.GET("/check-user-exists", serviceAdminAuthRequired(), checkUserExistsHandler)
 
-	// Service-specific Excel import/export routes
-	serviceExcel := router.Group("/service")
-	serviceExcel.Use(serviceAdminAuthRequired())
-	{
-		serviceExcel.GET("/:serviceKey/import", serviceImportPageHandler)           // Show import page for service
-		serviceExcel.POST("/:serviceKey/import", serviceImportHandler)             // Process Excel import for service
-		serviceExcel.GET("/:serviceKey/export", serviceExportHandler)              // Export users for service
-		serviceExcel.GET("/:serviceKey/import/logs", serviceImportLogsHandler)     // Get import logs for service
-	}
+	// Service-specific Excel import/export routes (extending services group)
+	services.GET("/:serviceKey/import", serviceImportPageHandler)           // Show import page for service
+	services.POST("/:serviceKey/import", serviceImportHandler)             // Process Excel import for service
+	services.GET("/:serviceKey/export", serviceExportHandler)              // Export existing users for service (with data)
+	services.GET("/:serviceKey/template", serviceTemplateHandler)          // Download empty template for service
+	services.GET("/:serviceKey/import/logs", serviceImportLogsHandler)     // Get import logs for service
 
 	// Migration management (placeholder for now)
 	migration := router.Group("/migration")

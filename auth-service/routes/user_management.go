@@ -831,6 +831,11 @@ func serviceExportHandler(c *gin.Context) {
 	handlers.ServiceExportHandler(c)
 }
 
+// serviceTemplateHandler downloads empty template for service administrators
+func serviceTemplateHandler(c *gin.Context) {
+	handlers.ServiceTemplateHandler(c)
+}
+
 // serviceImportLogsHandler retrieves import logs for a specific service
 func serviceImportLogsHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")

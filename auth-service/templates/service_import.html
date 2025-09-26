@@ -5,10 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.title}} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/service-import.css">
-    <link rel="icon" type="image/svg+xml" href="/vite.svg?v=2">
 </head>
 <body>
     <!-- Контейнер для уведомлений -->
@@ -41,10 +41,13 @@
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h1>Импорт пользователей - {{.service.Name}}</h1>
                         <div class="d-flex gap-2">
-                            <a href="/service/{{.service.Key}}/export" class="btn btn-success">
-                                <i class="fas fa-download"></i> Скачать шаблон
+                            <a href="/services/{{.service.Key}}/template" class="btn btn-primary">
+                                <i class="fas fa-download"></i> Пустой шаблон
                             </a>
-                            <a href="/services/{{ .service.ID }}" class="btn btn-secondary">
+                            <a href="/services/{{.service.Key}}/export" class="btn btn-success">
+                                <i class="fas fa-users"></i> Шаблон с данными
+                            </a>
+                            <a href="/services/{{ .service.Key }}" class="btn btn-secondary">
                                 <i class="fas fa-arrow-left"></i> Назад к сервису
                             </a>
                         </div>
@@ -68,7 +71,7 @@
                             </ul>
                         </div>
 
-                        <form id="importForm" method="post" enctype="multipart/form-data" action="/service/{{.service.Key}}/import" class="form">
+                        <form id="importForm" method="post" enctype="multipart/form-data" action="/services/{{.service.Key}}/import" class="form">
                             <div class="form-group">
                                 <label for="file">Выберите файл Excel:</label>
                                 <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
@@ -162,7 +165,7 @@
 
         // Load recent imports
         function loadRecentImports() {
-            fetch('/service/{{.service.Key}}/import/logs')
+            fetch('/services/{{.service.Key}}/import/logs')
                 .then(response => response.json())
                 .then(data => {
                     const container = document.getElementById('recentImports');

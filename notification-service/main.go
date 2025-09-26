@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -95,6 +96,36 @@ type NotificationConfig struct {
 	UpdatedAt               int64  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
+// isInternalIP checks if the IP is from internal Docker networks
+func isInternalIP(ip string) bool {
+	// Parse IP
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		return false
+	}
+
+	// Define allowed internal networks
+	allowedNetworks := []string{
+		"172.16.0.0/12",  // Docker default networks
+		"10.0.0.0/8",     // Docker internal networks  
+		"192.168.0.0/16", // Docker compose networks
+		"127.0.0.0/8",    // localhost range
+	}
+
+	// Check if IP is in any allowed network
+	for _, network := range allowedNetworks {
+		_, cidr, err := net.ParseCIDR(network)
+		if err != nil {
+			continue
+		}
+		if cidr.Contains(parsedIP) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
@@ -112,6 +143,31 @@ func main() {
 
 	// Initialize router
 	router := gin.Default()
+
+	// Set trusted proxies for internal Docker networks
+	router.SetTrustedProxies([]string{
+		"172.16.0.0/12",  // Docker default networks
+		"10.0.0.0/8",     // Docker internal networks
+		"192.168.0.0/16", // Docker compose networks
+		"127.0.0.1",      // localhost
+	})
+
+	// Add IP whitelist middleware
+	router.Use(func(c *gin.Context) {
+		clientIP := c.ClientIP()
+		
+		// Allow only internal Docker networks
+		allowed := isInternalIP(clientIP)
+		
+		if !allowed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Access denied",
+			})
+			return
+		}
+		
+		c.Next()
+	})
 
 	// Setup routes
 	service.setupRoutes(router)

@@ -159,39 +159,48 @@ func InitializeDefaultDisplayNames() {
 	}
 }
 
-// InitializeDefaultPermissions ensures admin user and role exist
+// InitializeDefaultPermissions ensures admin role exists and creates admin user only if no system administrators exist
 func InitializeDefaultPermissions() {
-	// Only ensure the admin role exists, no other hardcoded services
+	fmt.Println("Checking for system admin role...")
 
-	fmt.Println("Checking for admin role...")
-
-	// Check if admin role exists
+	// Check if system admin role exists
 	adminRoles, err := GetRolesByName("admin")
 	if err != nil || len(adminRoles) == 0 {
 		// Create admin role if it doesn't exist
-		fmt.Println("Creating admin role...")
+		fmt.Println("Creating system admin role...")
 		// Admin role should be a system-wide role (not tied to a specific service)
-		_, err := CreateRole("system", "admin", "Administrator with full access", []string{})
+		_, err := CreateRole("system", "admin", "System Administrator with full access", []string{})
 		if err != nil {
 			fmt.Printf("Error creating admin role: %v\n", err)
 		} else {
-			fmt.Println("Admin role created successfully")
-		}
-	}
-
-	// Check if admin user exists
-	adminUser, err := GetUserByUsername("admin")
-	if err != nil {
-		// Create admin user if it doesn't exist
-		fmt.Println("Creating admin user...")
-		_, err := CreateUser("admin", "d.tolkunov@gh.uz", "admin", "Administrator", []string{"admin"})
-		if err != nil {
-			fmt.Printf("Error creating admin user: %v\n", err)
-		} else {
-			fmt.Println("Admin user created successfully")
+			fmt.Println("System admin role created successfully")
 		}
 	} else {
-		fmt.Println("Admin user already exists with roles:", adminUser.Roles)
+		fmt.Println("System admin role already exists")
+	}
+
+	// Check if any system administrators exist (not just user "admin")
+	fmt.Println("Checking for existing system administrators...")
+	systemAdmins, err := GetUsersWithRole("admin")
+	if err != nil {
+		fmt.Printf("Warning: Error checking for system administrators: %v\n", err)
+		systemAdmins = []*User{} // Default to empty if error
+	}
+
+	if len(systemAdmins) == 0 {
+		// Create default admin user only if no system administrators exist
+		fmt.Println("No system administrators found, creating default admin user...")
+		_, err := CreateUser("admin", "d.tolkunov@gh.uz", "admin", "Default System Administrator", []string{"admin"})
+		if err != nil {
+			fmt.Printf("Error creating default admin user: %v\n", err)
+		} else {
+			fmt.Println("Default admin user created successfully with username: admin, password: admin")
+		}
+	} else {
+		fmt.Printf("Found %d existing system administrator(s), no need to create default admin\n", len(systemAdmins))
+		for _, admin := range systemAdmins {
+			fmt.Printf("  - %s (%s)\n", admin.Username, admin.Email)
+		}
 	}
 }
 

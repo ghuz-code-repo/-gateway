@@ -5,11 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/admin-service-form.css">
     <link rel="stylesheet" href="/static/css/service-tabs.css">
-    <link rel="icon" type="image/svg+xml" href="/vite.svg?v=3">
 </head>
 <body>
     <!-- Контейнер для уведомлений -->
@@ -50,6 +50,13 @@
                     {{ if .success }}
                     <div class="flash-message success">
                         {{ .success }}
+                    </div>
+                    {{ end }}
+                    
+                    {{ if .importSuccessMessage }}
+                    <div class="flash-message success">
+                        <i class="fas fa-check-circle"></i>
+                        {{ .importSuccessMessage }}
                     </div>
                     {{ end }}
                 </div>
@@ -121,7 +128,7 @@
                 <div class="danger-zone">
                     <h4>Опасная зона</h4>
                     <p>Удаление сервиса приведет к удалению всех связанных разрешений и ролей. Это действие необратимо.</p>
-                    <form method="post" action="/services/{{ .service.ID.Hex }}/delete" 
+                    <form method="post" action="/services/{{ .service.Key }}/delete" 
                           onsubmit="return confirm('Вы уверены, что хотите удалить сервис {{ .service.Name }}? Это действие необратимо!')">
                         <button type="submit" class="btn danger">Удалить сервис</button>
                     </form>
@@ -182,7 +189,7 @@
                                         Изменить
                                     </button>
                                     <button type="button" class="btn small danger" 
-                                            onclick="deleteRole('{{ $.service.ID.Hex }}', '{{ .ID.Hex }}', '{{ .Name }}')">
+                                            onclick="deleteRole('{{ $.service.Key }}', '{{ .ID.Hex }}', '{{ .Name }}')">
                                         Удалить
                                     </button>
                                 </div>
@@ -247,7 +254,7 @@
                                             Изменить
                                         </button>
                                         <button type="button" class="btn small danger" 
-                                                onclick="deletePermission('{{ $.service.ID.Hex }}', '{{ .Name }}')">
+                                                onclick="deletePermission('{{ $.service.Key }}', '{{ .Name }}')">
                                             Удалить
                                         </button>
                                     </div>
@@ -404,8 +411,8 @@
     <script>
         console.log('Main script loaded');
         
-        // Переменная с ID сервиса для использования в JavaScript
-        const SERVICE_ID = '{{ .service.ID.Hex }}';
+        // Переменная с KEY сервиса для использования в JavaScript
+        const SERVICE_KEY = '{{ .service.Key }}';
         
         // Функции для работы с модальными окнами
         function openCreateRoleModal() {
@@ -711,7 +718,6 @@
     <script>
         // Глобальные переменные
         const serviceKey = '{{ .service.Key }}';
-        const serviceId = '{{ .service.ID.Hex }}';
         
         // ========== ФУНКЦИИ ДЛЯ АВАТАРОВ ==========
         
@@ -722,7 +728,7 @@
                 width: 100%;
                 height: 100%;
                 background-color: var(--card-background-color, #f5f5f5);
-                border: 2px solid var(--light-border-color, #ddd);
+
                 border-radius: 8px;
                 display: flex;
                 align-items: center;
@@ -752,7 +758,6 @@
                     height: 100%;
                     border-radius: 8px;
                     object-fit: cover;
-                    border: 2px solid var(--light-border-color, #ddd);
                     box-sizing: border-box;
                 `;
                 
@@ -813,13 +818,13 @@
         // Перейти на страницу импорта пользователей сервиса
         function goToServiceImport() {
             const serviceKey = '{{ .service.Key }}';
-            window.location.href = `/service/${serviceKey}/import`;
+            window.location.href = `/services/${serviceKey}/import`;
         }
 
         // Экспортировать пользователей сервиса
         function exportServiceUsers() {
             const serviceKey = '{{ .service.Key }}';
-            const exportUrl = `/service/${serviceKey}/export`;
+            const exportUrl = `/services/${serviceKey}/export`;
             
             // Создаем временную ссылку для скачивания
             const link = document.createElement('a');
@@ -857,7 +862,7 @@
             checkUserTimeout = setTimeout(async () => {
                 console.log('Making API request for identifier:', identifier.trim());
                 try {
-                    const response = await fetch(`/check-user-exists?identifier=${encodeURIComponent(identifier.trim())}&serviceId=${SERVICE_ID}`, {
+                    const response = await fetch(`/check-user-exists?identifier=${encodeURIComponent(identifier.trim())}&serviceKey=${SERVICE_KEY}`, {
                         method: 'GET',
                         credentials: 'include', // Включаем куки для авторизации
                         headers: {
@@ -1122,7 +1127,7 @@
             }
             
             try {
-                const response = await fetch(`/services/${serviceId}/users`, {
+                const response = await fetch(`/services/${serviceKey}/users`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1259,7 +1264,7 @@
             }
             
             try {
-                const response = await fetch(`/services/${serviceId}/users/${userId}/roles`, {
+                const response = await fetch(`/services/${serviceKey}/users/${userId}/roles`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1573,7 +1578,7 @@
             
             // Устанавливаем действие формы для редактирования конкретной роли
             const form = document.getElementById('editRoleForm');
-            form.action = '/services/{{ .service.ID.Hex }}/roles/' + roleId;
+            form.action = '/services/{{ .service.Key }}/roles/' + roleId;
             
             // Заполняем поля формы
             document.getElementById('edit-role-name').value = roleName;
@@ -1698,8 +1703,7 @@
             
             // Устанавливаем URL для формы
             const form = document.getElementById('editPermissionForm');
-            const serviceId = '{{ .service.ID.Hex }}';
-            form.action = `/services/${serviceId}/permissions/${permissionName}`;
+            form.action = `/services/${serviceKey}/permissions/${permissionName}`;
             
             // Показываем модальное окно
             document.getElementById('editPermissionModal').style.display = 'block';
@@ -2178,12 +2182,12 @@
             });
         }
         
-        function deleteRole(serviceId, roleId, roleName) {
+        function deleteRole(serviceKey, roleId, roleName) {
             if (!confirm(`Удалить роль "${roleName}"?`)) {
                 return;
             }
             
-            fetch(`/services/${serviceId}/roles/${roleId}/delete`, {
+            fetch(`/services/${serviceKey}/roles/${roleId}/delete`, {
                 method: 'POST'
             })
             .then(response => {
@@ -2204,12 +2208,12 @@
             });
         }
         
-        function deletePermission(serviceId, permissionName) {
+        function deletePermission(serviceKey, permissionName) {
             if (!confirm(`Удалить разрешение "${permissionName}"?`)) {
                 return;
             }
             
-            fetch(`/services/${serviceId}/permissions/${permissionName}/delete`, {
+            fetch(`/services/${serviceKey}/permissions/${permissionName}/delete`, {
                 method: 'POST'
             })
             .then(response => {
@@ -2303,7 +2307,7 @@
             </div>
             <div class="edit-role-modal-body">
                 <div class="edit-role-form-fields">
-                    <form method="post" action="/services/{{ .service.ID.Hex }}/roles" id="createRoleForm">
+                    <form method="post" action="/services/{{ .service.Key }}/roles" id="createRoleForm">
                         <div class="form-group">
                             <label for="modal-role-name">Название роли *</label>
                             <input type="text" id="modal-role-name" name="role_name" required 
@@ -2365,7 +2369,7 @@
                 <span class="close" onclick="closeModal('createPermissionModal')">&times;</span>
             </div>
             <div class="service-modal-body">
-                <form method="post" action="/services/{{ .service.ID.Hex }}/permissions" id="createPermissionForm">
+                <form method="post" action="/services/{{ .service.Key }}/permissions" id="createPermissionForm">
                     <div class="form-group">
                         <label for="modal-perm-name">Название *</label>
                         <input type="text" id="modal-perm-name" name="name" required 
@@ -2680,7 +2684,6 @@
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-            margin-bottom: 20px;
         }
         
         .import-button {

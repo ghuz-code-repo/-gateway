@@ -121,15 +121,9 @@ func createServiceHandler(c *gin.Context) {
 // getServiceHandlerWithAccess shows service details with access control
 func getServiceHandlerWithAccess(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 	
-	objectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID сервиса"})
-		return
-	}
-
-	service, err := models.GetServiceByID(objectID)
+	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
@@ -161,7 +155,10 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 	// Determine manage mode - true if user is service admin but not system admin
 	manageMode := !isSystemAdmin && hasServiceAdminRole(user, service.Key)
 	
-	c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
+	// Check for import success message
+	importSuccess := c.Query("import_success")
+	
+	templateData := gin.H{
 		"title":         "Детали сервиса",
 		"service":       service,
 		"serviceRoles":  serviceRoles,
@@ -172,22 +169,23 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		"user":          user,
 		"isSystemAdmin": isSystemAdmin,
 		"manageMode":    manageMode,
-	})
+	}
+	
+	// Add import success message if present
+	if importSuccess != "" {
+		templateData["importSuccessMessage"] = importSuccess
+	}
+	
+	c.HTML(http.StatusOK, "admin_service_form.html", templateData)
 }
 
 // updateServiceHandlerWithAccess updates service with access control
 func updateServiceHandlerWithAccess(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 	
-	objectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID сервиса"})
-		return
-	}
-
 	// Get service first to check access
-	service, err := models.GetServiceByID(objectID)
+	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
@@ -241,24 +239,25 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 	}
 	
 	// Update service with new key and permissions
-	err = models.UpdateService(objectID, newKey, name, description, service.AvailablePermissions)
+	err = models.UpdateService(service.ID, newKey, name, description, service.AvailablePermissions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении сервиса: " + err.Error()})
 		return
 	}
 
-	c.Redirect(http.StatusFound, "/services/"+serviceID)
+	c.Redirect(http.StatusFound, "/services/"+newKey)
 }
 
 // deleteServiceHandler deletes a service (system admin only)
 func deleteServiceHandler(c *gin.Context) {
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 	
-	objectID, err := primitive.ObjectIDFromHex(serviceID)
+	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID сервиса"})
+		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
 	}
+	objectID := service.ID
 
 	err = models.DeleteService(objectID)
 	if err != nil {
@@ -273,7 +272,7 @@ func deleteServiceHandler(c *gin.Context) {
 
 // addServicePermissionHandler adds a permission to a service
 func addServicePermissionHandler(c *gin.Context) {
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 	permissionName := c.PostForm("name")
 	permissionDisplayName := c.PostForm("displayName")
 	permissionDescription := c.PostForm("description")
@@ -284,13 +283,7 @@ func addServicePermissionHandler(c *gin.Context) {
 	}
 	
 	// Validate service exists
-	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID сервиса"})
-		return
-	}
-	
-	service, err := models.GetServiceByID(serviceObjectID)
+	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
@@ -310,7 +303,7 @@ func addServicePermissionHandler(c *gin.Context) {
 		return
 	}
 	
-	c.Redirect(http.StatusFound, "/services/"+serviceID)
+	c.Redirect(http.StatusFound, "/services/"+service.Key)
 }
 
 func updateServicePermissionHandler(c *gin.Context) {
@@ -318,7 +311,7 @@ func updateServicePermissionHandler(c *gin.Context) {
 }
 
 func deleteServicePermissionHandler(c *gin.Context) {
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 	permissionName := c.Param("permName")
 	
 	if permissionName == "" {
@@ -327,13 +320,7 @@ func deleteServicePermissionHandler(c *gin.Context) {
 	}
 	
 	// Validate service exists
-	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID сервиса"})
-		return
-	}
-	
-	service, err := models.GetServiceByID(serviceObjectID)
+	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
@@ -346,11 +333,11 @@ func deleteServicePermissionHandler(c *gin.Context) {
 		return
 	}
 	
-	c.Redirect(http.StatusFound, "/services/"+serviceID)
+	c.Redirect(http.StatusFound, "/services/"+service.Key)
 }
 
 func createServiceRoleHandler(c *gin.Context) {
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 	roleName := c.PostForm("role_name")
 	roleDescription := c.PostForm("role_description")
 	
@@ -360,13 +347,7 @@ func createServiceRoleHandler(c *gin.Context) {
 	}
 	
 	// Validate service exists
-	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID сервиса"})
-		return
-	}
-	
-	service, err := models.GetServiceByID(serviceObjectID)
+	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
@@ -390,7 +371,7 @@ func createServiceRoleHandler(c *gin.Context) {
 	}
 	
 	// Redirect back to service page with roles tab active
-	c.Redirect(http.StatusFound, "/services/"+serviceID)
+	c.Redirect(http.StatusFound, "/services/"+service.Key)
 }
 
 func getServiceRoleHandler(c *gin.Context) {
@@ -474,7 +455,7 @@ func getServiceUsersHandler(c *gin.Context) {
 }
 
 func addUserToServiceHandler(c *gin.Context) {
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 
 	var req struct {
 		Identifier string   `json:"identifier"`
@@ -498,16 +479,9 @@ func addUserToServiceHandler(c *gin.Context) {
 		return
 	}
 
-	// Convert serviceID to ObjectID
-	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID"})
-		return
-	}
-
-	// Get service
-	service, err := models.GetServiceByID(serviceObjectID)
-	if err != nil {
+	// Get service by key
+	service, err := models.GetServiceByKey(serviceKey)
+	if err != nil || service == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
@@ -580,7 +554,7 @@ func addUserToServiceHandler(c *gin.Context) {
 }
 
 func updateUserServiceRolesHandler(c *gin.Context) {
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 	userID := c.Param("userId")
 
 	var req struct {
@@ -599,16 +573,9 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 		return
 	}
 
-	// Convert serviceID to ObjectID
-	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service ID"})
-		return
-	}
-
-	// Get service to validate
-	service, err := models.GetServiceByID(serviceObjectID)
-	if err != nil {
+	// Get service by key
+	service, err := models.GetServiceByKey(serviceKey)
+	if err != nil || service == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
@@ -671,7 +638,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 // checkUserExistsHandler checks if a user exists by username or email
 func checkUserExistsHandler(c *gin.Context) {
 	identifier := c.Query("identifier")
-	serviceID := c.Query("serviceId")
+	serviceKey := c.Query("serviceKey")
 
 	if identifier == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Identifier is required"})
@@ -690,20 +657,17 @@ func checkUserExistsHandler(c *gin.Context) {
 		return
 	}
 
-	// Get service roles if serviceID is provided
+	// Get service roles if serviceKey is provided
 	var serviceRoles []string
-	if serviceID != "" {
-		serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
-		if err == nil {
-			service, err := models.GetServiceByID(serviceObjectID)
-			if err == nil && service != nil {
-				// Get target user's roles for this service
-				assignments, err := models.GetUserServiceRoleAssignments(targetUser.ID)
-				if err == nil && assignments != nil {
-					for _, assignment := range assignments {
-						if assignment.ServiceKey == service.Key {
-							serviceRoles = append(serviceRoles, assignment.RoleName)
-						}
+	if serviceKey != "" {
+		service, err := models.GetServiceByKey(serviceKey)
+		if err == nil && service != nil {
+			// Get target user's roles for this service
+			assignments, err := models.GetUserServiceRoleAssignments(targetUser.ID)
+			if err == nil && assignments != nil {
+				for _, assignment := range assignments {
+					if assignment.ServiceKey == service.Key {
+						serviceRoles = append(serviceRoles, assignment.RoleName)
 					}
 				}
 			}

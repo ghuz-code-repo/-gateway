@@ -231,6 +231,8 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		serviceID := c.Param("id")
 		serviceKey := c.Param("serviceKey")
 		
+		fmt.Printf("DEBUG Middleware: serviceID='%s', serviceKey='%s', path='%s'\n", serviceID, serviceKey, c.Request.URL.Path)
+		
 		// If no serviceID in URL params, check query params
 		if serviceID == "" {
 			serviceID = c.Query("serviceId")
@@ -268,9 +270,11 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		
 		// Handle service routes by key (new excel import/export routes)
 		if serviceKey != "" {
+			fmt.Printf("DEBUG Middleware: Processing serviceKey='%s'\n", serviceKey)
 			// Get service by key
 			service, err := models.GetServiceByKey(serviceKey)
 			if err != nil {
+				fmt.Printf("DEBUG Middleware: Service not found for key='%s': %v\n", serviceKey, err)
 				c.HTML(http.StatusNotFound, "error.html", gin.H{
 					"error": "Сервис не найден",
 				})
@@ -279,15 +283,20 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 			}
 
 			// Check if user is admin of this service
+			fmt.Printf("DEBUG Middleware: Checking admin role for user='%s' in service='%s'\n", user.Username, service.Key)
 			if hasServiceAdminRole(user, service.Key) {
+				fmt.Printf("DEBUG Middleware: Access granted for user='%s' in service='%s'\n", user.Username, service.Key)
 				c.Set("isSystemAdmin", false)
 				c.Set("serviceKey", service.Key)
 				c.Next()
 				return
+			} else {
+				fmt.Printf("DEBUG Middleware: Access denied for user='%s' in service='%s'\n", user.Username, service.Key)
 			}
 		}
 
 		// No access
+		fmt.Printf("DEBUG Middleware: Access denied - no valid service found for user='%s', serviceID='%s', serviceKey='%s', path='%s'\n", user.Username, serviceID, serviceKey, c.Request.URL.Path)
 		c.HTML(http.StatusForbidden, "error.html", gin.H{
 			"error": "У вас нет прав для доступа к этому ресурсу",
 		})

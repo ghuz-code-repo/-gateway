@@ -24,7 +24,7 @@
 .tabs-nav button {
     background: none;
     border: none;
-    padding: 15px 25px;
+    /* padding: 15px 25px; */
     cursor: pointer;
     font-size: 16px;
     font-weight: 500;
@@ -56,7 +56,7 @@
 }
 
 .tab-content.active {
-    display: block;
+    /* display: block; */
 }
 
 /* ========== ЕДИНЫЕ СТИЛИ ПОИСКОВЫХ ПОЛЕЙ ========== */
@@ -1288,4 +1288,141 @@
 
 .dark-theme .user-existing .state-content {
     color: #ffeaa7;
+}
+
+/* ========== СТИЛИ ДЛЯ КОНТЕЙНЕРА ПОЛЬЗОВАТЕЛЕЙ ========== */
+/* Исправление проблемы скролла для админов сервиса */
+
+.users-container {
+    /* height: 400px !important;
+    max-height: 400px !important;
+    min-height: 400px !important; */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    background-color: var(--card-background-color) !important;
+    padding: 10px !important;
+    /* margin: 20px 0 !important; */
+}
+
+/* #users.tab-content,
+#users .tab-content {
+    overflow-y: visible !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    max-height: calc(100vh - 200px) !important;
+} */
+
+/* ========== СТИЛИ ЭЛЕМЕНТОВ ПОЛЬЗОВАТЕЛЕЙ ========== */
+
+/* Основные стили для элементов пользователей */
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0;
+    margin: 10px 0;
+    border: 2px solid var(--light-border-color);
+    border-radius: 8px;
+    background: var(--card-background-color);
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.user-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    transform: translateY(-2px);
+}
+
+.user-item.user-hidden {
+    display: none;
+}
+
+/* Детали пользователя */
+.user-details {
+    flex: 1;
+    padding: 12px 15px;
+    margin-right: 15px;
+}
+
+.user-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+.user-email {
+    font-size: 14px;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+.user-roles {
+    font-size: 12px;
+    color: var(--text-color);
+    opacity: 0.7;
+}
+
+/* Действия пользователя */
+.user-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 12px 15px;
+}
+
+/* Аватар пользователя */
+.user-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin: 0;
+    width: 80px;
+    height: 100%;
+}
+
+.user-avatar .default-avatar {
+    background-color: var(--card-background-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-color-secondary);
+    width: 100%;
+    height: 100%;
+}
+
+.user-avatar img {
+    border-radius: 8px;
+    object-fit: cover;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.user-avatar > * {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Сообщения об отсутствии пользователей */
+.no-users-message {
+    text-align: center;
+    padding: 60px 40px;
+    color: var(--text-color-secondary);
+}
+
+.no-users-message h4 {
+    margin: 10px 0;
+    color: var(--text-color);
+}
+
+.no-users-message p {
+    margin: 0;
+    font-size: 14px;
 }
