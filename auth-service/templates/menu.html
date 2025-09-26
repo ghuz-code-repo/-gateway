@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Портал Golden House</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -72,7 +73,7 @@
                 </a>
                 {{ if .canManage }}
                 <div class="service-manage-btn">
-                    <a href="/services/{{ .serviceId }}" class="btn manage-btn" title="Управлять сервисом">
+                    <a href="/services/{{ .serviceKey }}" class="btn manage-btn" title="Управлять сервисом">
                         <i class="fas fa-cog"></i> Управлять
                     </a>
                 </div>

@@ -40,6 +40,7 @@ body {
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    align-self: center;
 }
 
 /* Container optimized for single page */
@@ -1047,8 +1048,9 @@ body {
     display: flex;
     flex-direction: column;
     height: 100%;
-    gap: 10px;
-    overflow: hidden;
+    /* gap: 10px; */
+    overflow-x: hidden;
+    overflow-y: visible;
     /* Убираем любой скролл отсюда */
 }
 
@@ -1068,17 +1070,13 @@ body {
 /* Секция списка - расширяется */
 .list-section {
     flex: 1;
-    overflow-y: visible;
+    overflow-y: hidden;
+    min-height: 200px;
     overflow-x: hidden;
     display: flex;
     flex-direction: column;
 }
 
-/* Специальные стили для .list-section в вкладке пользователей */
-#users .list-section {
-    overflow-y: visible;
-    height: auto;
-}
 
 /* Стилизованный скроллбар удален - используется общий стиль ниже */
 
@@ -1916,11 +1914,11 @@ body {
 /* Стили для пользователей - аналогично ролям */
 .users-container {
     flex: 1;
-    height: 400px !important;
+    /* height: 400px !important;
     max-height: 400px !important;
     min-height: 200px;
     overflow-y: auto !important;
-    overflow-x: hidden;
+    overflow-x: hidden; */
     border: 1px solid var(--light-border-color);
     border-radius: 8px;
     padding: 10px;
@@ -2026,33 +2024,13 @@ body {
 }
 
 /* КРИТИЧЕСКИЙ ФИКС СКРОЛЛБАРА - МАКСИМАЛЬНЫЙ ПРИОРИТЕТ */
-.tabs-container #users.tab-content,
-#users.tab-content,
-#users .tab-content {
+.tabs-container {
     overflow-y: visible !important;
     overflow-x: hidden !important;
-    overflow: visible !important;
+    /* overflow: visible !important; */
     height: auto !important;
     max-height: calc(100vh - 200px) !important;
     /* Ограничиваем максимальную высоту */
-}
-
-#users .list-section {
-    overflow-y: visible !important;
-    overflow-x: hidden !important;
-    height: auto !important;
-    max-height: 450px !important;
-    /* Устанавливаем максимальную высоту для секции списка */
-}
-
-#users .users-container {
-    height: 400px !important;
-    max-height: 400px !important;
-    min-height: 400px !important;
-    /* Добавляем минимальную высоту */
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    /* border: 2px solid var(--primary-color) !important; Временная видимая граница для отладки - УБРАНО */
 }
 
 /* КРИТИЧЕСКИЙ ФИКС - ПРИНУДИТЕЛЬНОЕ ПРИМЕНЕНИЕ ТЕМНОЙ ТЕМЫ */

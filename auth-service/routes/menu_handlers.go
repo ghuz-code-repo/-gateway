@@ -88,9 +88,9 @@ func menuHandler(c *gin.Context) {
 			if canManageService {
 				service, err := models.GetServiceByKey(serviceKey)
 				if err == nil && service != nil {
-					serviceInfo["serviceId"] = service.ID.Hex()
-					fmt.Printf("Добавлен serviceId для %s: %s (isSystemAdmin: %v, isServiceAdmin: %v)\n", 
-						serviceKey, service.ID.Hex(), isAdmin, hasServiceAdmin)
+					serviceInfo["serviceKey"] = service.Key
+					fmt.Printf("Добавлен serviceKey для %s: %s (isSystemAdmin: %v, isServiceAdmin: %v)\n", 
+						serviceKey, service.Key, isAdmin, hasServiceAdmin)
 				} else {
 					fmt.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
 				}

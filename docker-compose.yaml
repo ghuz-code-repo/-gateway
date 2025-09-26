@@ -49,13 +49,11 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./notification-service/.env
-    ports:
-      - "8082:8082"
+    # Убираем внешний порт - доступ только изнутри
     depends_on:
       - notification-postgres
     networks:
-      - notification_network
-      - public_network
+      - notification_network  # Только внутренняя сеть
     environment:
       - TZ=Asia/Tashkent
     restart: always
@@ -79,10 +77,10 @@ services:
     image: mongo:6
     restart: always
     ports:
-      - "27017:27017"
+      - "27017:27017"  # Возвращаем для разработки
     networks:
       - data_network
-      - public_network
+      - public_network  # Возвращаем для внешнего доступа
     volumes:
       - ./mongo_data:/data/db
     environment:
@@ -106,4 +104,4 @@ networks:
     internal: true
   notification_network:
     name: notification_network
-    internal: true
+    # Не internal - нужен доступ к внешним SMTP серверам

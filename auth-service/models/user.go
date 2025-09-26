@@ -425,14 +425,14 @@ func updateAdminPermissions(services []string) {
 	}
 }
 
-// EnsureAdminExists creates an admin user and role if not present
+// EnsureAdminExists creates an admin user and role if no system administrators exist
 func EnsureAdminExists() {
 	ctx := context.Background()
 
 	// Create default permissions if needed
 	CreateDefaultPermissions()
 
-	// Ensure admin role (system-wide role)
+	// Ensure admin role (system-wide role) exists
 	var adminRole Role
 	err := rolesCol.FindOne(ctx, bson.M{"service": "system", "name": "admin"}).Decode(&adminRole)
 	if err == mongo.ErrNoDocuments {
@@ -440,8 +440,10 @@ func EnsureAdminExists() {
 		adminRole = Role{
 			ServiceKey:  "system",
 			Name:        "admin",
-			Description: "Administrator",
+			Description: "System Administrator",
 			Permissions: []string{},
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		}
 
 		// Get all permissions
@@ -462,12 +464,12 @@ func EnsureAdminExists() {
 		if err != nil {
 			log.Printf("Warning: Failed to create admin role: %v", err)
 		} else {
-			log.Println("Created admin role with all permissions")
+			log.Println("Created system admin role with all permissions")
 			adminRole.ID = result.InsertedID.(primitive.ObjectID)
 		}
 	}
 
-	// Always ensure admin user has all permissions
+	// Always ensure admin role has all current permissions
 	if err == nil {
 		// Update admin role with all permissions
 		cursor, err := permsCol.Find(ctx, bson.M{})
@@ -482,8 +484,11 @@ func EnsureAdminExists() {
 				if len(permServices) > 0 {
 					_, err = rolesCol.UpdateOne(
 						ctx,
-						bson.M{"name": "admin"},
-						bson.M{"$set": bson.M{"permissions": permServices}},
+						bson.M{"service": "system", "name": "admin"},
+						bson.M{"$set": bson.M{
+							"permissions": permServices,
+							"updatedAt":   time.Now(),
+						}},
 					)
 					if err != nil {
 						log.Printf("Warning: Failed to update admin role permissions: %v", err)
@@ -494,11 +499,19 @@ func EnsureAdminExists() {
 		}
 	}
 
-	// Ensure admin user exists with password "admin"
-	var count int64
-	count, err = usersCol.CountDocuments(ctx, bson.M{"username": "admin"})
-	if err != nil || count == 0 {
-		// Create admin user with password "admin"
+	// Check if any system administrators exist
+	var systemAdminsCount int64
+	systemAdminsCount, err = usersCol.CountDocuments(ctx, bson.M{"roles": "admin"})
+	if err != nil {
+		log.Printf("Warning: Failed to count system administrators: %v", err)
+		systemAdminsCount = 0
+	}
+
+	// Only create default admin user if no system administrators exist
+	if systemAdminsCount == 0 {
+		log.Println("No system administrators found, creating default admin user")
+		
+		// Create default admin user with password "admin"
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
 		if err != nil {
 			log.Printf("Warning: Failed to hash password: %v", err)
@@ -506,32 +519,23 @@ func EnsureAdminExists() {
 		}
 
 		adminUser := User{
-			Username: "admin",
-			Email:    "d.tolkunov@gh.uz",
-			Password: string(hashedPassword),
-			Roles:    []string{"admin"},
+			Username:  "admin",
+			Email:     "d.tolkunov@gh.uz",
+			Password:  string(hashedPassword),
+			Roles:     []string{"admin"},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 		}
 
 		_, err = usersCol.InsertOne(ctx, adminUser)
 		if err != nil {
-			log.Printf("Warning: Failed to create admin user: %v", err)
+			log.Printf("Warning: Failed to create default admin user: %v", err)
 			return
 		}
 
-		log.Println("Created admin user with password: admin")
+		log.Println("Created default admin user with username: admin, password: admin")
 	} else {
-		// Update admin password to ensure it's "admin"
-		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
-		_, err = usersCol.UpdateOne(
-			ctx,
-			bson.M{"username": "admin"},
-			bson.M{"$set": bson.M{"password": string(hashedPassword)}},
-		)
-		if err != nil {
-			log.Printf("Warning: Failed to update admin password: %v", err)
-		} else {
-			log.Println("Reset admin user password to: admin")
-		}
+		log.Printf("Found %d system administrator(s), no need to create default admin", systemAdminsCount)
 	}
 }
 

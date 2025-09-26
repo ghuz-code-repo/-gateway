@@ -183,6 +183,14 @@ func main() {
 	// Setup router
 	router := gin.Default()
 
+	// Set trusted proxies (nginx and docker internal networks)
+	router.SetTrustedProxies([]string{
+		"172.16.0.0/12",  // Docker default networks
+		"10.0.0.0/8",     // Docker internal networks
+		"192.168.0.0/16", // Docker compose networks
+		"127.0.0.1",      // localhost
+	})
+
 	// Set maximum memory for multipart forms to 99MB
 	router.MaxMultipartMemory = 99 << 20 // 99 MB
 
