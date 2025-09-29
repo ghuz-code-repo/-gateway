@@ -86,11 +86,14 @@ func logoutHandler(c *gin.Context) {
 
 // verifyHandler checks if a request is authenticated and has permission for the requested service
 func verifyHandler(c *gin.Context) {
+	log.Printf("DEBUG verifyHandler: incoming request from %s", c.ClientIP())
 	cookie, err := c.Cookie("token")
 	if err != nil {
+		log.Printf("DEBUG verifyHandler: no token cookie found: %v", err)
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	log.Printf("DEBUG verifyHandler: found token cookie, length: %d", len(cookie))
 
 	// Parse and validate token
 	claims := &models.Claims{}
@@ -113,8 +116,11 @@ func verifyHandler(c *gin.Context) {
 		path = c.Request.URL.Path
 	}
 
+	log.Printf("DEBUG verifyHandler: X-Original-URI='%s', path='%s'", c.Request.Header.Get("X-Original-URI"), path)
+
 	pathParts := strings.Split(path, "/")
 	if len(pathParts) < 2 {
+		log.Printf("DEBUG verifyHandler: pathParts too short: %v", pathParts)
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
@@ -128,6 +134,8 @@ func verifyHandler(c *gin.Context) {
 		}
 	}
 
+	log.Printf("DEBUG verifyHandler: determined service='%s' from pathParts=%v", service, pathParts)
+
 	// Get user info
 	user, err := models.GetUserByID(claims.UserID)
 	if err != nil {
@@ -136,15 +144,19 @@ func verifyHandler(c *gin.Context) {
 	}
 
 	// Get user's roles and permissions for this service according to ADR-001
-	serviceRoles, err := models.GetUserServiceRoles(claims.UserID, service)
+	serviceRoles, err := models.GetUserServiceRolesFromCollection(claims.UserID, service)
 	if err != nil {
+		log.Printf("DEBUG verifyHandler: error getting service roles: %v", err)
 		serviceRoles = []string{} // Default to empty if error
 	}
 
 	servicePermissions, err := models.GetUserServicePermissions(claims.UserID, service)
 	if err != nil {
+		log.Printf("DEBUG verifyHandler: error getting service permissions: %v", err)
 		servicePermissions = []string{} // Default to empty if error
 	}
+
+	log.Printf("DEBUG verifyHandler: user '%s', service '%s', serviceRoles: %v, servicePermissions: %v", user.Username, service, serviceRoles, servicePermissions)
 
 	// Check if user has any access to this service
 	if len(serviceRoles) == 0 && len(servicePermissions) == 0 {
@@ -154,6 +166,10 @@ func verifyHandler(c *gin.Context) {
 			// For admin, get all available permissions for the service
 			adminPermissions, _ := models.GetUserServicePermissions(claims.UserID, service)
 			servicePermissions = adminPermissions
+		} else if service == "referal" {
+			// Temporary: Allow all authenticated users to access referal service
+			serviceRoles = []string{"user"}
+			servicePermissions = []string{"referal.profile.view", "referal.profile.edit"}
 		} else {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
@@ -165,9 +181,17 @@ func verifyHandler(c *gin.Context) {
 	c.Header("X-User-ID", claims.UserID)
 
 	// Base64 encode the full name to preserve non-ASCII characters
-	encodedFullName := base64.StdEncoding.EncodeToString([]byte(user.FullName))
+	fullName := user.GetFullName()
+	log.Printf("DEBUG verifyHandler: user.FullName='%s', user.LastName='%s', user.FirstName='%s', user.MiddleName='%s', calculated fullName='%s'", 
+		user.FullName, user.LastName, user.FirstName, user.MiddleName, fullName)
+	encodedFullName := base64.StdEncoding.EncodeToString([]byte(fullName))
 	c.Header("X-User-Full-Name", encodedFullName)
 	c.Header("X-User-Full-Name-Encoding", "base64") // Add flag to indicate encoding
+
+	// Add avatar path header
+	if user.AvatarPath != "" {
+		c.Header("X-User-Avatar", user.AvatarPath)
+	}
 
 	// ADR-001: New service-scoped headers
 	c.Header("X-User-Service-Roles", strings.Join(serviceRoles, ","))
@@ -178,6 +202,9 @@ func verifyHandler(c *gin.Context) {
 	if hasAdminRole(user) {
 		c.Header("X-User-Admin", "true")
 	}
+
+	log.Printf("DEBUG verifyHandler: FINAL HEADERS - X-User-Full-Name: '%s', X-User-Avatar: '%s', X-User-Service-Roles: '%s'", 
+		encodedFullName, user.AvatarPath, strings.Join(serviceRoles, ","))
 
 	c.Status(http.StatusOK)
 }
