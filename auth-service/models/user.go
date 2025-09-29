@@ -25,6 +25,7 @@ var (
 	db                  *mongo.Database
 	usersCol            *mongo.Collection
 	rolesCol            *mongo.Collection
+	serviceRolesCol     *mongo.Collection
 	permsCol            *mongo.Collection
 	servicesCol         *mongo.Collection
 	userServiceRolesCol *mongo.Collection
@@ -134,6 +135,14 @@ type User struct {
 	AvatarPath string             `bson:"avatar_path,omitempty" json:"avatar_path,omitempty"`
 	OriginalAvatarPath string     `bson:"original_avatar_path,omitempty" json:"original_avatar_path,omitempty"`
 	CropCoordinates    *CropCoords `bson:"crop_coordinates,omitempty" json:"crop_coordinates,omitempty"`
+	
+	// Passport and personal data
+	PassportNumber      string     `bson:"passport_number,omitempty" json:"passport_number,omitempty"`
+	PassportIssuedBy    string     `bson:"passport_issued_by,omitempty" json:"passport_issued_by,omitempty"`
+	PassportIssuedDate  *time.Time `bson:"passport_issued_date,omitempty" json:"passport_issued_date,omitempty"`
+	Address             string     `bson:"address,omitempty" json:"address,omitempty"`
+	BirthDate           *time.Time `bson:"birth_date,omitempty" json:"birth_date,omitempty"`
+	
 	Documents  []UserDocument     `bson:"documents,omitempty" json:"documents,omitempty"`      // New document system
 	LegacyDocs []Document         `bson:"legacy_docs,omitempty" json:"legacy_docs,omitempty"` // Legacy documents
 	IsBanned   bool               `bson:"is_banned,omitempty" json:"is_banned,omitempty"`     // User ban status
@@ -285,6 +294,7 @@ func InitDB(uri, dbName string) error {
 	// Initialize collections AFTER db is set
 	usersCol = db.Collection("users")
 	rolesCol = db.Collection("roles")
+	serviceRolesCol = db.Collection("service_roles")
 	permsCol = db.Collection("permissions")
 	servicesCol = db.Collection("services")
 	userServiceRolesCol = db.Collection("user_service_roles")
@@ -3014,5 +3024,115 @@ func UpdateUserDocuments(userID primitive.ObjectID, documents []UserDocument) er
 	}
 	
 	return nil
+}
+
+// GetUserPermissionsForService returns all permissions for a user in a specific service
+func GetUserPermissionsForService(userID primitive.ObjectID, serviceKey string) ([]string, error) {
+	ctx := context.Background()
+	
+	// Get user's active roles in the service
+	pipeline := []bson.M{
+		{
+			"$match": bson.M{
+				"userId":     userID,
+				"serviceKey": serviceKey,
+				"isActive":   true,
+			},
+		},
+		{
+			"$lookup": bson.M{
+				"from":         "roles",
+				"localField":   "roleName",
+				"foreignField": "name",
+				"as":          "roleDetails",
+			},
+		},
+		{
+			"$match": bson.M{
+				"roleDetails": bson.M{"$ne": []interface{}{}},
+			},
+		},
+	}
+	
+	cursor, err := userServiceRolesCol.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to aggregate user service roles: %v", err)
+	}
+	defer cursor.Close(ctx)
+	
+	permissionSet := make(map[string]bool)
+	
+	for cursor.Next(ctx) {
+		var result struct {
+			RoleDetails []struct {
+				Permissions []string `bson:"permissions"`
+			} `bson:"roleDetails"`
+		}
+		
+		if err := cursor.Decode(&result); err != nil {
+			continue
+		}
+		
+		// Collect all permissions from all roles
+		for _, role := range result.RoleDetails {
+			for _, permission := range role.Permissions {
+				permissionSet[permission] = true
+			}
+		}
+	}
+	
+	// Convert set to slice
+	permissions := make([]string, 0, len(permissionSet))
+	for perm := range permissionSet {
+		permissions = append(permissions, perm)
+	}
+	
+	return permissions, nil
+}
+
+// GetUserRolesForService returns all role names for a user in a specific service
+func GetUserRolesForService(userID primitive.ObjectID, serviceKey string) ([]string, error) {
+	ctx := context.Background()
+	
+	filter := bson.M{
+		"userId":     userID,
+		"serviceKey": serviceKey,
+		"isActive":   true,
+	}
+	
+	cursor, err := userServiceRolesCol.Find(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user service roles: %v", err)
+	}
+	defer cursor.Close(ctx)
+	
+	var roles []string
+	for cursor.Next(ctx) {
+		var usr UserServiceRole
+		if err := cursor.Decode(&usr); err != nil {
+			continue
+		}
+		roles = append(roles, usr.RoleName)
+	}
+	
+	return roles, nil
+}
+
+// GetUserDocuments returns all documents for a user
+func GetUserDocuments(userID string) ([]UserDocument, error) {
+	ctx := context.Background()
+	
+	objectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+	
+	var user User
+	err = usersCol.FindOne(ctx, bson.M{"_id": objectID}).Decode(&user)
+	if err != nil {
+		return nil, err
+	}
+	
+	return user.Documents, nil
 }
 

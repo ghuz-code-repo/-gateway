@@ -2,9 +2,13 @@ package routes
 
 import (
 	"auth-service/models"
+	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -379,46 +383,96 @@ func getServiceRoleHandler(c *gin.Context) {
 }
 
 func updateServiceRoleHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Service role update not implemented yet"})
-}
-
-func deleteServiceRoleHandler(c *gin.Context) {
-	serviceID := c.Param("id")
-	roleID := c.Param("roleId")
+	serviceKey := c.Param("serviceKey")
+	roleName := c.Param("roleId")  // actually role name now
 	
-	if roleID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID роли обязателен"})
+	log.Printf("updateServiceRoleHandler: serviceKey=%s, roleName=%s", serviceKey, roleName)
+	
+	if roleName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя роли обязательно"})
+		return
+	}
+	
+	if serviceKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ключ сервиса обязателен"})
+		return
+	}
+	
+	// Get form data
+	newRoleName := c.PostForm("name")
+	roleDescription := c.PostForm("description")
+	
+	log.Printf("updateServiceRoleHandler: newRoleName=%s, roleDescription=%s", newRoleName, roleDescription)
+	
+	if newRoleName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Новое имя роли обязательно"})
 		return
 	}
 	
 	// Validate service exists
-	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID сервиса"})
-		return
-	}
-	
-	_, err = models.GetServiceByID(serviceObjectID)
+	_, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 	
-	// Validate role ID and convert to ObjectID
-	roleObjectID, err := primitive.ObjectIDFromHex(roleID)
+	// Find role by service and name
+	role, err := models.GetRoleByServiceAndName(serviceKey, roleName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID роли"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
 		return
 	}
 	
-	// Delete the role
-	err = models.DeleteRole(roleObjectID)
+	// Get permissions from form (checkboxes)
+	permissions := c.PostFormArray("permissions")
+	
+	// Update the role
+	err = models.UpdateRole(role.ID, serviceKey, newRoleName, roleDescription, permissions)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить роль: " + err.Error()})
+		return
+	}
+	
+	// Redirect back to service page with roles tab active
+	c.Redirect(http.StatusFound, "/services/"+serviceKey)
+}
+
+func deleteServiceRoleHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	roleName := c.Param("roleId")  // actually role name now
+	
+	if roleName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя роли обязательно"})
+		return
+	}
+	
+	if serviceKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ключ сервиса обязателен"})
+		return
+	}
+	
+	// Validate service exists
+	_, err := models.GetServiceByKey(serviceKey)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
+		return
+	}
+	
+	// Find role by service and name
+	role, err := models.GetRoleByServiceAndName(serviceKey, roleName)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
+		return
+	}
+	
+	// Delete role
+	err = models.DeleteRole(role.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении роли: " + err.Error()})
 		return
 	}
 	
-	c.Redirect(http.StatusFound, "/services/"+serviceID)
+	c.Redirect(http.StatusFound, "/services/"+serviceKey)
 }
 
 func assignUserToServiceRoleHandler(c *gin.Context) {
@@ -690,4 +744,125 @@ func checkUserExistsHandler(c *gin.Context) {
 		},
 		"serviceRoles": serviceRoles,
 	})
+}
+
+// syncServicePermissionsHandler syncs permissions from external service
+func syncServicePermissionsHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	
+	// Validate service exists
+	service, err := models.GetServiceByKey(serviceKey)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		return
+	}
+	
+	// Get service URL from environment or config
+	// For now, assume services are reachable via docker network
+	serviceURL := getServiceURL(serviceKey)
+	if serviceURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Service URL not configured"})
+		return
+	}
+	
+	// Fetch permissions from service
+	permissions, err := fetchServicePermissions(serviceURL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch permissions from service: " + err.Error(),
+		})
+		return
+	}
+	
+	// Update service permissions
+	err = models.UpdateServicePermissions(service.Key, permissions)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to update service permissions: " + err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Permissions synced successfully",
+		"service_key": service.Key,
+		"synced_permissions": len(permissions),
+		"permissions": permissions,
+	})
+}
+
+// getServiceURL returns the URL for a service based on service key
+func getServiceURL(serviceKey string) string {
+	// Map service keys to their URLs
+	// In production, this should come from configuration
+	serviceURLs := map[string]string{
+		"referal":  "http://referal:80",
+		"client":   "http://client-service:5000", 
+		// Add more services as needed
+	}
+	
+	if url, exists := serviceURLs[serviceKey]; exists {
+		return url
+	}
+	
+	// Default pattern: http://service-key:5000
+	return fmt.Sprintf("http://%s:5000", serviceKey)
+}
+
+// fetchServicePermissions fetches permissions from external service
+func fetchServicePermissions(serviceURL string) ([]models.PermissionDef, error) {
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+	
+	// Make request to service permissions endpoint
+	url := fmt.Sprintf("%s/api/sync/permissions", serviceURL)
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to service: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("service returned error %d: %s", resp.StatusCode, string(body))
+	}
+	
+	// Parse response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	
+	var response struct {
+		Success     bool   `json:"success"`
+		Permissions []struct {
+			Name        string `json:"name"`
+			DisplayName string `json:"displayName"`
+			Description string `json:"description"`
+			Category    string `json:"category"`
+		} `json:"permissions"`
+		Error string `json:"error"`
+	}
+	
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	
+	if !response.Success {
+		return nil, fmt.Errorf("service error: %s", response.Error)
+	}
+	
+	// Convert to PermissionDef structs
+	var permissions []models.PermissionDef
+	for _, perm := range response.Permissions {
+		permissions = append(permissions, models.PermissionDef{
+			Name:        perm.Name,
+			DisplayName: perm.DisplayName,
+			Description: perm.Description,
+		})
+	}
+	
+	return permissions, nil
 }

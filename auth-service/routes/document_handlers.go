@@ -33,8 +33,8 @@ func getDocumentTypesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, documentTypes)
 }
 
-// getUserDocumentsHandler returns all documents for the current user
-func getUserDocumentsHandler(c *gin.Context) {
+// getMyDocumentsHandler returns all documents for the current user  
+func getMyDocumentsHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	log.Printf("Getting documents for user: %s (username: %s)", user.ID.Hex(), user.Username)
 
@@ -756,11 +756,35 @@ func downloadDocumentAttachmentHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if file exists
+	// DEBUG: Log attachment details for download
+	log.Printf("Found attachment: ID=%s, FileName=%s, OriginalName=%s, FilePath=%s", 
+		attachment.ID.Hex(), attachment.FileName, attachment.OriginalName, attachment.FilePath)
+
+	// Check if file exists with fallback paths
 	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
 		log.Printf("File not found: %s", attachment.FilePath)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден на диске"})
-		return
+		
+		// Try alternative paths
+		workingDir, _ := os.Getwd()
+		log.Printf("Current working directory: %s", workingDir)
+		
+		// Try relative path
+		relativePath := filepath.Join("./", attachment.FilePath)
+		if _, err := os.Stat(relativePath); err == nil {
+			log.Printf("Found file at relative path: %s", relativePath)
+			attachment.FilePath = relativePath
+		} else {
+			// Try data directory path
+			dataPath := filepath.Join("./data", userModel.ID.Hex(), "documents", doc.DocumentType, attachment.FileName)
+			if _, err := os.Stat(dataPath); err == nil {
+				log.Printf("Found file at data path: %s", dataPath)
+				attachment.FilePath = dataPath
+			} else {
+				log.Printf("File not found in any location. Checked paths: %s, %s, %s", attachment.FilePath, relativePath, dataPath)
+				c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден на диске"})
+				return
+			}
+		}
 	}
 
 	// Set headers for download

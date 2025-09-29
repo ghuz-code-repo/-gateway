@@ -1,0 +1,128 @@
+package routes
+
+import (
+	"auth-service/models"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+// getUserServicePermissionsHandler returns user permissions for a specific service
+func getUserServicePermissionsHandler(c *gin.Context) {
+	userID := c.Param("userId")
+	serviceKey := c.Param("serviceKey")
+
+	// Convert userID to ObjectID
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid user ID format",
+		})
+		return
+	}
+
+	// Get user
+	user, err := models.GetUserByObjectID(userObjectID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	// Get user's roles and permissions for the service
+	permissions, err := models.GetUserPermissionsForService(userObjectID, serviceKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get user permissions: " + err.Error(),
+		})
+		return
+	}
+
+	// Get user's roles for the service
+	roles, err := models.GetUserRolesForService(userObjectID, serviceKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get user roles: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":     userID,
+		"service_key": serviceKey,
+		"permissions": permissions,
+		"roles":       roles,
+		"username":    user.Username,
+		"full_name":   user.GetFullName(),
+		"is_admin":    contains(user.Roles, "admin"),
+	})
+}
+
+// getUserDocumentsHandler returns user documents
+func getUserDocumentsHandler(c *gin.Context) {
+	userID := c.Param("userId")
+	// documentType := c.Query("type") // Unused for now
+
+	// Convert userID to ObjectID
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid user ID format",
+		})
+		return
+	}
+
+	// Get user
+	user, err := models.GetUserByObjectID(userObjectID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	// Get user documents
+	documents := user.Documents
+	
+	// For now, ignore document type filtering to avoid type issues
+	// TODO: Implement proper document type filtering if needed
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":   userID,
+		"username":  user.Username,
+		"full_name": user.GetFullName(),
+		"documents": documents,
+	})
+}
+
+// validateTokenHandler validates JWT token
+func validateTokenHandler(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid or missing authorization header",
+		})
+		return
+	}
+
+	token := authHeader[7:]
+	
+	// TODO: Implement proper JWT validation
+	// For now, return a placeholder response
+	c.JSON(http.StatusOK, gin.H{
+		"valid":   true,
+		"token":   token,
+		"message": "Token validation not fully implemented",
+	})
+}
+
+// healthCheckHandler returns service health status
+func healthCheckHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":    "healthy",
+		"service":   "auth-service",
+		"timestamp": gin.H{},
+	})
+}

@@ -608,3 +608,35 @@ func GetServicesForRole(roleID primitive.ObjectID) ([]Service, error) {
 
 	return []Service{service}, nil
 }
+
+// UpdateServicePermissions updates the available permissions for a service
+func UpdateServicePermissions(serviceKey string, permissions []PermissionDef) error {
+	ctx := context.Background()
+	
+	// Check if service exists
+	_, err := GetServiceByKey(serviceKey)
+	if err != nil {
+		return fmt.Errorf("service not found: %w", err)
+	}
+	
+	// Update permissions and timestamp
+	update := bson.M{
+		"$set": bson.M{
+			"availablePermissions": permissions,
+			"updated_at":          time.Now(),
+		},
+	}
+	
+	_, err = servicesCol.UpdateOne(
+		ctx, 
+		bson.M{"key": serviceKey}, 
+		update,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to update service permissions: %w", err)
+	}
+	
+	log.Printf("Updated permissions for service %s: %d permissions synced", serviceKey, len(permissions))
+	return nil
+}

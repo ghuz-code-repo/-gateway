@@ -355,8 +355,8 @@ async function handleDownloadAttachments(e) {
             try {
                 // Create a temporary link and click it to download
                 const link = document.createElement('a');
-                link.href = attachment.file_path;
-                link.download = attachment.filename;
+                link.href = `/profile/documents/${docId}/attachments/${attachment.id}/download`;
+                link.download = attachment.original_name || attachment.filename;
                 link.style.display = 'none';
                 document.body.appendChild(link);
                 link.click();

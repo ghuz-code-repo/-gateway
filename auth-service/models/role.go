@@ -283,3 +283,36 @@ func RemovePermissionFromRole(id primitive.ObjectID, permission string) error {
 
 	return err
 }
+
+// ServiceRole represents a role specifically for service management
+type ServiceRole struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	ServiceKey  string             `bson:"service_key" json:"service_key" validate:"required"`
+	Name        string             `bson:"name" json:"name" validate:"required"`
+	DisplayName string             `bson:"display_name" json:"display_name"`
+	Description string             `bson:"description" json:"description"`
+	Permissions []string           `bson:"permissions" json:"permissions"`
+	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
+	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at"`
+}
+
+// GetServiceRoleByID retrieves a service role by its ID
+func GetServiceRoleByID(id primitive.ObjectID) (*ServiceRole, error) {
+	ctx := context.Background()
+	
+	var role ServiceRole
+	err := serviceRolesCol.FindOne(ctx, bson.M{"_id": id}).Decode(&role)
+	if err != nil {
+		return nil, err
+	}
+	
+	return &role, nil
+}
+
+// DeleteServiceRole removes a service role by ID
+func DeleteServiceRole(id primitive.ObjectID) error {
+	ctx := context.Background()
+	
+	_, err := serviceRolesCol.DeleteOne(ctx, bson.M{"_id": id})
+	return err
+}

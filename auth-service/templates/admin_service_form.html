@@ -189,7 +189,7 @@
                                         Изменить
                                     </button>
                                     <button type="button" class="btn small danger" 
-                                            onclick="deleteRole('{{ $.service.Key }}', '{{ .ID.Hex }}', '{{ .Name }}')">
+                                            onclick="deleteRole('{{ $.service.Key }}', '{{ .Name }}', '{{ .Name }}')">
                                         Удалить
                                     </button>
                                 </div>
@@ -216,6 +216,9 @@
                         {{ if not .manageMode }}
                         <button type="button" class="add-button" onclick="openCreatePermissionModal()">
                             + Добавить новое разрешение
+                        </button>
+                        <button type="button" class="sync-button" onclick="syncServicePermissions()" style="background-color: #28a745; margin-left: 10px;">
+                            ⬇️ Синхронизировать с сервисом
                         </button>
                         {{ else }}
                         <div class="info-message">
@@ -1573,12 +1576,48 @@
             document.getElementById('createPermissionModal').style.display = 'block';
         }
         
+        function syncServicePermissions() {
+            const serviceKey = '{{ .service.Key }}';
+            const syncButton = event.target;
+            const originalText = syncButton.innerHTML;
+            
+            // Показываем индикатор загрузки
+            syncButton.innerHTML = '⏳ Синхронизация...';
+            syncButton.disabled = true;
+            
+            fetch(`/services/${serviceKey}/permissions/sync`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Ошибка синхронизации: ' + data.error);
+                } else {
+                    alert(`Успешно синхронизировано ${data.synced_permissions} разрешений`);
+                    // Перезагружаем страницу для отображения обновленных разрешений
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Sync error:', error);
+                alert('Ошибка сети при синхронизации разрешений');
+            })
+            .finally(() => {
+                // Восстанавливаем кнопку
+                syncButton.innerHTML = originalText;
+                syncButton.disabled = false;
+            });
+        }
+        
         function openEditRoleModal(roleId, roleName, roleDescription, rolePermissions) {
             console.log('openEditRoleModal called:', { roleId, roleName, roleDescription, rolePermissions });
             
             // Устанавливаем действие формы для редактирования конкретной роли
             const form = document.getElementById('editRoleForm');
-            form.action = '/services/{{ .service.Key }}/roles/' + roleId;
+            form.action = '/services/{{ .service.Key }}/roles/' + roleName;
             
             // Заполняем поля формы
             document.getElementById('edit-role-name').value = roleName;
@@ -2187,7 +2226,7 @@
                 return;
             }
             
-            fetch(`/services/${serviceKey}/roles/${roleId}/delete`, {
+            fetch(`/services/${serviceKey}/roles/${roleName}/delete`, {
                 method: 'POST'
             })
             .then(response => {

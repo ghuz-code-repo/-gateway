@@ -26,7 +26,7 @@ func SetupProfileRoutes(router *gin.Engine) {
 	router.GET("/profile/document/:id", authRequired(), downloadDocumentHandler)
 	
 	// Document system routes for profile
-	router.GET("/profile/documents", authRequired(), getUserDocumentsHandler)
+	router.GET("/profile/documents", authRequired(), getMyDocumentsHandler)
 	router.GET("/profile/documents/:id", authRequired(), getUserDocumentHandler)
 	router.GET("/profile/documents/:id/attachments", authRequired(), getDocumentAttachmentsHandler)
 	router.POST("/profile/documents", authRequired(), createUserDocumentHandler)

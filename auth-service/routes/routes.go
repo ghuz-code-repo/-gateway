@@ -1,7 +1,9 @@
 package routes
 
 import (
+	"net/http"
 	"github.com/gin-gonic/gin"
+	"auth-service/models"
 )
 
 // SetupAllRoutes configures all routes for the application
@@ -14,6 +16,15 @@ func SetupAllRoutes(router *gin.Engine) {
 	
 	// Set up profile routes
 	SetupProfileRoutes(router)
+	
+	// API endpoints for internal service communication (no auth required)
+	api := router.Group("/api")
+	{
+		api.GET("/test", testAPIHandler)
+		api.POST("/services/:serviceKey/permissions/sync", syncServicePermissionsHandler)
+		api.GET("/users/:userId/documents", getUserDocumentsAPIHandler)
+		api.GET("/users/:userId/profile", getUserProfileAPIHandler)
+	}
 }
 
 // SetupAuthRoutes configures all the routes for authentication
@@ -27,6 +38,7 @@ func SetupAuthRoutes(router *gin.Engine) {
 	router.POST("/login", loginHandler)
 	router.GET("/logout", logoutHandler)
 	router.GET("/verify", verifyHandler)
+	router.GET("/access-denied", accessDeniedHandler)
 	
 	// Password recovery routes
 	router.GET("/forgot-password", forgotPasswordPageHandler)
@@ -108,6 +120,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 		services.POST("/:serviceKey/permissions", addServicePermissionHandler)
 		services.PUT("/:serviceKey/permissions/:permName", updateServicePermissionHandler)
 		services.POST("/:serviceKey/permissions/:permName/delete", deleteServicePermissionHandler)
+		services.POST("/:serviceKey/permissions/sync", syncServicePermissionsHandler) // Sync permissions from service (authenticated)
 		
 		// Service roles management
 		services.POST("/:serviceKey/roles", createServiceRoleHandler)
@@ -140,4 +153,64 @@ func SetupAdminRoutes(router *gin.Engine) {
 			c.JSON(200, gin.H{"status": "Migration endpoints not implemented yet"})
 		})
 	}
+}
+
+// testAPIHandler handles API test requests
+func testAPIHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "API works"})
+}
+
+// accessDeniedHandler shows access denied page
+func accessDeniedHandler(c *gin.Context) {
+	service := c.Query("service")
+	redirect := c.Query("redirect")
+	
+	c.HTML(http.StatusForbidden, "access-denied.html", gin.H{
+		"service": service,
+		"redirect": redirect,
+		"title": "Доступ запрещен",
+	})
+}
+
+// getUserDocumentsAPIHandler returns user documents via API
+func getUserDocumentsAPIHandler(c *gin.Context) {
+	userID := c.Param("userId")
+	
+	documents, err := models.GetUserDocuments(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user documents"})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"user_id": userID,
+		"documents": documents,
+	})
+}
+
+// getUserProfileAPIHandler returns user profile data via API
+func getUserProfileAPIHandler(c *gin.Context) {
+	userID := c.Param("userId")
+	
+	user, err := models.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"user_id": userID,
+		"username": user.Username,
+		"email": user.Email,
+		"full_name": user.FullName,
+		"first_name": user.FirstName,
+		"last_name": user.LastName,
+		"phone": user.Phone,
+		"avatar_path": user.AvatarPath,
+		"passport_number": user.PassportNumber,
+		"passport_issued_by": user.PassportIssuedBy,
+		"passport_issued_date": user.PassportIssuedDate,
+		"address": user.Address,
+		"birth_date": user.BirthDate,
+	})
 }
