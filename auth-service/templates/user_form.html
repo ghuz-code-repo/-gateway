@@ -334,6 +334,13 @@
                         <option value="">Выберите тип документа</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="allowedServicesSelect">Сервисы для использования документа <span class="required">*</span></label>
+                    <select id="allowedServicesSelect" name="allowedServices" multiple required style="min-height: 100px;">
+                        <!-- Сервисы будут загружены динамически -->
+                    </select>
+                    <small class="form-help">Выберите сервисы, где этот документ может использоваться. Используйте Ctrl+клик для выбора нескольких сервисов.</small>
+                </div>
                 <div id="documentFields" class="document-fields">
                     <!-- Поля документа будут загружены динамически -->
                 </div>
