@@ -250,6 +250,7 @@ function initDocumentModal() {
     documentModal.addEventListener('modalOpened', function() {
         console.log('Document modal opened, loading document types...');
         loadDocumentTypesAdmin();
+        loadAvailableServicesAdmin();
         
         // Clear and reset files area
         const newFilesArea = document.getElementById('newDocumentFilesArea');
@@ -1529,6 +1530,49 @@ async function loadDocumentTypesAdmin() {
         console.error('Error loading document types:', error);
         console.error('Error details:', error.message);
         alert('Ошибка загрузки типов документов: ' + error.message);
+    }
+}
+
+// Load available services for admin
+async function loadAvailableServicesAdmin() {
+    console.log('Starting to load available services...');
+    const servicesSelect = document.getElementById('allowedServicesSelect');
+    
+    if (!servicesSelect) {
+        console.error('Services select element not found');
+        return;
+    }
+    
+    try {
+        console.log('Sending request to /services...');
+        const response = await fetch('/services');
+        console.log('Response status:', response.status);
+        console.log('Response OK:', response.ok);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load services: ${response.status} ${response.statusText}`);
+        }
+        
+        const services = await response.json();
+        console.log('Services received:', services);
+        
+        // Clear existing options
+        servicesSelect.innerHTML = '';
+        
+        // Add services
+        services.forEach(service => {
+            const option = document.createElement('option');
+            option.value = service.key;
+            option.textContent = `${service.name} - ${service.description}`;
+            servicesSelect.appendChild(option);
+        });
+        
+        console.log('Services loaded successfully');
+        
+    } catch (error) {
+        console.error('Error loading services:', error);
+        console.error('Error details:', error.message);
+        alert('Ошибка загрузки сервисов: ' + error.message);
     }
 }
 
