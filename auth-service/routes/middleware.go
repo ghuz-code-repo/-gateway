@@ -155,10 +155,10 @@ func adminAuthRequired() gin.HandlerFunc {
 		c.Set("full_name", user.GetFullName())
 		c.Set("short_name", user.GetShortName())
 
-		// Check if user has admin role
+		// Check if user has admin role (legacy 'admin' or new 'system.admin')
 		isAdmin := false
 		for _, roleName := range user.Roles {
-			if roleName == "admin" {
+			if roleName == "admin" || roleName == "system.admin" {
 				isAdmin = true
 				break
 			}
@@ -171,6 +171,9 @@ func adminAuthRequired() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
+		// Set isSystemAdmin flag for handlers
+		c.Set("isSystemAdmin", true)
 
 		c.Next()
 	}
@@ -214,7 +217,7 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		// Check if user is system admin (by role, not username)
 		isSystemAdmin := false
 		for _, roleName := range user.Roles {
-			if roleName == "admin" {
+			if roleName == "admin" || roleName == "system.admin" {
 				isSystemAdmin = true
 				break
 			}
@@ -306,9 +309,9 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 
 // hasAdminRole checks if a user is a system administrator
 func hasAdminRole(user *models.User) bool {
-	// Check if user has 'admin' role (not username)
+	// Check if user has 'admin' role (legacy) or 'system.admin' role (new)
 	for _, roleName := range user.Roles {
-		if roleName == "admin" {
+		if roleName == "admin" || roleName == "system.admin" {
 			return true
 		}
 	}

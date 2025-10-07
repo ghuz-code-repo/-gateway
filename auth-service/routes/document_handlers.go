@@ -33,6 +33,30 @@ func getDocumentTypesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, documentTypes)
 }
 
+// getAvailableServicesHandler returns all available services for document usage
+func getAvailableServicesHandler(c *gin.Context) {
+	log.Println("Fetching available services...")
+	services, err := models.GetAllServices()
+	if err != nil {
+		log.Printf("Error fetching services: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить список сервисов"})
+		return
+	}
+
+	// Format services for the frontend
+	var serviceOptions []gin.H
+	for _, service := range services {
+		serviceOptions = append(serviceOptions, gin.H{
+			"key":         service.Key,
+			"name":        service.Name,
+			"description": service.Description,
+		})
+	}
+
+	log.Printf("Found %d services", len(serviceOptions))
+	c.JSON(http.StatusOK, serviceOptions)
+}
+
 // getMyDocumentsHandler returns all documents for the current user  
 func getMyDocumentsHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)

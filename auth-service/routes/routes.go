@@ -48,6 +48,7 @@ func SetupAuthRoutes(router *gin.Engine) {
 
 	// Document system routes
 	router.GET("/document-types", authRequired(), getDocumentTypesHandler)
+	router.GET("/services", authRequired(), getAvailableServicesHandler)
 }
 
 // SetupAdminRoutes sets up routes for the admin panel
@@ -108,42 +109,41 @@ func SetupAdminRoutes(router *gin.Engine) {
 	router.POST("/notification-settings/test", adminAuthRequired(), testNotificationSettings)
 
 	// Service management
-	services := router.Group("/services")
-	services.Use(serviceAdminAuthRequired())
-	{
-		services.GET("/", listServicesHandlerWithAccess)
-		services.GET("/new", showServiceFormHandler)
-		services.POST("/", createServiceHandler)
-		services.GET("/:serviceKey", getServiceHandlerWithAccess)
-		services.POST("/:serviceKey", updateServiceHandlerWithAccess)
-		services.POST("/:serviceKey/delete", deleteServiceHandler)
-		services.POST("/:serviceKey/permissions", addServicePermissionHandler)
-		services.PUT("/:serviceKey/permissions/:permName", updateServicePermissionHandler)
-		services.POST("/:serviceKey/permissions/:permName/delete", deleteServicePermissionHandler)
-		services.POST("/:serviceKey/permissions/sync", syncServicePermissionsHandler) // Sync permissions from service (authenticated)
-		
-		// Service roles management
-		services.POST("/:serviceKey/roles", createServiceRoleHandler)
-		services.GET("/:serviceKey/roles/:roleId", getServiceRoleHandler)
-		services.POST("/:serviceKey/roles/:roleId", updateServiceRoleHandler)
-		services.POST("/:serviceKey/roles/:roleId/delete", deleteServiceRoleHandler)
-		services.POST("/:serviceKey/assign-role", assignUserToServiceRoleHandler)
+	// List all services (admin only)
+	router.GET("/services/", adminAuthRequired(), listServicesHandlerWithAccess)
+	router.GET("/services/new", adminAuthRequired(), showServiceFormHandler)
+	router.POST("/services/", adminAuthRequired(), createServiceHandler)
+	
+	// Service-specific management (service admin or system admin)
+	router.GET("/services/:serviceKey", serviceAdminAuthRequired(), getServiceHandlerWithAccess)
+	router.POST("/services/:serviceKey", serviceAdminAuthRequired(), updateServiceHandlerWithAccess)
+	router.POST("/services/:serviceKey/delete", serviceAdminAuthRequired(), deleteServiceHandler)
+	router.POST("/services/:serviceKey/permissions", serviceAdminAuthRequired(), addServicePermissionHandler)
+	router.PUT("/services/:serviceKey/permissions/:permName", serviceAdminAuthRequired(), updateServicePermissionHandler)
+	router.POST("/services/:serviceKey/permissions/:permName/delete", serviceAdminAuthRequired(), deleteServicePermissionHandler)
+	router.POST("/services/:serviceKey/permissions/sync", serviceAdminAuthRequired(), syncServicePermissionsHandler) // Sync permissions from service (authenticated)
+	
+	// Service roles management
+	router.POST("/services/:serviceKey/roles", serviceAdminAuthRequired(), createServiceRoleHandler)
+	router.GET("/services/:serviceKey/roles/:roleId", serviceAdminAuthRequired(), getServiceRoleHandler)
+	router.POST("/services/:serviceKey/roles/:roleId", serviceAdminAuthRequired(), updateServiceRoleHandler)
+	router.POST("/services/:serviceKey/roles/:roleId/delete", serviceAdminAuthRequired(), deleteServiceRoleHandler)
+	router.POST("/services/:serviceKey/assign-role", serviceAdminAuthRequired(), assignUserToServiceRoleHandler)
 
-		// User management for services
-		services.GET("/:serviceKey/users", getServiceUsersHandler)
-		services.POST("/:serviceKey/users", addUserToServiceHandler)
-		services.PUT("/:serviceKey/users/:userId/roles", updateUserServiceRolesHandler)
-	}
+	// User management for services
+	router.GET("/services/:serviceKey/users", serviceAdminAuthRequired(), getServiceUsersHandler)
+	router.POST("/services/:serviceKey/users", serviceAdminAuthRequired(), addUserToServiceHandler)
+	router.PUT("/services/:serviceKey/users/:userId/roles", serviceAdminAuthRequired(), updateUserServiceRolesHandler)
+
+	// Service-specific Excel import/export routes
+	router.GET("/services/:serviceKey/import", serviceAdminAuthRequired(), serviceImportPageHandler)           // Show import page for service
+	router.POST("/services/:serviceKey/import", serviceAdminAuthRequired(), serviceImportHandler)             // Process Excel import for service
+	router.GET("/services/:serviceKey/export", serviceAdminAuthRequired(), serviceExportHandler)              // Export existing users for service (with data)
+	router.GET("/services/:serviceKey/template", serviceAdminAuthRequired(), serviceTemplateHandler)          // Download empty template for service
+	router.GET("/services/:serviceKey/import/logs", serviceAdminAuthRequired(), serviceImportLogsHandler)     // Get import logs for service
 
 	// Check user existence endpoint
 	router.GET("/check-user-exists", serviceAdminAuthRequired(), checkUserExistsHandler)
-
-	// Service-specific Excel import/export routes (extending services group)
-	services.GET("/:serviceKey/import", serviceImportPageHandler)           // Show import page for service
-	services.POST("/:serviceKey/import", serviceImportHandler)             // Process Excel import for service
-	services.GET("/:serviceKey/export", serviceExportHandler)              // Export existing users for service (with data)
-	services.GET("/:serviceKey/template", serviceTemplateHandler)          // Download empty template for service
-	services.GET("/:serviceKey/import/logs", serviceImportLogsHandler)     // Get import logs for service
 
 	// Migration management (placeholder for now)
 	migration := router.Group("/migration")

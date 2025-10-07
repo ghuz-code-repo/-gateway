@@ -83,14 +83,15 @@ type DocumentAttachment struct {
 
 // UserDocument represents a user document with dynamic fields
 type UserDocument struct {
-	ID          primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
-	DocumentType string                      `bson:"document_type" json:"document_type"`
-	Title       string                       `bson:"title" json:"title"`
-	Fields      map[string]interface{}       `bson:"fields" json:"fields"`
-	Attachments []DocumentAttachment         `bson:"attachments" json:"attachments"`
-	Status      string                       `bson:"status" json:"status"` // draft, completed, archived
-	CreatedAt   time.Time                    `bson:"created_at" json:"created_at"`
-	UpdatedAt   time.Time                    `bson:"updated_at" json:"updated_at"`
+	ID             primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
+	DocumentType   string                      `bson:"document_type" json:"document_type"`
+	Title          string                       `bson:"title" json:"title"`
+	Fields         map[string]interface{}       `bson:"fields" json:"fields"`
+	Attachments    []DocumentAttachment         `bson:"attachments" json:"attachments"`
+	AllowedServices []string                    `bson:"allowed_services" json:"allowed_services"` // Services where this document can be used
+	Status         string                       `bson:"status" json:"status"` // draft, completed, archived
+	CreatedAt      time.Time                    `bson:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                    `bson:"updated_at" json:"updated_at"`
 }
 
 // Document represents a user document (legacy - will be replaced by UserDocument)
@@ -3041,10 +3042,21 @@ func GetUserPermissionsForService(userID primitive.ObjectID, serviceKey string) 
 		},
 		{
 			"$lookup": bson.M{
-				"from":         "roles",
-				"localField":   "roleName",
-				"foreignField": "name",
-				"as":          "roleDetails",
+				"from": "roles",
+				"let":  bson.M{"roleName": "$roleName", "serviceKey": "$serviceKey"},
+				"pipeline": []bson.M{
+					{
+						"$match": bson.M{
+							"$expr": bson.M{
+								"$and": []bson.M{
+									{"$eq": []interface{}{"$name", "$$roleName"}},
+									{"$eq": []interface{}{"$service", "$$serviceKey"}},
+								},
+							},
+						},
+					},
+				},
+				"as": "roleDetails",
 			},
 		},
 		{

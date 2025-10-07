@@ -214,7 +214,7 @@ func CheckPermission(userID string, service string) bool {
 
 	// Admin role always has permission
 	for _, roleName := range user.Roles {
-		if roleName == "admin" {
+		if roleName == "admin" || roleName == "system.admin" {
 			return true
 		}
 	}
