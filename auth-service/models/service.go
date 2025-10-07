@@ -424,18 +424,42 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 		}
 	}
 
-	// For regular users, collect permissions from roles
+	// For regular users, collect permissions from service-specific roles
+	// First, get user's service-specific roles from user_service_roles collection
+	serviceRoleNames, err := GetUserServiceRolesFromCollection(userID, serviceKey)
+	if err != nil {
+		log.Printf("DEBUG GetUserServicePermissions: error getting service roles: %v", err)
+		serviceRoleNames = []string{}
+	}
+	
+	log.Printf("DEBUG GetUserServicePermissions: user=%s, service=%s, serviceRoleNames=%v", userID, serviceKey, serviceRoleNames)
+	
+	// Get all available roles for the service
 	roles, err := GetRolesByService(serviceKey)
 	if err != nil {
+		log.Printf("DEBUG GetUserServicePermissions: error getting roles by service: %v", err)
 		return []string{}, nil
 	}
 
 	permissionSet := make(map[string]bool)
 	
-	// Check each role the user has
+	// Check service-specific roles (user_service_roles)
+	for _, roleName := range serviceRoleNames {
+		for _, role := range roles {
+			if role.Name == roleName {
+				log.Printf("DEBUG GetUserServicePermissions: found matching role '%s' with %d permissions", roleName, len(role.Permissions))
+				for _, perm := range role.Permissions {
+					permissionSet[perm] = true
+				}
+			}
+		}
+	}
+	
+	// Also check global roles (for backward compatibility)
 	for _, roleName := range user.Roles {
 		for _, role := range roles {
 			if role.Name == roleName {
+				log.Printf("DEBUG GetUserServicePermissions: found matching global role '%s' with %d permissions", roleName, len(role.Permissions))
 				for _, perm := range role.Permissions {
 					permissionSet[perm] = true
 				}
@@ -448,6 +472,8 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 	for perm := range permissionSet {
 		permissions = append(permissions, perm)
 	}
+	
+	log.Printf("DEBUG GetUserServicePermissions: returning %d permissions: %v", len(permissions), permissions)
 
 	return permissions, nil
 }

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
@@ -193,6 +194,93 @@ func verifyHandler(c *gin.Context) {
 		c.Header("X-User-Avatar", user.AvatarPath)
 	}
 
+	// Add email header
+	if user.Email != "" {
+		c.Header("X-User-Email", user.Email)
+		log.Printf("DEBUG verifyHandler: Setting X-User-Email header: '%s'", user.Email)
+	} else {
+		log.Printf("DEBUG verifyHandler: User email is empty, not setting X-User-Email header")
+	}
+
+	// Add phone header
+	if user.Phone != "" {
+		c.Header("X-User-Phone", user.Phone)
+	}
+
+	// Extract document data and add headers
+	log.Printf("DEBUG verifyHandler: Starting document data extraction for user '%s'", user.Username)
+	passportData := extractDocumentFields(user, "passport")
+	pinflData := extractDocumentFields(user, "pinfl")
+	bankData := extractDocumentFields(user, "bank_details")
+	log.Printf("DEBUG verifyHandler: Document extraction complete: passport=%d fields, pinfl=%d fields, bank=%d fields", len(passportData), len(pinflData), len(bankData))
+
+	// Add passport data headers
+	if user.PassportNumber != "" {
+		c.Header("X-User-Passport-Number", user.PassportNumber)
+		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Number from user.PassportNumber: '%s'", user.PassportNumber)
+	} else if passportData["passport_number"] != nil {
+		headerValue := fmt.Sprintf("%v", passportData["passport_number"])
+		c.Header("X-User-Passport-Number", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Number from document: '%s'", headerValue)
+	}
+	
+	if user.PassportIssuedBy != "" {
+		c.Header("X-User-Passport-Giver", user.PassportIssuedBy)
+		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Giver from user.PassportIssuedBy: '%s'", user.PassportIssuedBy)
+	} else if passportData["passport_giver"] != nil {
+		headerValue := fmt.Sprintf("%v", passportData["passport_giver"])
+		c.Header("X-User-Passport-Giver", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Giver from document: '%s'", headerValue)
+	}
+	
+	if user.PassportIssuedDate != nil {
+		headerValue := user.PassportIssuedDate.Format("2006-01-02")
+		c.Header("X-User-Passport-Date", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Date from user.PassportIssuedDate: '%s'", headerValue)
+	} else if passportData["passport_date"] != nil {
+		headerValue := fmt.Sprintf("%v", passportData["passport_date"])
+		c.Header("X-User-Passport-Date", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Date from document: '%s'", headerValue)
+	}
+	
+	if user.Address != "" {
+		c.Header("X-User-Passport-Address", user.Address)
+		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Address from user.Address: '%s'", user.Address)
+	} else if passportData["passport_address"] != nil {
+		headerValue := fmt.Sprintf("%v", passportData["passport_address"])
+		c.Header("X-User-Passport-Address", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Address from document: '%s'", headerValue)
+	}
+
+	// Add PINFL header
+	if pinflData["pinfl"] != nil {
+		headerValue := fmt.Sprintf("%v", pinflData["pinfl"])
+		c.Header("X-User-PINFL", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-PINFL from document: '%s'", headerValue)
+	}
+
+	// Add bank data headers
+	if bankData["bank_name"] != nil {
+		headerValue := fmt.Sprintf("%v", bankData["bank_name"])
+		c.Header("X-User-Bank-Name", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Bank-Name from document: '%s'", headerValue)
+	}
+	if bankData["card_number"] != nil {
+		headerValue := fmt.Sprintf("%v", bankData["card_number"])
+		c.Header("X-User-Bank-Card", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Bank-Card from document: '%s'", headerValue)
+	}
+	if bankData["mfo"] != nil {
+		headerValue := fmt.Sprintf("%v", bankData["mfo"])
+		c.Header("X-User-Bank-MFO", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Bank-MFO from document: '%s'", headerValue)
+	}
+	if bankData["trans_schet"] != nil {
+		headerValue := fmt.Sprintf("%v", bankData["trans_schet"])
+		c.Header("X-User-Bank-Account", headerValue)
+		log.Printf("DEBUG verifyHandler: Set X-User-Bank-Account from document: '%s'", headerValue)
+	}
+
 	// ADR-001: New service-scoped headers
 	c.Header("X-User-Service-Roles", strings.Join(serviceRoles, ","))
 	c.Header("X-User-Service-Permissions", strings.Join(servicePermissions, ","))
@@ -203,8 +291,8 @@ func verifyHandler(c *gin.Context) {
 		c.Header("X-User-Admin", "true")
 	}
 
-	log.Printf("DEBUG verifyHandler: FINAL HEADERS - X-User-Full-Name: '%s', X-User-Avatar: '%s', X-User-Service-Roles: '%s'", 
-		encodedFullName, user.AvatarPath, strings.Join(serviceRoles, ","))
+	log.Printf("DEBUG verifyHandler: FINAL HEADERS - X-User-Full-Name: '%s', X-User-Avatar: '%s', X-User-Email: '%s', X-User-Service-Roles: '%s', X-User-Service-Permissions: '%s'", 
+		encodedFullName, user.AvatarPath, user.Email, strings.Join(serviceRoles, ","), strings.Join(servicePermissions, ","))
 
 	c.Status(http.StatusOK)
 }
@@ -377,4 +465,58 @@ func resetPasswordHandler(c *gin.Context) {
 
 	// Redirect to login page with success message
 	c.Redirect(http.StatusFound, "/login?message=password_reset_success")
+}
+
+// extractDocumentFields extracts fields from user documents by document type
+func extractDocumentFields(user *models.User, documentType string) map[string]interface{} {
+	result := make(map[string]interface{})
+	
+	log.Printf("DEBUG extractDocumentFields: Looking for documentType='%s', user has %d documents", documentType, len(user.Documents))
+	
+	var candidateDocuments []models.UserDocument
+	
+	// Collect all documents of the required type
+	for _, doc := range user.Documents {
+		log.Printf("DEBUG extractDocumentFields: Found document type='%s', allowed_services=%v", doc.DocumentType, doc.AllowedServices)
+		if doc.DocumentType == documentType || 
+		   strings.HasPrefix(doc.DocumentType, documentType + "_") {
+			candidateDocuments = append(candidateDocuments, doc)
+		}
+	}
+	
+	if len(candidateDocuments) == 0 {
+		log.Printf("DEBUG extractDocumentFields: No documents found for type '%s'", documentType)
+		return result
+	}
+	
+	// Sort documents by priority:
+	// 1. Documents with completed status
+	// 2. Most recently updated
+	sort.Slice(candidateDocuments, func(i, j int) bool {
+		docA, docB := candidateDocuments[i], candidateDocuments[j]
+		
+		// Completed documents have higher priority
+		if docA.Status != docB.Status {
+			if docA.Status == "completed" { return true }
+			if docB.Status == "completed" { return false }
+		}
+		
+		// More recent documents have higher priority
+		return docA.UpdatedAt.After(docB.UpdatedAt)
+	})
+	
+	// Take the document with highest priority
+	bestDoc := candidateDocuments[0]
+	
+	log.Printf("DEBUG extractDocumentFields: Selected best document: type=%s, status=%s, allowed_services=%v", 
+			   bestDoc.DocumentType, bestDoc.Status, bestDoc.AllowedServices)
+	
+	// Extract fields from the best document
+	for key, value := range bestDoc.Fields {
+		result[strings.ToLower(key)] = value
+		log.Printf("DEBUG extractDocumentFields: Added field '%s'='%v'", strings.ToLower(key), value)
+	}
+	
+	log.Printf("DEBUG extractDocumentFields: Returning %d fields for type '%s': %v", len(result), documentType, result)
+	return result
 }

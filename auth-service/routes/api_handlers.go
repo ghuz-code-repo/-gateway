@@ -56,7 +56,7 @@ func getUserServicePermissionsHandler(c *gin.Context) {
 		"roles":       roles,
 		"username":    user.Username,
 		"full_name":   user.GetFullName(),
-		"is_admin":    contains(user.Roles, "admin"),
+		"is_admin":    contains(user.Roles, "admin") || contains(user.Roles, "system.admin"),
 	})
 }
 

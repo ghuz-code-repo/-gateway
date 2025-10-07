@@ -345,6 +345,8 @@ func createServiceRoleHandler(c *gin.Context) {
 	roleName := c.PostForm("role_name")
 	roleDescription := c.PostForm("role_description")
 	
+	log.Printf("DEBUG createServiceRoleHandler: serviceKey=%s, roleName=%s, roleDescription=%s", serviceKey, roleName, roleDescription)
+	
 	if roleName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя роли обязательно"})
 		return
@@ -353,6 +355,7 @@ func createServiceRoleHandler(c *gin.Context) {
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
+		log.Printf("ERROR createServiceRoleHandler: Service not found: %v", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
@@ -360,20 +363,27 @@ func createServiceRoleHandler(c *gin.Context) {
 	// Get permissions from form (checkboxes)
 	var permissions []string
 	c.Request.ParseForm()
+	log.Printf("DEBUG createServiceRoleHandler: PostForm data: %+v", c.Request.PostForm)
 	for key, values := range c.Request.PostForm {
 		if len(key) > 5 && key[:5] == "perm_" && len(values) > 0 && values[0] == "on" {
 			permName := key[5:] // Remove "perm_" prefix
 			permissions = append(permissions, permName)
+			log.Printf("DEBUG createServiceRoleHandler: Added permission: %s", permName)
 		}
 	}
 	
+	log.Printf("DEBUG createServiceRoleHandler: Final permissions list: %v", permissions)
+	
 	// Create the role
+	log.Printf("DEBUG createServiceRoleHandler: Creating role with permissions: %v", permissions)
 	_, err = models.CreateRole(service.Key, roleName, roleDescription, permissions)
 	if err != nil {
+		log.Printf("ERROR createServiceRoleHandler: Failed to create role: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать роль: " + err.Error()})
 		return
 	}
 	
+	log.Printf("SUCCESS createServiceRoleHandler: Role created successfully")
 	// Redirect back to service page with roles tab active
 	c.Redirect(http.StatusFound, "/services/"+service.Key)
 }

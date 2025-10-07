@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -24,10 +25,15 @@ type Role struct {
 func CreateRole(serviceKey, name, description string, permissions []string) (*Role, error) {
 	ctx := context.Background()
 
+	log.Printf("DEBUG CreateRole: serviceKey=%s, name=%s, permissions=%v", serviceKey, name, permissions)
+
 	// Validate that permissions are valid for the service
 	if valid, invalidPerms := ValidateRolePermissions(serviceKey, permissions); !valid {
+		log.Printf("ERROR CreateRole: Invalid permissions: %v", invalidPerms)
 		return nil, fmt.Errorf("invalid permissions for service %s: %v", serviceKey, invalidPerms)
 	}
+
+	log.Printf("DEBUG CreateRole: Permissions validated successfully")
 
 	role := &Role{
 		ServiceKey:  serviceKey,
@@ -38,12 +44,16 @@ func CreateRole(serviceKey, name, description string, permissions []string) (*Ro
 		UpdatedAt:   time.Now(),
 	}
 
+	log.Printf("DEBUG CreateRole: Inserting role into database: %+v", role)
+
 	result, err := rolesCol.InsertOne(ctx, role)
 	if err != nil {
+		log.Printf("ERROR CreateRole: Database insert failed: %v", err)
 		return nil, err
 	}
 
 	role.ID = result.InsertedID.(primitive.ObjectID)
+	log.Printf("SUCCESS CreateRole: Role created with ID: %s", role.ID.Hex())
 	return role, nil
 }
 

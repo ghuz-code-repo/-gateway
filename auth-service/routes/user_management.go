@@ -135,7 +135,7 @@ func createUserHandler(c *gin.Context) {
 	// Determine roles based on system admin toggle
 	var roleNames []string
 	if systemAdmin == "true" {
-		roleNames = []string{"admin"} // Set admin role if system admin is checked
+		roleNames = []string{"system.admin"} // Set system admin role if system admin is checked
 	}
 
 	// Create user with extended fields
@@ -349,7 +349,7 @@ func updateUserHandler(c *gin.Context) {
 	// Determine roles based on system admin toggle
 	var roleNames []string
 	if systemAdmin == "true" {
-		roleNames = []string{"admin"} // Set admin role if system admin is checked
+		roleNames = []string{"system.admin"} // Set system admin role if system admin is checked
 	}
 
 	// Update user basic information
@@ -847,7 +847,7 @@ func serviceImportLogsHandler(c *gin.Context) {
 	hasServiceAccess := false
 	// Check if user has admin role
 	for _, role := range currentUser.Roles {
-		if role == "admin" {
+		if role == "admin" || role == "system.admin" {
 			hasServiceAccess = true
 			break
 		}
@@ -947,7 +947,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 			allRoles, err := models.GetAllRoles()
 			if err == nil {
 				for _, userRoleName := range user.Roles {
-					if userRoleName == "admin" {
+					if userRoleName == "admin" || userRoleName == "system.admin" {
 						continue // Skip system admin role
 					}
 					
@@ -975,10 +975,10 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 			}
 		}
 
-		// Check if user is system admin (has "admin" role)
+		// Check if user is system admin (has "admin" or "system.admin" role)
 		isSystemAdmin := false
 		for _, role := range user.Roles {
-			if role == "admin" {
+			if role == "admin" || role == "system.admin" {
 				isSystemAdmin = true
 				break
 			}
@@ -1069,7 +1069,7 @@ func debugUserRolesHandler(c *gin.Context) {
 
 		isSystemAdmin := false
 		for _, role := range user.Roles {
-			if role == "admin" {
+			if role == "admin" || role == "system.admin" {
 				isSystemAdmin = true
 				break
 			}
