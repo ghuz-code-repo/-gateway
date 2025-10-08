@@ -571,6 +571,12 @@
     font-weight: 600;
 }
 
+.warning-text {
+    color: #e74c3c;
+    font-weight: 500;
+    font-style: italic;
+}
+
 .document-date {
     color: var(--light-text-color);
     font-size: 12px;

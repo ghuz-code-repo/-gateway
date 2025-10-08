@@ -3,6 +3,7 @@ package main
 import (
 	"auth-service/models"
 	"auth-service/routes"
+	"auth-service/migrations"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -171,14 +172,20 @@ func main() {
 		log.Printf("User names migration failed: %v", err)
 	}
 
+	// Migrate documents to include allowed_services field
+	log.Println("Running documents services migration...")
+	if err := migrations.MigrateDocumentsToServicesField(models.GetDatabase()); err != nil {
+		log.Printf("Documents services migration failed: %v", err)
+	}
+
 	// Check and cleanup avatar files
 	checkAndCleanupAvatars()
 
 	// Initialize notification service client
-	InitNotificationClient()
+	// InitNotificationClient()
 
 	// Configure notification service with current SMTP settings
-	ConfigureNotificationService()
+	// ConfigureNotificationService()
 
 	// Setup router
 	router := gin.Default()

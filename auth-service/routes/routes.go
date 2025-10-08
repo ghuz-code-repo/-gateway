@@ -2,7 +2,10 @@ package routes
 
 import (
 	"net/http"
+	"time"
+	"log"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"auth-service/models"
 )
 
@@ -23,6 +26,9 @@ func SetupAllRoutes(router *gin.Engine) {
 		api.GET("/test", testAPIHandler)
 		api.POST("/services/:serviceKey/permissions/sync", syncServicePermissionsHandler)
 		api.GET("/users/:userId/documents", getUserDocumentsAPIHandler)
+		api.GET("/users/:userId/documents/grouped", getUserDocumentsGroupedAPIHandler)
+		api.GET("/users/:userId/documents/for-service/:serviceKey", getUserDocumentsForServiceAPIHandler)
+		api.POST("/users/:userId/documents", createUserDocumentAPIHandler)
 		api.GET("/users/:userId/profile", getUserProfileAPIHandler)
 	}
 }
@@ -48,7 +54,7 @@ func SetupAuthRoutes(router *gin.Engine) {
 
 	// Document system routes
 	router.GET("/document-types", authRequired(), getDocumentTypesHandler)
-	router.GET("/services", authRequired(), getAvailableServicesHandler)
+	router.GET("/available-services", authRequired(), getAvailableServicesHandler)
 }
 
 // SetupAdminRoutes sets up routes for the admin panel
@@ -176,11 +182,20 @@ func accessDeniedHandler(c *gin.Context) {
 func getUserDocumentsAPIHandler(c *gin.Context) {
 	userID := c.Param("userId")
 	
+	log.Printf("DEBUG getUserDocumentsAPIHandler: Getting documents for user %s", userID)
+	
 	documents, err := models.GetUserDocuments(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user documents"})
+		log.Printf("DEBUG getUserDocumentsAPIHandler: User %s not found or has no documents: %v", userID, err)
+		// Return empty result instead of error for users without documents
+		c.JSON(http.StatusOK, gin.H{
+			"user_id": userID,
+			"documents": []interface{}{},
+		})
 		return
 	}
+	
+	log.Printf("DEBUG getUserDocumentsAPIHandler: Found %d documents for user %s", len(documents), userID)
 	
 	c.JSON(http.StatusOK, gin.H{
 		"user_id": userID,
@@ -212,5 +227,255 @@ func getUserProfileAPIHandler(c *gin.Context) {
 		"passport_issued_date": user.PassportIssuedDate,
 		"address": user.Address,
 		"birth_date": user.BirthDate,
+	})
+}
+
+// getUserDocumentsGroupedAPIHandler returns user documents grouped by document type via API
+func getUserDocumentsGroupedAPIHandler(c *gin.Context) {
+	userID := c.Param("userId")
+	
+	documents, err := models.GetUserDocuments(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user documents"})
+		return
+	}
+	
+	// Group documents by document_group
+	groupedDocuments := make(map[string]interface{})
+	
+	for _, doc := range documents {
+		// Get document type to access group information
+		docType, err := models.GetDocumentTypeByKey(doc.DocumentType)
+		if err != nil {
+			continue // Skip documents with invalid type
+		}
+		
+		// Use document_group as key, fallback to document type if group is empty
+		groupKey := docType.DocumentGroup
+		if groupKey == "" {
+			groupKey = docType.ID
+		}
+		
+		// If this group doesn't exist yet, create it
+		if _, exists := groupedDocuments[groupKey]; !exists {
+			groupedDocuments[groupKey] = gin.H{
+				"group": groupKey,
+				"documents": []interface{}{},
+			}
+		}
+		
+		// Add document to the group
+		groupData := groupedDocuments[groupKey].(gin.H)
+		documents := groupData["documents"].([]interface{})
+		groupData["documents"] = append(documents, doc)
+		groupedDocuments[groupKey] = groupData
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"user_id": userID,
+		"grouped_documents": groupedDocuments,
+	})
+}
+
+// getDocumentPriority returns priority for document types within the same group
+// Higher number means higher priority
+func getDocumentPriority(docType string) int {
+	switch docType {
+	case "passport":    // Узбекский паспорт - высший приоритет
+		return 3
+	case "passport_ru": // Российский паспорт
+		return 2
+	case "pinfl":       // ПИНФЛ - низший приоритет
+		return 1
+	default:
+		return 0
+	}
+}
+
+// getUserDocumentsForServiceAPIHandler returns user documents for specific service via API
+// From each document group, selects the document that is used for the given service
+// If multiple documents in a group are used for the service, takes the last added one
+func getUserDocumentsForServiceAPIHandler(c *gin.Context) {
+	userID := c.Param("userId")
+	serviceKey := c.Param("serviceKey")
+	
+	log.Printf("DEBUG getUserDocumentsForServiceAPIHandler: Getting documents for user %s, service %s", userID, serviceKey)
+	
+	documents, err := models.GetUserDocuments(userID)
+	if err != nil {
+		log.Printf("DEBUG getUserDocumentsForServiceAPIHandler: User %s not found or has no documents: %v", userID, err)
+		// Return empty result instead of error for users without documents
+		c.JSON(http.StatusOK, gin.H{
+			"user_id": userID,
+			"service_key": serviceKey,
+			"documents_for_service": make(map[string]interface{}),
+		})
+		return
+	}
+	
+	log.Printf("DEBUG getUserDocumentsForServiceAPIHandler: Found %d documents for user %s", len(documents), userID)
+	
+	// Group documents by document_group and filter by service
+	serviceDocuments := make(map[string]interface{})
+	
+	for _, doc := range documents {
+		// Check if this document is used for the requested service
+		isUsedForService := false
+		for _, allowedService := range doc.AllowedServices {
+			if allowedService == serviceKey {
+				isUsedForService = true
+				break
+			}
+		}
+		
+		if !isUsedForService {
+			continue // Skip documents not used for this service
+		}
+		
+		// Get document type to access group information
+		docType, err := models.GetDocumentTypeByKey(doc.DocumentType)
+		if err != nil {
+			log.Printf("ERROR getUserDocumentsForServiceAPIHandler: Failed to get document type for %s: %v", doc.DocumentType, err)
+			continue // Skip documents with invalid type
+		}
+		
+		// Use document_group as key, fallback to document type if group is empty
+		groupKey := docType.DocumentGroup
+		if groupKey == "" {
+			groupKey = docType.ID
+		}
+		
+		// Check if we already have a document for this group
+		if existingDoc, exists := serviceDocuments[groupKey]; exists {
+			// Use priority-based selection for identity documents
+			existingDocType := existingDoc.(map[string]interface{})["document"].(models.UserDocument).DocumentType
+			currentDocType := doc.DocumentType
+			
+			shouldReplace := false
+			
+			// Priority for identity documents: passport > passport_ru > pinfl
+			if groupKey == "identity" {
+				currentPriority := getDocumentPriority(currentDocType)
+				existingPriority := getDocumentPriority(existingDocType)
+				
+				if currentPriority > existingPriority {
+					shouldReplace = true
+				} else if currentPriority == existingPriority {
+					// Same priority, use creation date
+					existingCreatedAt := existingDoc.(map[string]interface{})["created_at"].(string)
+					currentCreatedAt := doc.CreatedAt.Format("2006-01-02T15:04:05.000Z")
+					shouldReplace = currentCreatedAt > existingCreatedAt
+				}
+			} else {
+				// For other groups, use creation date
+				existingCreatedAt := existingDoc.(map[string]interface{})["created_at"].(string)
+				currentCreatedAt := doc.CreatedAt.Format("2006-01-02T15:04:05.000Z")
+				shouldReplace = currentCreatedAt > existingCreatedAt
+			}
+			
+			if shouldReplace {
+				serviceDocuments[groupKey] = map[string]interface{}{
+					"group": groupKey,
+					"document": doc,
+					"created_at": doc.CreatedAt.Format("2006-01-02T15:04:05.000Z"),
+				}
+			}
+		} else {
+			// First document for this group
+			serviceDocuments[groupKey] = map[string]interface{}{
+				"group": groupKey,
+				"document": doc,
+				"created_at": doc.CreatedAt.Format("2006-01-02T15:04:05.000Z"),
+			}
+		}
+	}
+	
+	// Prepare final response - extract just the documents
+	finalDocuments := make(map[string]interface{})
+	for groupKey, groupData := range serviceDocuments {
+		groupMap := groupData.(map[string]interface{})
+		finalDocuments[groupKey] = gin.H{
+			"group": groupKey,
+			"document": groupMap["document"],
+		}
+	}
+	
+	log.Printf("DEBUG getUserDocumentsForServiceAPIHandler: Returning %d document groups for user %s, service %s", len(finalDocuments), userID, serviceKey)
+	
+	c.JSON(http.StatusOK, gin.H{
+		"user_id": userID,
+		"service_key": serviceKey,
+		"documents_for_service": finalDocuments,
+	})
+}
+
+// createUserDocumentAPIHandler creates a new document for a user via API
+func createUserDocumentAPIHandler(c *gin.Context) {
+	userID := c.Param("userId")
+	
+	// Parse JSON body
+	var requestBody struct {
+		DocumentType     string                 `json:"document_type" binding:"required"`
+		Title           string                 `json:"title" binding:"required"`
+		Fields          map[string]interface{} `json:"fields" binding:"required"`
+		AllowedServices []string               `json:"allowed_services"`
+		Status          string                 `json:"status"`
+	}
+	
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+	
+	// Validate user exists
+	_, err := models.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+	
+	// Validate document type exists
+	_, err = models.GetDocumentTypeByKey(requestBody.DocumentType)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid document type"})
+		return
+	}
+	
+	// Set default status if not provided
+	if requestBody.Status == "" {
+		requestBody.Status = "draft"
+	}
+	
+	// Set default allowed services if not provided
+	if len(requestBody.AllowedServices) == 0 {
+		requestBody.AllowedServices = []string{}
+	}
+	
+	// Create document
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+	
+	document := models.UserDocument{
+		DocumentType:     requestBody.DocumentType,
+		Title:           requestBody.Title,
+		Fields:          requestBody.Fields,
+		AllowedServices: requestBody.AllowedServices,
+		Status:          requestBody.Status,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+	}
+	
+	err = models.AddUserDocumentNew(userObjectID, document)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create document: " + err.Error()})
+		return
+	}
+	
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Document created successfully",
+		"document": document,
 	})
 }
