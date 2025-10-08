@@ -9,6 +9,272 @@ document.addEventListener('DOMContentLoaded', function() {
 // Global flag to prevent modal closing during file operations
 let isFileOperationInProgress = false;
 
+// Custom Multiselect Component
+class CustomMultiselect {
+    constructor(container, options = {}) {
+        this.container = container;
+        this.options = {
+            placeholder: 'Выберите опции...',
+            selectAllText: 'Выбрать все',
+            noOptionsText: 'Нет доступных опций',
+            loadingText: 'Загрузка...',
+            errorText: 'Ошибка загрузки',
+            ...options
+        };
+        
+        this.selectedValues = new Set();
+        this.availableOptions = [];
+        this.isOpen = false;
+        this.isLoading = false;
+        
+        this.init();
+    }
+    
+    init() {
+        this.toggle = this.container.querySelector('.multiselect-toggle');
+        this.dropdown = this.container.querySelector('.multiselect-dropdown');
+        this.toggleText = this.container.querySelector('.multiselect-toggle-text');
+        this.arrow = this.container.querySelector('.multiselect-arrow');
+        
+        this.bindEvents();
+    }
+    
+    bindEvents() {
+        // Toggle dropdown
+        this.toggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleDropdown();
+        });
+        
+        // Keyboard support
+        this.toggle.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.toggleDropdown();
+            }
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!this.container.contains(e.target)) {
+                this.closeDropdown();
+            }
+        });
+    }
+    
+    toggleDropdown() {
+        if (this.isOpen) {
+            this.closeDropdown();
+        } else {
+            this.openDropdown();
+        }
+    }
+    
+    openDropdown() {
+        this.isOpen = true;
+        this.toggle.classList.add('open');
+        this.dropdown.classList.add('open');
+    }
+    
+    closeDropdown() {
+        this.isOpen = false;
+        this.toggle.classList.remove('open');
+        this.dropdown.classList.remove('open');
+    }
+    
+    setLoading(loading) {
+        this.isLoading = loading;
+        if (loading) {
+            this.dropdown.innerHTML = `<div class="multiselect-loading">${this.options.loadingText}</div>`;
+            this.toggleText.textContent = this.options.loadingText;
+            this.toggle.classList.add('disabled');
+        } else {
+            this.toggle.classList.remove('disabled');
+        }
+    }
+    
+    setError(error) {
+        this.dropdown.innerHTML = `<div class="multiselect-error">${error || this.options.errorText}</div>`;
+        this.toggleText.textContent = this.options.errorText;
+    }
+    
+    setOptions(options) {
+        this.availableOptions = options;
+        this.renderOptions();
+        this.updateToggleText();
+    }
+    
+    renderOptions() {
+        if (this.availableOptions.length === 0) {
+            this.dropdown.innerHTML = `<div class="multiselect-loading">${this.options.noOptionsText}</div>`;
+            return;
+        }
+        
+        let html = '';
+        
+        // Add "Select All" option
+        const allSelected = this.availableOptions.length > 0 && 
+                           this.availableOptions.every(opt => this.selectedValues.has(opt.value));
+        
+        html += `
+            <div class="multiselect-option multiselect-select-all">
+                <input type="checkbox" 
+                       id="select-all-${this.container.id}" 
+                       ${allSelected ? 'checked' : ''}>
+                <label for="select-all-${this.container.id}" class="multiselect-option-label">
+                    ${this.options.selectAllText}
+                </label>
+            </div>
+        `;
+        
+        // Add individual options
+        this.availableOptions.forEach(option => {
+            const isSelected = this.selectedValues.has(option.value);
+            html += `
+                <div class="multiselect-option" data-value="${option.value}">
+                    <input type="checkbox" 
+                           id="option-${option.value}-${this.container.id}" 
+                           ${isSelected ? 'checked' : ''}>
+                    <label for="option-${option.value}-${this.container.id}" class="multiselect-option-label">
+                        ${option.label}
+                    </label>
+                </div>
+            `;
+        });
+        
+        this.dropdown.innerHTML = html;
+        this.bindOptionEvents();
+    }
+    
+    bindOptionEvents() {
+        const selectAllCheckbox = this.dropdown.querySelector('.multiselect-select-all input');
+        const optionElements = this.dropdown.querySelectorAll('.multiselect-option:not(.multiselect-select-all)');
+        
+        // Select all functionality
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => {
+                const checked = e.target.checked;
+                if (checked) {
+                    this.selectAll();
+                } else {
+                    this.deselectAll();
+                }
+            });
+        }
+        
+        // Individual option functionality
+        optionElements.forEach(element => {
+            const checkbox = element.querySelector('input');
+            const value = element.dataset.value;
+            
+            element.addEventListener('click', (e) => {
+                if (e.target.type !== 'checkbox') {
+                    e.preventDefault();
+                    checkbox.checked = !checkbox.checked;
+                }
+                
+                if (checkbox.checked) {
+                    this.selectValue(value);
+                } else {
+                    this.deselectValue(value);
+                }
+            });
+            
+            checkbox.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.selectValue(value);
+                } else {
+                    this.deselectValue(value);
+                }
+            });
+        });
+    }
+    
+    selectValue(value) {
+        this.selectedValues.add(value);
+        this.updateToggleText();
+        this.updateSelectAllCheckbox();
+        this.triggerChange();
+    }
+    
+    deselectValue(value) {
+        this.selectedValues.delete(value);
+        this.updateToggleText();
+        this.updateSelectAllCheckbox();
+        this.triggerChange();
+    }
+    
+    selectAll() {
+        this.availableOptions.forEach(option => {
+            this.selectedValues.add(option.value);
+        });
+        this.renderOptions();
+        this.updateToggleText();
+        this.triggerChange();
+    }
+    
+    deselectAll() {
+        this.selectedValues.clear();
+        this.renderOptions();
+        this.updateToggleText();
+        this.triggerChange();
+    }
+    
+    setSelectedValues(values) {
+        this.selectedValues = new Set(values);
+        this.renderOptions();
+        this.updateToggleText();
+    }
+    
+    getSelectedValues() {
+        return Array.from(this.selectedValues);
+    }
+    
+    updateToggleText() {
+        const selectedCount = this.selectedValues.size;
+        
+        if (selectedCount === 0) {
+            this.toggleText.textContent = this.options.placeholder;
+            this.toggleText.classList.add('placeholder');
+        } else if (selectedCount === 1) {
+            const selectedOption = this.availableOptions.find(opt => this.selectedValues.has(opt.value));
+            this.toggleText.textContent = selectedOption ? selectedOption.label : `${selectedCount} выбрано`;
+            this.toggleText.classList.remove('placeholder');
+        } else if (selectedCount === this.availableOptions.length && this.availableOptions.length > 0) {
+            this.toggleText.textContent = 'Все выбраны';
+            this.toggleText.classList.remove('placeholder');
+        } else {
+            this.toggleText.textContent = `${selectedCount} выбрано`;
+            this.toggleText.classList.remove('placeholder');
+        }
+    }
+    
+    updateSelectAllCheckbox() {
+        const selectAllCheckbox = this.dropdown.querySelector('.multiselect-select-all input');
+        if (selectAllCheckbox) {
+            const allSelected = this.availableOptions.length > 0 && 
+                               this.availableOptions.every(opt => this.selectedValues.has(opt.value));
+            selectAllCheckbox.checked = allSelected;
+        }
+    }
+    
+    triggerChange() {
+        const event = new CustomEvent('multiselect:change', {
+            detail: {
+                selectedValues: this.getSelectedValues(),
+                selectedOptions: this.availableOptions.filter(opt => this.selectedValues.has(opt.value))
+            }
+        });
+        this.container.dispatchEvent(event);
+    }
+    
+    destroy() {
+        // Clean up event listeners if needed
+        this.closeDropdown();
+    }
+}
+
 // Tab Management
 function initTabs() {
     const tabButtons = document.querySelectorAll('.tab-button');
@@ -273,6 +539,12 @@ async function openEditDocumentModal(docData) {
     const typeSelect = editModal.querySelector('#editDocumentTypeSelect');
     if (typeSelect) {
         await loadDocumentTypesForEdit(typeSelect, docData.document_type);
+    }
+
+    // Load available services and set selected ones
+    const servicesContainer = editModal.querySelector('#editAllowedServicesMultiselect');
+    if (servicesContainer) {
+        await loadAvailableServicesForEdit(servicesContainer, docData.allowed_services || []);
     }
 
     // Load and populate fields for this document type
@@ -1407,6 +1679,7 @@ function initDocumentModal() {
     documentModal.addEventListener('modalOpened', function() {
         console.log('Document modal opened, loading document types...');
         loadDocumentTypes();
+        loadAvailableServices();
         
         // Clear and reset files area
         const newFilesArea = document.getElementById('newDocumentFilesArea');
@@ -1532,6 +1805,129 @@ async function loadDocumentTypes() {
     }
 }
 
+// Load available services for documents
+async function loadAvailableServices() {
+    console.log('Starting to load available services...');
+    const multiselectContainer = document.getElementById('allowedServicesMultiselect');
+    
+    if (!multiselectContainer) {
+        console.error('Services multiselect container not found');
+        return;
+    }
+    
+    // Initialize multiselect if not already done
+    if (!multiselectContainer.multiselectInstance) {
+        multiselectContainer.multiselectInstance = new CustomMultiselect(multiselectContainer, {
+            placeholder: 'Выберите сервисы...',
+            selectAllText: 'Выбрать все сервисы',
+            noOptionsText: 'Нет доступных сервисов',
+            loadingText: 'Загрузка сервисов...'
+        });
+    }
+    
+    const multiselect = multiselectContainer.multiselectInstance;
+    multiselect.setLoading(true);
+    
+    try {
+        console.log('Sending request to /available-services...');
+        const response = await fetch('/available-services');
+        console.log('Response status:', response.status);
+        console.log('Response OK:', response.ok);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load services: ${response.status} ${response.statusText}`);
+        }
+        
+        const services = await response.json();
+        console.log('Services received:', services);
+        
+        // Convert services to multiselect format
+        const options = services.map(service => ({
+            value: service.key,
+            label: `${service.name} - ${service.description}`
+        }));
+        
+        multiselect.setLoading(false);
+        multiselect.setOptions(options);
+        
+        // For new documents, select all services by default (first time adding this document type)
+        // This will be handled in document type change handler
+        
+        console.log('Services loaded successfully');
+        
+    } catch (error) {
+        console.error('Error loading services:', error);
+        console.error('Error details:', error.message);
+        multiselect.setLoading(false);
+        multiselect.setError('Ошибка загрузки сервисов: ' + error.message);
+        if (window.showNotification) {
+            window.showNotification('Ошибка загрузки сервисов: ' + error.message, 'error');
+        }
+    }
+}
+
+async function loadAvailableServicesForEdit(multiselectContainer, selectedServices = []) {
+    console.log('Starting to load available services for edit modal...');
+    
+    if (!multiselectContainer) {
+        console.error('Services multiselect container not found');
+        return;
+    }
+    
+    // Initialize multiselect if not already done
+    if (!multiselectContainer.multiselectInstance) {
+        multiselectContainer.multiselectInstance = new CustomMultiselect(multiselectContainer, {
+            placeholder: 'Выберите сервисы...',
+            selectAllText: 'Выбрать все сервисы',
+            noOptionsText: 'Нет доступных сервисов',
+            loadingText: 'Загрузка сервисов...'
+        });
+    }
+    
+    const multiselect = multiselectContainer.multiselectInstance;
+    multiselect.setLoading(true);
+    
+    try {
+        console.log('Sending request to /available-services...');
+        const response = await fetch('/available-services');
+        console.log('Response status:', response.status);
+        console.log('Response OK:', response.ok);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load services: ${response.status} ${response.statusText}`);
+        }
+        
+        const services = await response.json();
+        console.log('Services received:', services);
+        console.log('Selected services:', selectedServices);
+        
+        // Convert services to multiselect format
+        const options = services.map(service => ({
+            value: service.key,
+            label: `${service.name} - ${service.description}`
+        }));
+        
+        multiselect.setLoading(false);
+        multiselect.setOptions(options);
+        
+        // Set selected services
+        if (selectedServices && selectedServices.length > 0) {
+            multiselect.setSelectedValues(selectedServices);
+        }
+        
+        console.log('Services loaded successfully for edit modal');
+        
+    } catch (error) {
+        console.error('Error loading services for edit:', error);
+        console.error('Error details:', error.message);
+        multiselect.setLoading(false);
+        multiselect.setError('Ошибка загрузки сервисов: ' + error.message);
+        if (window.showNotification) {
+            window.showNotification('Ошибка загрузки сервисов: ' + error.message, 'error');
+        }
+    }
+}
+
 function handleDocumentTypeChange(event) {
     const selectedOption = event.target.selectedOptions[0];
     const documentFields = document.getElementById('documentFields');
@@ -1574,6 +1970,9 @@ function handleDocumentTypeChange(event) {
                 documentFields.appendChild(fieldElement);
             });
         }
+        
+        // Check if this is the first document of this type and auto-select all services
+        checkAndAutoSelectServicesForNewDocumentType(selectedOption.value);
         
     } catch (error) {
         console.error('Error parsing document type:', error);
@@ -1727,6 +2126,61 @@ function createFormField(field) {
     }
     
     return fieldDiv;
+}
+
+// Check if this is the first document of this type and auto-select all services
+async function checkAndAutoSelectServicesForNewDocumentType(documentType) {
+    console.log('Checking if document type is new:', documentType);
+    
+    try {
+        // Get existing user documents to check if this document type already exists
+        const response = await fetch('/profile/documents');
+        if (!response.ok) {
+            console.error('Failed to fetch existing documents');
+            return;
+        }
+        
+        const documents = await response.json();
+        console.log('Existing documents:', documents);
+        
+        // Check if there are any existing documents of this type
+        const existingDocumentsOfType = documents.filter(doc => doc.document_type === documentType);
+        console.log('Existing documents of type', documentType, ':', existingDocumentsOfType);
+        
+        // If this is the first document of this type, auto-select all services
+        if (existingDocumentsOfType.length === 0) {
+            console.log('This is the first document of type', documentType, ', auto-selecting all services');
+            
+            const multiselectContainer = document.getElementById('allowedServicesMultiselect');
+            if (multiselectContainer && multiselectContainer.multiselectInstance) {
+                const multiselect = multiselectContainer.multiselectInstance;
+                
+                // Wait a bit for services to load if they haven't loaded yet
+                if (multiselect.availableOptions.length === 0) {
+                    // Wait for services to load
+                    let attempts = 0;
+                    const checkLoaded = setInterval(() => {
+                        attempts++;
+                        if (multiselect.availableOptions.length > 0 || attempts > 50) { // Max 5 seconds
+                            clearInterval(checkLoaded);
+                            if (multiselect.availableOptions.length > 0) {
+                                multiselect.selectAll();
+                                console.log('Auto-selected all services for new document type');
+                            }
+                        }
+                    }, 100);
+                } else {
+                    multiselect.selectAll();
+                    console.log('Auto-selected all services for new document type');
+                }
+            }
+        } else {
+            console.log('Document type', documentType, 'already exists, not auto-selecting services');
+        }
+        
+    } catch (error) {
+        console.error('Error checking document type:', error);
+    }
 }
 
 // Apply field formatting based on format configuration
@@ -1944,6 +2398,18 @@ async function handleDocumentSubmission(event) {
             fields[fieldId] = input.value;
         });
         
+        // Collect selected services
+        const allowedServicesContainer = document.getElementById('allowedServicesMultiselect');
+        let allowedServices = [];
+        if (allowedServicesContainer && allowedServicesContainer.multiselectInstance) {
+            allowedServices = allowedServicesContainer.multiselectInstance.getSelectedValues();
+        }
+        
+        // Validate services selection
+        if (allowedServices.length === 0) {
+            throw new Error('Выберите хотя бы один сервис для использования документа');
+        }
+        
         // Create document title based on type
         const selectedOption = documentTypeSelect.selectedOptions[0];
         const documentTypeName = selectedOption ? selectedOption.textContent : selectedDocumentType;
@@ -1951,7 +2417,8 @@ async function handleDocumentSubmission(event) {
         const requestData = {
             document_type: selectedDocumentType,
             title: documentTypeName,
-            fields: fields
+            fields: fields,
+            allowed_services: allowedServices
         };
         
         console.log('Sending document data:', requestData);
@@ -1988,6 +2455,14 @@ async function handleDocumentSubmission(event) {
             closeModal(modal);
             form.reset();
             document.getElementById('documentFields').innerHTML = '';
+            
+            // Clear services selection
+            const allowedServicesSelect = document.getElementById('allowedServicesSelect');
+            if (allowedServicesSelect) {
+                Array.from(allowedServicesSelect.options).forEach(option => {
+                    option.selected = false;
+                });
+            }
             
             // Clear unified files area
             const newFilesArea = document.getElementById('newDocumentFilesArea');
@@ -2066,9 +2541,27 @@ async function handleEditDocumentSubmission(event) {
             formData[fieldId] = value;
         });
         
+        // Collect selected services
+        const allowedServicesContainer = form.querySelector('#editAllowedServicesMultiselect');
+        let allowedServices = [];
+        if (allowedServicesContainer && allowedServicesContainer.multiselectInstance) {
+            allowedServices = allowedServicesContainer.multiselectInstance.getSelectedValues();
+            console.log('Selected services from multiselect:', allowedServices);
+        } else {
+            console.log('Multiselect container or instance not found');
+        }
+        
         if (hasErrors) {
             throw new Error('Пожалуйста, исправьте ошибки в форме');
         }
+        
+        // Prepare update data
+        const updateData = { 
+            fields: formData,
+            allowed_services: allowedServices
+        };
+        
+        console.log('Sending update data:', updateData);
         
         // Send update request
         const response = await fetch(`/profile/documents/${documentId}`, {
@@ -2076,7 +2569,7 @@ async function handleEditDocumentSubmission(event) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ fields: formData })
+            body: JSON.stringify(updateData)
         });
         
         if (!response.ok) {
@@ -2320,11 +2813,30 @@ async function createDocumentCardWithAttachments(doc) {
         fieldsHtml += '</div>';
     }
 
+    // Create services HTML
+    let servicesHtml = '';
+    if (doc.allowed_services && doc.allowed_services.length > 0) {
+        const serviceNames = {
+            'referal': 'Реферальная программа',
+            'calculators': 'Калькуляторы',
+            'client-service': 'Клиентский сервис'
+        };
+        
+        const serviceLabels = doc.allowed_services.map(serviceKey => 
+            serviceNames[serviceKey] || serviceKey
+        ).join(', ');
+        
+        servicesHtml = `<p><strong>Используется в сервисах:</strong> ${serviceLabels}</p>`;
+    } else {
+        servicesHtml = '<p><strong>Используется в сервисах:</strong> <span class="warning-text">не настроено</span></p>';
+    }
+
     card.innerHTML = `
         <div class="document-info">
             <h4>${doc.title || doc.document_type}</h4>
             <p>Тип: ${doc.document_type}</p>
             <p>Добавлен: ${new Date(doc.created_at).toLocaleDateString('ru-RU')}</p>
+            ${servicesHtml}
             ${fieldsHtml}
         </div>
         <div class="document-bottom-row">
@@ -2338,8 +2850,7 @@ async function createDocumentCardWithAttachments(doc) {
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
-        </div>
-    `;
+        </div>`;
 
     // Add dynamic text switching logic for attachments
     if (attachments.length > 0) {
@@ -2390,11 +2901,19 @@ async function createDocumentCardWithAttachments(doc) {
 function createDocumentCard(doc) {
     const card = document.createElement('div');
     card.className = 'document-card';
+    
+    // Format allowed services for display
+    let servicesDisplay = '';
+    if (doc.allowed_services && doc.allowed_services.length > 0) {
+        servicesDisplay = `<p>Сервисы: ${doc.allowed_services.join(', ')}</p>`;
+    }
+    
     card.innerHTML = `
         <div class="document-info">
             <h4>${doc.title || doc.document_type}</h4>
             <p>Тип: ${doc.document_type}</p>
             <p>Добавлен: ${new Date(doc.created_at).toLocaleDateString('ru-RU')}</p>
+            ${servicesDisplay}
         </div>
         <div class="document-actions">
             <button class="btn btn-secondary btn-edit-doc" data-doc-id="${doc.id}">

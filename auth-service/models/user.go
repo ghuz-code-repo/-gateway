@@ -34,14 +34,15 @@ var (
 
 // DocumentType represents a document type configuration
 type DocumentType struct {
-	ID          string            `bson:"_id" json:"id"`
-	Name        string            `bson:"name" json:"name"`
-	Description string            `bson:"description" json:"description"`
-	Fields      []DocumentField   `bson:"fields" json:"fields"`
-	IsActive    bool              `bson:"is_active" json:"is_active"`
-	Order       int               `bson:"order" json:"order"`
-	CreatedAt   time.Time         `bson:"created_at" json:"created_at"`
-	UpdatedAt   time.Time         `bson:"updated_at" json:"updated_at"`
+	ID            string            `bson:"_id" json:"id"`
+	Name          string            `bson:"name" json:"name"`
+	Description   string            `bson:"description" json:"description"`
+	DocumentGroup string            `bson:"document_group" json:"document_group"`
+	Fields        []DocumentField   `bson:"fields" json:"fields"`
+	IsActive      bool              `bson:"is_active" json:"is_active"`
+	Order         int               `bson:"order" json:"order"`
+	CreatedAt     time.Time         `bson:"created_at" json:"created_at"`
+	UpdatedAt     time.Time         `bson:"updated_at" json:"updated_at"`
 }
 
 // DocumentField represents a field in a document type
@@ -384,6 +385,11 @@ func InitDB(uri, dbName string) error {
 	}
 
 	return nil
+}
+
+// GetDatabase returns the database instance for use in migrations
+func GetDatabase() *mongo.Database {
+	return db
 }
 
 // CreateDefaultPermissions creates default permissions for services

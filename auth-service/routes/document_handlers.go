@@ -35,7 +35,12 @@ func getDocumentTypesHandler(c *gin.Context) {
 
 // getAvailableServicesHandler returns all available services for document usage
 func getAvailableServicesHandler(c *gin.Context) {
-	log.Println("Fetching available services...")
+	log.Println("=== Available Services Handler Called ===")
+	log.Printf("Request method: %s", c.Request.Method)
+	log.Printf("Request path: %s", c.Request.URL.Path)
+	log.Printf("Request headers: %v", c.Request.Header)
+	log.Printf("Client IP: %s", c.ClientIP())
+	
 	services, err := models.GetAllServices()
 	if err != nil {
 		log.Printf("Error fetching services: %v", err)
@@ -77,13 +82,14 @@ func getMyDocumentsHandler(c *gin.Context) {
 	for i, doc := range updatedUser.Documents {
 		log.Printf("Processing document %d: type=%s, title=%s", i, doc.DocumentType, doc.Title)
 		docResponse := map[string]interface{}{
-			"id":            fmt.Sprintf("%d", i), // Use index as ID since documents don't have separate IDs
-			"document_type": doc.DocumentType,
-			"title":         doc.Title,
-			"fields":        doc.Fields,
-			"status":        doc.Status,
-			"created_at":    doc.CreatedAt,
-			"updated_at":    doc.UpdatedAt,
+			"id":               fmt.Sprintf("%d", i), // Use index as ID since documents don't have separate IDs
+			"document_type":    doc.DocumentType,
+			"title":            doc.Title,
+			"fields":           doc.Fields,
+			"status":           doc.Status,
+			"created_at":       doc.CreatedAt,
+			"updated_at":       doc.UpdatedAt,
+			"allowed_services": doc.AllowedServices, // Add allowed_services field
 		}
 		documents = append(documents, docResponse)
 	}
@@ -122,13 +128,14 @@ func getUserDocumentHandler(c *gin.Context) {
 
 	doc := updatedUser.Documents[docIndex]
 	docResponse := map[string]interface{}{
-		"id":            fmt.Sprintf("%d", docIndex),
-		"document_type": doc.DocumentType,
-		"title":         doc.Title,
-		"fields":        doc.Fields,
-		"status":        doc.Status,
-		"created_at":    doc.CreatedAt,
-		"updated_at":    doc.UpdatedAt,
+		"id":               fmt.Sprintf("%d", docIndex),
+		"document_type":    doc.DocumentType,
+		"title":            doc.Title,
+		"fields":           doc.Fields,
+		"status":           doc.Status,
+		"created_at":       doc.CreatedAt,
+		"updated_at":       doc.UpdatedAt,
+		"allowed_services": doc.AllowedServices, // Add allowed_services field
 	}
 
 	c.JSON(http.StatusOK, docResponse)
@@ -321,9 +328,10 @@ func createUserDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	
 	var request struct {
-		DocumentType string                 `json:"document_type"`
-		Title        string                 `json:"title"`
-		Fields       map[string]interface{} `json:"fields"`
+		DocumentType    string                 `json:"document_type"`
+		Title           string                 `json:"title"`
+		Fields          map[string]interface{} `json:"fields"`
+		AllowedServices []string               `json:"allowed_services"`
 	}
 	
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -342,40 +350,83 @@ func createUserDocumentHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Название документа обязательно"})
 		return
 	}
+
+	// Check if user already has documents of this type
+	hasExistingDocuments := false
+	for _, doc := range user.Documents {
+		if doc.DocumentType == request.DocumentType {
+			hasExistingDocuments = true
+			break
+		}
+	}
+
+	// If this is the first document of this type and no services are specified,
+	// automatically assign all available services
+	var finalAllowedServices []string
+	if len(request.AllowedServices) == 0 && !hasExistingDocuments {
+		// Get all available services
+		services, err := models.GetAllServices()
+		if err != nil {
+			log.Printf("Error getting services for auto-assignment: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении списка сервисов"})
+			return
+		}
+		
+		for _, service := range services {
+			finalAllowedServices = append(finalAllowedServices, service.Key)
+		}
+		
+		log.Printf("Auto-assigning all services to first %s document for user %s: %v", 
+			request.DocumentType, user.Username, finalAllowedServices)
+	} else {
+		finalAllowedServices = request.AllowedServices
+	}
+
+	// Validate that services are provided (either manually or auto-assigned)
+	if len(finalAllowedServices) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Выберите хотя бы один сервис для использования документа"})
+		return
+	}
+
+	// Get updated user data to ensure we have the latest documents
+	updatedUser, err := models.GetUserByID(user.ID.Hex())
+	if err != nil {
+		log.Printf("Error getting user: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
+		return
+	}
+
+	// Resolve conflicts: remove services from other documents of the same type
+	// REMOVED: Uniqueness constraint - now allowing multiple documents of same type per service
+	log.Printf("Creating document of type '%s' for user %s with services: %v", request.DocumentType, user.Username, finalAllowedServices)
 	
 	// Create new document
 	newDoc := models.UserDocument{
-		DocumentType: request.DocumentType,
-		Title:        request.Title,
-		Fields:       request.Fields,
-		Status:       "draft",
-		Attachments:  []models.DocumentAttachment{},
+		DocumentType:    request.DocumentType,
+		Title:           request.Title,
+		Fields:          request.Fields,
+		AllowedServices: finalAllowedServices,
+		Status:          "draft",
+		Attachments:     []models.DocumentAttachment{},
 	}
 	
 	if newDoc.Fields == nil {
 		newDoc.Fields = make(map[string]interface{})
 	}
+
+	// Add the new document to the user's documents
+	updatedUser.Documents = append(updatedUser.Documents, newDoc)
 	
-	// Add document to user
-	if err := models.AddUserDocumentNew(user.ID, newDoc); err != nil {
-		log.Printf("Error adding document: %v", err)
+	// Save all updated documents (including the new one and any modified existing ones)
+	err = models.UpdateUserDocuments(updatedUser.ID, updatedUser.Documents)
+	if err != nil {
+		log.Printf("Error saving documents: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при создании документа"})
 		return
 	}
 
-	// Get updated user to get the document ID
-	updatedUser, err := models.GetUserByID(user.ID.Hex())
-	if err != nil {
-		log.Printf("Error getting updated user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении документа"})
-		return
-	}
-
-	// Find the last document (newest one)
-	var documentId string
-	if len(updatedUser.Documents) > 0 {
-		documentId = fmt.Sprintf("%d", len(updatedUser.Documents)-1) // Use index as ID
-	}
+	// Calculate the document ID (index of the newly added document)
+	documentId := fmt.Sprintf("%d", len(updatedUser.Documents)-1)
 
 	log.Printf("Document created successfully for user %s: %s", user.Username, request.Title)
 	c.JSON(http.StatusCreated, gin.H{
@@ -416,7 +467,8 @@ func updateUserDocumentHandler(c *gin.Context) {
 
 	// Get form data
 	var updateData struct {
-		Fields map[string]interface{} `json:"fields"`
+		Fields          map[string]interface{} `json:"fields"`
+		AllowedServices []string               `json:"allowed_services"`
 	}
 
 	// Try to parse JSON first
@@ -427,20 +479,30 @@ func updateUserDocumentHandler(c *gin.Context) {
 	}
 
 	log.Printf("Update data fields: %v", updateData.Fields)
+	log.Printf("Update data allowed_services: %v", updateData.AllowedServices)
 
-	// Update document fields directly
+	// Update document fields and services
 	if len(updateData.Fields) > 0 {
-		// Update the document fields directly
 		updatedUser.Documents[docIndex].Fields = updateData.Fields
-		updatedUser.Documents[docIndex].UpdatedAt = time.Now()
+	}
+	
+	// Update allowed services if provided (removed uniqueness enforcement)
+	if updateData.AllowedServices != nil {
+		log.Printf("Updating allowed services for document type '%s': %v", updatedUser.Documents[docIndex].DocumentType, updateData.AllowedServices)
 		
-		// Save updated documents
-		err = models.UpdateUserDocuments(user.ID, updatedUser.Documents)
-		if err != nil {
-			log.Printf("Error updating document fields: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить поля документа"})
-			return
-		}
+		// Set the allowed services for the current document
+		updatedUser.Documents[docIndex].AllowedServices = updateData.AllowedServices
+	}
+	
+	// Always update timestamp
+	updatedUser.Documents[docIndex].UpdatedAt = time.Now()
+	
+	// Save updated documents
+	err = models.UpdateUserDocuments(user.ID, updatedUser.Documents)
+	if err != nil {
+		log.Printf("Error updating document: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить документ"})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{

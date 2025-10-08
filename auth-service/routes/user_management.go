@@ -1229,9 +1229,10 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 	log.Printf("Admin creating document for user: %s", userID)
 
 	var req struct {
-		DocumentType string                 `json:"document_type"`
-		Title        string                 `json:"title"`
-		Fields       map[string]interface{} `json:"fields"`
+		DocumentType    string                 `json:"document_type"`
+		Title           string                 `json:"title"`
+		Fields          map[string]interface{} `json:"fields"`
+		AllowedServices []string               `json:"allowed_services"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1250,6 +1251,11 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 		return
 	}
 
+	if len(req.AllowedServices) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Выберите хотя бы один сервис для использования документа"})
+		return
+	}
+
 	// Convert userID string to ObjectID
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
@@ -1260,11 +1266,12 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 
 	// Create new document
 	newDoc := models.UserDocument{
-		DocumentType: req.DocumentType,
-		Title:        req.Title,
-		Fields:       req.Fields,
-		Status:       "draft",
-		Attachments:  []models.DocumentAttachment{},
+		DocumentType:    req.DocumentType,
+		Title:           req.Title,
+		Fields:          req.Fields,
+		AllowedServices: req.AllowedServices,
+		Status:          "draft",
+		Attachments:     []models.DocumentAttachment{},
 	}
 	
 	// Add document to user

@@ -25,6 +25,20 @@ func GetDocumentTypeByID(id string) (*DocumentType, error) {
 	return &docType, nil
 }
 
+// GetDocumentTypeByKey retrieves a document type by its key (ID)
+func GetDocumentTypeByKey(key string) (*DocumentType, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var docType DocumentType
+	err := documentTypesCol.FindOne(ctx, bson.M{"_id": key}).Decode(&docType)
+	if err != nil {
+		return nil, err
+	}
+
+	return &docType, nil
+}
+
 // GetAllDocumentTypes retrieves all active document types
 func GetAllDocumentTypes() ([]DocumentType, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

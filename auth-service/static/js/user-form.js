@@ -1544,8 +1544,8 @@ async function loadAvailableServicesAdmin() {
     }
     
     try {
-        console.log('Sending request to /services...');
-        const response = await fetch('/services');
+        console.log('Sending request to /available-services...');
+        const response = await fetch('/available-services');
         console.log('Response status:', response.status);
         console.log('Response OK:', response.ok);
         
@@ -1950,11 +1950,20 @@ async function handleDocumentSubmissionAdmin(event) {
             }
         });
         
+        // Get allowed services
+        const servicesSelect = document.getElementById('allowedServicesSelect');
+        const allowedServices = Array.from(servicesSelect.selectedOptions).map(option => option.value);
+        
+        if (allowedServices.length === 0) {
+            throw new Error('Выберите хотя бы один сервис для использования документа');
+        }
+        
         // Create document data
         const documentData = {
             document_type: documentType,
             title: documentType, // Use document type as title
-            fields: fields
+            fields: fields,
+            allowed_services: allowedServices
         };
         
         console.log('Submitting document:', documentData);
