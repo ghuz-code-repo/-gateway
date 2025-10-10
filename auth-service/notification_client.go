@@ -110,9 +110,9 @@ func InitNotificationClient() {
 // SendEmailNotificationViaServiceImpl sends an email notification via the notification service
 func SendEmailNotificationViaServiceImpl(to, subject, body string) error {
 	if notificationClient == nil {
-		// Fallback to old method if notification service is not available
-		log.Printf("Notification service client not initialized, falling back to direct email")
-		return models.SendEmailNotification(to, subject, body)
+		// No fallback - return error if notification service is not available
+		log.Printf("ERROR: Notification service client not initialized")
+		return fmt.Errorf("notification service client not initialized")
 	}
 
 	return notificationClient.SendEmailNotification(to, subject, body)
