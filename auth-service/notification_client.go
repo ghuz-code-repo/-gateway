@@ -102,9 +102,11 @@ var notificationClient *NotificationClient
 
 // InitNotificationClient initializes the global notification client
 func InitNotificationClient() {
+	log.Println("🔧 Initializing notification service client...")
 	notificationClient = NewNotificationClient()
 	// Set the function pointer in models package
 	models.SendEmailNotificationViaService = SendEmailNotificationViaServiceImpl
+	log.Printf("✅ Notification service client initialized: %s\n", notificationClient.BaseURL)
 }
 
 // SendEmailNotificationViaServiceImpl sends an email notification via the notification service
