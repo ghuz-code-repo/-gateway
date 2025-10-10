@@ -182,10 +182,10 @@ func main() {
 	checkAndCleanupAvatars()
 
 	// Initialize notification service client
-	// InitNotificationClient()
+	InitNotificationClient()
 
 	// Configure notification service with current SMTP settings
-	// ConfigureNotificationService()
+	ConfigureNotificationService()
 
 	// Setup router
 	router := gin.Default()

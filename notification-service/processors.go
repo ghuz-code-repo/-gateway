@@ -133,16 +133,22 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 
 // sendEmail sends an email notification
 func (ns *NotificationService) sendEmail(notification *Notification) error {
+	log.Printf("📧 Sending email to %s, subject: %s", notification.Recipient, notification.Subject)
+	
 	config := ns.getEmailConfig()
 
 	// Validate configuration
 	if config.Host == "" || config.Port == "" {
+		log.Printf("❌ SMTP configuration incomplete: host=%s, port=%s", config.Host, config.Port)
 		return fmt.Errorf("SMTP configuration not complete")
 	}
 
 	if config.UseAuth && (config.Username == "" || config.Password == "") {
+		log.Printf("❌ SMTP authentication required but credentials not provided")
 		return fmt.Errorf("SMTP authentication required but credentials not provided")
 	}
+	
+	log.Printf("🔧 Using SMTP: %s:%s, auth=%v, tls=%v", config.Host, config.Port, config.UseAuth, config.UseTLS)
 
 	// Compose message
 	message := []string{
@@ -191,6 +197,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 
 	// Authenticate if needed
 	if config.UseAuth {
+		log.Printf("🔑 Authenticating with method: %s, user: %s", config.AuthMethod, config.Username)
 		var auth smtp.Auth
 		switch strings.ToLower(config.AuthMethod) {
 		case "plain":
@@ -204,8 +211,10 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		}
 
 		if err = client.Auth(auth); err != nil {
+			log.Printf("❌ SMTP authentication failed: %v", err)
 			return fmt.Errorf("SMTP authentication error: %v", err)
 		}
+		log.Printf("✅ SMTP authentication successful")
 	}
 
 	// Set sender and recipient
@@ -230,9 +239,11 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 
 	err = wc.Close()
 	if err != nil {
+		log.Printf("❌ Failed to close SMTP data connection: %v", err)
 		return fmt.Errorf("SMTP data close error: %v", err)
 	}
 
+	log.Printf("✅ Email successfully sent to %s (notification #%d)", notification.Recipient, notification.ID)
 	return nil
 }
 

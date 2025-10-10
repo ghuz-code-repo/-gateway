@@ -127,19 +127,28 @@ func isInternalIP(ip string) bool {
 }
 
 func main() {
+	log.Println("========================================")
+	log.Println("🚀 Notification Service Starting...")
+	log.Println("========================================")
+	
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using system environment variables")
+		log.Println("⚠️  No .env file found, using system environment variables")
+	} else {
+		log.Println("✅ Environment variables loaded from .env")
 	}
 
 	// Initialize database
+	log.Println("📦 Connecting to database...")
 	db, err := initDB()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("❌ Failed to connect to database: %v", err)
 	}
+	log.Println("✅ Database connected successfully")
 
 	// Create service instance
 	service := &NotificationService{db: db}
+	log.Println("✅ Notification service instance created")
 
 	// Initialize router
 	router := gin.Default()
@@ -178,9 +187,13 @@ func main() {
 		port = "8082"
 	}
 
-	log.Printf("Starting notification service on port %s", port)
+	log.Println("========================================")
+	log.Printf("🌐 Starting notification service on port %s", port)
+	log.Println("📧 Ready to process email notifications")
+	log.Println("========================================")
+	
 	if err := router.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Fatalf("❌ Failed to start server: %v", err)
 	}
 }
 
@@ -264,6 +277,7 @@ func (ns *NotificationService) setupRoutes(router *gin.Engine) {
 func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 	var req BatchNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("❌ Failed to parse batch notification request: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -273,6 +287,8 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 		req.BatchID = generateBatchID()
 	}
 
+	log.Printf("📦 Received batch notification request: batch_id=%s, count=%d", req.BatchID, len(req.Notifications))
+
 	// Create batch record
 	batch := NotificationBatch{
 		ID:          req.BatchID,
@@ -281,6 +297,7 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 	}
 
 	if err := ns.db.Create(&batch).Error; err != nil {
+		log.Printf("❌ Failed to create batch %s: %v", req.BatchID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create batch"})
 		return
 	}
@@ -298,9 +315,12 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 	}
 
 	if err := ns.db.Create(&notifications).Error; err != nil {
+		log.Printf("❌ Failed to create notifications for batch %s: %v", req.BatchID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create notifications"})
 		return
 	}
+
+	log.Printf("✅ Batch %s created with %d notifications, starting processing...", req.BatchID, len(notifications))
 
 	// Start processing in background
 	go ns.processBatch(req.BatchID)
@@ -314,9 +334,12 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 	var req SingleNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("❌ Failed to parse notification request: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	log.Printf("📧 Received notification: type=%s, recipient=%s, subject=%s", req.Type, req.Recipient, req.Subject)
 
 	// Create notification
 	notification := Notification{
@@ -327,9 +350,12 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 	}
 
 	if err := ns.db.Create(&notification).Error; err != nil {
+		log.Printf("❌ Failed to create notification: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create notification"})
 		return
 	}
+
+	log.Printf("✅ Notification #%d created, starting processing...", notification.ID)
 
 	// Process immediately
 	go ns.processNotification(&notification)
