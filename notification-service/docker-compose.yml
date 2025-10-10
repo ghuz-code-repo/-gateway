@@ -3,17 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8082:8082"  # Для отладки - можно убрать в production
+    # НЕТ ПОРТОВ НАРУЖУ! Доступ только через внутреннюю сеть
+    env_file:
+      - .env
     environment:
       - TZ=Asia/Tashkent
-      - PORT=8082
-      - DB_HOST=notification-postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=notification_password
-      - DB_NAME=notifications
-      - DB_SSLMODE=disable
     depends_on:
       - notification-postgres
     networks:
@@ -31,8 +25,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=notification_password
       - TZ=Asia/Tashkent
-    ports:
-      - "5433:5432"
+    # НЕТ ПОРТОВ НАРУЖУ! Полная изоляция БД
     volumes:
       - notification_postgres_data:/var/lib/postgresql/data
     networks:
@@ -51,7 +44,7 @@ networks:
   # Публичная сеть - для приема запросов от auth-service и других сервисов
   # Подключается к существующей сети из главного docker-compose
   public_network:
-    name: gateway_public_network
+    name: public_network
     external: true
   
   # SMTP сеть - для отправки на внешние SMTP серверы

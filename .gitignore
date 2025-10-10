@@ -6,3 +6,4 @@
 mongo_data/*
 /auth-service/data
 *.exe
+notification-service/.env

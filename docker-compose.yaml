@@ -61,21 +61,20 @@ services:
       - TZ=Asia/Tashkent
 
 networks:
-  # Публичная сеть - shared между gateway и notification-service
-  # Используется для связи auth-service -> notification-service
+  # Публичная сеть - для nginx и всех сервисов
   public_network:
-    name: gateway_public_network
+    name: public_network
     driver: bridge
   
-  # Внутренние сети - создаются автоматически
+  # Внутренние сети
   auth_network:
+    name: auth_network
     driver: bridge
-    internal: true
   
   service_network:
+    name: service_network
     driver: bridge
-    internal: true
   
   data_network:
+    name: data_network
     driver: bridge
-    internal: true
