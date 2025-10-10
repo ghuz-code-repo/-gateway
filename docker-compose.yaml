@@ -28,12 +28,10 @@ services:
       - ./auth-service/.env
     depends_on:
       - mongo
-      - notification-service
     networks:
       - auth_network
       - data_network
       - public_network
-      - notification_network
     volumes:
       - ./auth-service/data:/root/data
       - ./auth-service/static:/root/static
@@ -43,35 +41,10 @@ services:
       - NOTIFICATION_SERVICE_URL=http://notification-service:8082
     restart: always
 
-  notification-service:
-    build:
-      context: ./notification-service
-      dockerfile: Dockerfile
-    env_file:
-      - ./notification-service/.env
-    # Убираем внешний порт - доступ только изнутри
-    depends_on:
-      - notification-postgres
-    networks:
-      - notification_network  # Только внутренняя сеть
-    environment:
-      - TZ=Asia/Tashkent
-    restart: always
-    volumes:
-      - ./notification-service/logs:/var/log/notification-service
-
-  notification-postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_DB=notifications
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=notification_password
-      - TZ=Asia/Tashkent
-    volumes:
-      - notification_postgres_data:/var/lib/postgresql/data
-    networks:
-      - notification_network
-    restart: always
+  # notification-service и notification-postgres
+  # Теперь запускаются отдельным docker-compose.yml
+  # в папке ./notification-service/
+  # Это позволяет пересобирать их независимо
 
   mongo:
     image: mongo:6
@@ -87,21 +60,22 @@ services:
       - MONGO_INITDB_DATABASE=authdb
       - TZ=Asia/Tashkent
 
-volumes:
-  notification_postgres_data:
-
 networks:
+  # Публичная сеть - shared между gateway и notification-service
+  # Используется для связи auth-service -> notification-service
   public_network:
-    name: public_network
+    name: gateway_public_network
+    driver: bridge
+  
+  # Внутренние сети - создаются автоматически
   auth_network:
-    name: auth_network
+    driver: bridge
     internal: true
+  
   service_network:
-    name: service_network
+    driver: bridge
     internal: true
+  
   data_network:
-    name: data_network
+    driver: bridge
     internal: true
-  notification_network:
-    name: notification_network
-    # Не internal - нужен доступ к внешним SMTP серверам

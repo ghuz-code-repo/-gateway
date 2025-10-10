@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8082:8082"
+      - "8082:8082"  # Для отладки - можно убрать в production
     environment:
       - TZ=Asia/Tashkent
       - PORT=8082
@@ -17,8 +17,9 @@ services:
     depends_on:
       - notification-postgres
     networks:
-      - notification_network
-      - public_network
+      - notification_network  # Для доступа к БД
+      - public_network       # Для приема запросов от других сервисов
+      - smtp_network         # Для отправки на внешние SMTP серверы
     restart: always
     volumes:
       - ./logs:/var/log/notification-service
@@ -42,9 +43,19 @@ volumes:
   notification_postgres_data:
 
 networks:
+  # Внутренняя сеть для БД - полностью изолированная
   notification_network:
-    name: notification_network
+    driver: bridge
     internal: true
+  
+  # Публичная сеть - для приема запросов от auth-service и других сервисов
+  # Подключается к существующей сети из главного docker-compose
   public_network:
-    name: public_network
+    name: gateway_public_network
     external: true
+  
+  # SMTP сеть - для отправки на внешние SMTP серверы
+  # НЕ internal - разрешаем внешние соединения
+  smtp_network:
+    driver: bridge
+    internal: false
