@@ -324,18 +324,45 @@ func (ns *NotificationService) getEmailConfig() EmailConfig {
 		Debug:      debug,
 	}
 
-	// Use fallback values if database values are empty
+	// Use environment variables as fallback if database values are empty
 	if config.Host == "" {
-		config.Host = "smtp.gmail.com"
+		config.Host = os.Getenv("SMTP_HOST")
+		if config.Host == "" {
+			config.Host = "smtp.gmail.com"
+		}
 	}
 	if config.Port == "" {
-		config.Port = "587"
+		config.Port = os.Getenv("SMTP_PORT")
+		if config.Port == "" {
+			config.Port = "587"
+		}
+	}
+	if config.Username == "" {
+		config.Username = os.Getenv("SMTP_USERNAME")
+	}
+	if config.Password == "" {
+		config.Password = os.Getenv("SMTP_PASSWORD")
 	}
 	if config.From == "" {
-		config.From = config.Username
+		config.From = os.Getenv("SMTP_FROM")
+		if config.From == "" {
+			config.From = config.Username
+		}
 	}
 	if config.AuthMethod == "" {
-		config.AuthMethod = "plain"
+		config.AuthMethod = os.Getenv("SMTP_AUTH_METHOD")
+		if config.AuthMethod == "" {
+			config.AuthMethod = "plain"
+		}
+	}
+	// Parse boolean environment variables if not set in DB
+	if !config.UseTLS {
+		useTLS, _ := strconv.ParseBool(os.Getenv("SMTP_USE_TLS"))
+		config.UseTLS = useTLS
+	}
+	if !config.UseAuth {
+		useAuth, _ := strconv.ParseBool(os.Getenv("SMTP_USE_AUTH"))
+		config.UseAuth = useAuth
 	}
 
 	return config
