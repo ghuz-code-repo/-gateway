@@ -34,9 +34,9 @@ func setupTemplateFunc() template.FuncMap {
 			}
 			return a / b
 		},
-		"hasAdminRole": func(roles []string) bool {
-			for _, role := range roles {
-				if role == "admin" {
+		"hasAdminRole": func(serviceRoles []models.UserServiceRole) bool {
+			for _, sr := range serviceRoles {
+				if sr.IsActive && sr.ServiceKey == "system" && sr.RoleName == "admin" {
 					return true
 				}
 			}

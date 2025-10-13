@@ -333,6 +333,9 @@ func updateUserHandler(c *gin.Context) {
 	systemAdmin := c.PostForm("system_admin") // New system admin toggle
 	serviceRoles := c.PostFormArray("roles") // Format: "serviceKey-roleName" from template
 
+	// DEBUG: Log received roles
+	log.Printf("DEBUG updateUserHandler: userID=%s, systemAdmin=%s, serviceRoles=%v", userID, systemAdmin, serviceRoles)
+
 	// Get existing user
 	existingUser, err := models.GetUserByID(objectID.Hex())
 	if err != nil {
@@ -415,18 +418,41 @@ func updateUserHandler(c *gin.Context) {
 	}
 
 	// Update service roles
+	log.Printf("DEBUG: Starting service roles update for user %s", objectID.Hex())
+	log.Printf("DEBUG: Received %d service roles: %v", len(serviceRoles), serviceRoles)
+	
 	// First, deactivate all existing service roles for this user
 	err = models.DeactivateUserServiceRoles(objectID)
 	if err != nil {
 		log.Printf("Warning: Failed to deactivate existing service roles for user %s: %v", objectID.Hex(), err)
+	} else {
+		log.Printf("DEBUG: Deactivated existing service roles for user %s", objectID.Hex())
 	}
 
 	// Then assign new service roles
+	assignedCount := 0
 	for _, serviceRole := range serviceRoles {
-		parts := strings.Split(serviceRole, "-")
-		if len(parts) == 2 {
-			serviceKey := parts[0]
-			roleName := parts[1]
+		log.Printf("DEBUG: Processing service role: %s", serviceRole)
+		// Support both formats: "serviceKey:roleName" (new) and "serviceKey-roleName" (legacy)
+		var serviceKey, roleName string
+		if strings.Contains(serviceRole, ":") {
+			parts := strings.SplitN(serviceRole, ":", 2)
+			if len(parts) == 2 {
+				serviceKey = parts[0]
+				roleName = parts[1]
+			}
+		} else {
+			// Legacy format with dash - use SplitN to handle roles with dashes in name
+			parts := strings.SplitN(serviceRole, "-", 2)
+			if len(parts) == 2 {
+				serviceKey = parts[0]
+				roleName = parts[1]
+			}
+		}
+		
+		if serviceKey != "" && roleName != "" {
+			
+			log.Printf("DEBUG: Assigning role %s:%s to user %s", serviceKey, roleName, objectID.Hex())
 			
 			userServiceRole := models.UserServiceRole{
 				UserID:     objectID,
@@ -438,11 +464,17 @@ func updateUserHandler(c *gin.Context) {
 			}
 			
 			if err := models.CreateUserServiceRole(userServiceRole); err != nil {
-				log.Printf("Warning: Failed to assign service role %s:%s to user %s: %v", 
+				log.Printf("ERROR: Failed to assign service role %s:%s to user %s: %v", 
 					serviceKey, roleName, objectID.Hex(), err)
+			} else {
+				log.Printf("DEBUG: Successfully assigned role %s:%s to user %s", serviceKey, roleName, objectID.Hex())
+				assignedCount++
 			}
+		} else {
+			log.Printf("WARNING: Invalid service role format: %s (expected format: serviceKey-roleName)", serviceRole)
 		}
 	}
+	log.Printf("DEBUG: Assigned %d service roles to user %s", assignedCount, objectID.Hex())
 
 	// Check if user data changed significantly to warrant email notification
 	dataChanged := existingUser.Email != updatedUser.Email ||
