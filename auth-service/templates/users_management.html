@@ -117,24 +117,15 @@
                                 <!-- Роли в компактном виде -->
                                 <div class="user-roles">
                                     <span>Роли:</span>
-                                    {{ if .User.Roles }}
-                                        {{ range .User.Roles }}
-                                        <span class="role-badge">{{ . }}</span>
-                                        {{ end }}
-                                    {{ end }}
+                                    {{ $hasAnyRoles := false }}
                                     {{ range $serviceRole := .ServiceRoles }}
                                         {{ if $serviceRole.IsActive }}
-                                        <span class="role-badge service-role-badge">{{ $serviceRole.ServiceKey }}:{{ $serviceRole.RoleName }}</span>
+                                            {{ $hasAnyRoles = true }}
+                                            <span class="role-badge service-role-badge">{{ $serviceRole.ServiceKey }}:{{ $serviceRole.RoleName }}</span>
                                         {{ end }}
                                     {{ end }}
-                                    {{ if not .User.Roles }}
-                                        {{ $hasServiceRoles := false }}
-                                        {{ range $serviceRole := .ServiceRoles }}
-                                            {{ if $serviceRole.IsActive }}{{ $hasServiceRoles = true }}{{ end }}
-                                        {{ end }}
-                                        {{ if not $hasServiceRoles }}
+                                    {{ if not $hasAnyRoles }}
                                         <span class="role-badge">нет ролей</span>
-                                        {{ end }}
                                     {{ end }}
                                 </div>
                             </div>
@@ -150,7 +141,7 @@
                                 </button>
                                 
                                 <!-- Кнопки административных действий -->
-                                {{ if not (hasAdminRole .User.Roles) }}
+                                {{ if not (hasAdminRole .ServiceRoles) }}
                                 {{ if .User.IsBanned }}
                                 <button type="button" class="btn small success" onclick="unbanUser('{{ .User.ID.Hex }}')">
                                     <i class="fas fa-unlock"></i> Разблокировать

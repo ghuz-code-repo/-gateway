@@ -155,16 +155,8 @@ func adminAuthRequired() gin.HandlerFunc {
 		c.Set("full_name", user.GetFullName())
 		c.Set("short_name", user.GetShortName())
 
-		// Check if user has admin role (legacy 'admin' or new 'system.admin')
-		isAdmin := false
-		for _, roleName := range user.Roles {
-			if roleName == "admin" || roleName == "system.admin" {
-				isAdmin = true
-				break
-			}
-		}
-
-		if !isAdmin {
+		// Check if user has system admin role using new service_roles system
+		if !hasAdminRole(user) {
 			c.HTML(http.StatusForbidden, "error.html", gin.H{
 				"error": "У вас нет прав для доступа к панели администратора",
 			})
@@ -214,14 +206,8 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		c.Set("full_name", user.GetFullName())
 		c.Set("short_name", user.GetShortName())
 
-		// Check if user is system admin (by role, not username)
-		isSystemAdmin := false
-		for _, roleName := range user.Roles {
-			if roleName == "admin" || roleName == "system.admin" {
-				isSystemAdmin = true
-				break
-			}
-		}
+		// Check if user is system admin using new service_roles system
+		isSystemAdmin := hasAdminRole(user)
 		
 		// If system admin, allow access to everything
 		if isSystemAdmin {
@@ -309,9 +295,16 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 
 // hasAdminRole checks if a user is a system administrator
 func hasAdminRole(user *models.User) bool {
-	// Check if user has 'admin' role (legacy) or 'system.admin' role (new)
-	for _, roleName := range user.Roles {
-		if roleName == "admin" || roleName == "system.admin" {
+	// Check service_roles for system.admin role
+	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
+	if err != nil {
+		fmt.Printf("Ошибка получения ролей для пользователя %s: %v\n", user.Username, err)
+		return false
+	}
+	
+	// Check if user has 'admin' role in 'system' service
+	for _, serviceRole := range userServiceRoles {
+		if serviceRole.IsActive && serviceRole.ServiceKey == "system" && serviceRole.RoleName == "admin" {
 			return true
 		}
 	}
