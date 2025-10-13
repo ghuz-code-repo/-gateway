@@ -305,6 +305,7 @@ func forgotPasswordPageHandler(c *gin.Context) {
 // forgotPasswordHandler handles forgot password form submission
 func forgotPasswordHandler(c *gin.Context) {
 	identifier := c.PostForm("identifier")
+	log.Printf("DEBUG: Forgot password request for identifier: %s", identifier)
 	
 	if identifier == "" {
 		c.HTML(http.StatusBadRequest, "forgot-password.html", gin.H{
@@ -314,14 +315,18 @@ func forgotPasswordHandler(c *gin.Context) {
 	}
 
 	// Check if user exists by email or username
+	log.Printf("DEBUG: Looking up user by identifier: %s", identifier)
 	user, err := models.GetUserByEmailOrUsername(identifier)
 	if err != nil || user == nil {
 		// Don't reveal if user exists or not for security
+		log.Printf("DEBUG: User not found for identifier: %s (err: %v)", identifier, err)
 		c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
 			"success": "Если учетная запись с таким email или именем пользователя существует, мы отправили ссылку для восстановления пароля",
 		})
 		return
 	}
+
+	log.Printf("DEBUG: User found: %s (email: %s)", user.Username, user.Email)
 
 	// Check if user has a valid email address
 	if user.Email == "" {
@@ -335,6 +340,7 @@ func forgotPasswordHandler(c *gin.Context) {
 	}
 
 	// Create password reset token using user's email
+	log.Printf("DEBUG: Creating password reset token for email: %s", user.Email)
 	token, err := models.CreatePasswordResetToken(user.Email)
 	if err != nil {
 		log.Printf("Error creating password reset token: %v", err)
@@ -343,6 +349,7 @@ func forgotPasswordHandler(c *gin.Context) {
 		})
 		return
 	}
+	log.Printf("DEBUG: Token created successfully: %s", token.Token)
 
 	// Get base URL from environment or use default
 	baseURL := os.Getenv("BASE_URL")
@@ -351,11 +358,14 @@ func forgotPasswordHandler(c *gin.Context) {
 	}
 	
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", baseURL, token.Token)
+	log.Printf("DEBUG: Reset link generated: %s", resetLink)
 	
 	// Send email with reset link using template
 	emailSubject, emailBody := models.GetPasswordResetEmail(user.FullName, resetLink)
+	log.Printf("DEBUG: Email template prepared, subject: %s", emailSubject)
 	
 	// Try to send email
+	log.Printf("DEBUG: Calling SendEmailNotificationNew for: %s", user.Email)
 	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
 	if err != nil {
 		log.Printf("Failed to send password reset email to %s: %v", user.Email, err)
