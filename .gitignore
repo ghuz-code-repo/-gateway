@@ -9,4 +9,4 @@ mongo_data/*
 ./notification-service/.env
 .exe
 /notification-service/*
-lo.env
+.env
