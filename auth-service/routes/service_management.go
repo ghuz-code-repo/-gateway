@@ -364,11 +364,19 @@ func createServiceRoleHandler(c *gin.Context) {
 	var permissions []string
 	c.Request.ParseForm()
 	log.Printf("DEBUG createServiceRoleHandler: PostForm data: %+v", c.Request.PostForm)
-	for key, values := range c.Request.PostForm {
-		if len(key) > 5 && key[:5] == "perm_" && len(values) > 0 && values[0] == "on" {
-			permName := key[5:] // Remove "perm_" prefix
-			permissions = append(permissions, permName)
-			log.Printf("DEBUG createServiceRoleHandler: Added permission: %s", permName)
+	
+	// Get permissions from checkbox array (modern form uses name="permissions")
+	permissions = c.Request.Form["permissions"]
+	log.Printf("DEBUG createServiceRoleHandler: Permissions from form array: %v", permissions)
+	
+	// Fallback: check for old format with perm_ prefix (if any legacy forms exist)
+	if len(permissions) == 0 {
+		for key, values := range c.Request.PostForm {
+			if len(key) > 5 && key[:5] == "perm_" && len(values) > 0 && values[0] == "on" {
+				permName := key[5:] // Remove "perm_" prefix
+				permissions = append(permissions, permName)
+				log.Printf("DEBUG createServiceRoleHandler: Added permission from perm_ format: %s", permName)
+			}
 		}
 	}
 	
