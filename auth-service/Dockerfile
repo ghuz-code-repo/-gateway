@@ -16,8 +16,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -o auth-service .
 # Final stage
 FROM alpine:3.21
 
-# Install timezone data and ca-certificates
-RUN apk --no-cache add ca-certificates tzdata
+# Install timezone data, ca-certificates, and docker CLI
+RUN apk --no-cache add ca-certificates tzdata docker-cli
 
 # Set timezone
 ENV TZ=Asia/Tashkent

@@ -30,7 +30,20 @@ func SetupAllRoutes(router *gin.Engine) {
 		api.GET("/users/:userId/documents/for-service/:serviceKey", getUserDocumentsForServiceAPIHandler)
 		api.POST("/users/:userId/documents", createUserDocumentAPIHandler)
 		api.GET("/users/:userId/profile", getUserProfileAPIHandler)
+		
+		// Service Registry API (Service Discovery)
+		registry := api.Group("/registry")
+		{
+			registry.POST("/register", registerServiceInstanceHandler)
+			registry.DELETE("/unregister/:serviceKey", unregisterServiceInstanceHandler)
+			registry.POST("/heartbeat", heartbeatHandler)
+			registry.GET("/services", listServiceInstancesHandler)
+			registry.GET("/services/:serviceKey", getServiceInstancesHandler)
+		}
 	}
+	
+	// Start health check monitor in background
+	startHealthCheckMonitor()
 }
 
 // SetupAuthRoutes configures all the routes for authentication
@@ -119,6 +132,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 	router.GET("/services/", adminAuthRequired(), listServicesHandlerWithAccess)
 	router.GET("/services/new", adminAuthRequired(), showServiceFormHandler)
 	router.POST("/services/", adminAuthRequired(), createServiceHandler)
+	router.POST("/services/new", adminAuthRequired(), createServiceHandler)
 	
 	// Service-specific management (service admin or system admin)
 	router.GET("/services/:serviceKey", serviceAdminAuthRequired(), getServiceHandlerWithAccess)

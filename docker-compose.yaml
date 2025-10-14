@@ -3,7 +3,7 @@ services:
     build:
       context: ./nginx
       dockerfile: Dockerfile
-
+    container_name: gateway-nginx-1
     ports:
       - "80:80"
       - "443:443"
@@ -12,6 +12,7 @@ services:
     volumes:
       - ./nginx/conf:/etc/nginx/conf
       - ./nginx/certs:/etc/nginx/certs
+      - nginx_dynamic_config:/etc/nginx/conf.d/dynamic  # For dynamic service configs
     environment:
       - TZ=Asia/Tashkent
     networks:
@@ -36,15 +37,32 @@ services:
       - ./auth-service/data:/root/data
       - ./auth-service/static:/root/static
       - ./auth-service/templates:/root/templates
+      - nginx_dynamic_config:/etc/nginx/conf.d/dynamic  # Shared volume for nginx configs
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access to Docker for nginx reload
     environment:
       - TZ=Asia/Tashkent
       - NOTIFICATION_SERVICE_URL=http://notification-service:8082
+      - NGINX_CONTAINER_NAME=gateway-nginx-1
+      - NGINX_DYNAMIC_CONFIG_PATH=/etc/nginx/conf.d/dynamic/services.conf
     restart: always
 
   # notification-service и notification-postgres
   # Теперь запускаются отдельным docker-compose.yml
   # в папке ./notification-service/
   # Это позволяет пересобирать их независимо
+
+  # Demo service for testing service discovery
+  demo-service:
+    build:
+      context: ./demo-service
+      dockerfile: Dockerfile
+    container_name: demo-service
+    networks:
+      - service_network
+      - auth_network
+    environment:
+      - TZ=Asia/Tashkent
+    restart: unless-stopped
 
   mongo:
     image: mongo:6
@@ -59,6 +77,9 @@ services:
     environment:
       - MONGO_INITDB_DATABASE=authdb
       - TZ=Asia/Tashkent
+
+volumes:
+  nginx_dynamic_config:  # Shared volume for dynamic nginx configs
 
 networks:
   # Публичная сеть - для nginx и всех сервисов

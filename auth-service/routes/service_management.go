@@ -68,7 +68,7 @@ func listServicesHandler(c *gin.Context) {
 func showServiceFormHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	
-	c.HTML(http.StatusOK, "service_form.html", gin.H{
+	c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
 		"title":      "Создать сервис",
 		"username":   user.Username,
 		"full_name":  user.GetFullName(),
@@ -82,7 +82,7 @@ func createServiceHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 
 	if c.Request.Method == "GET" {
-		c.HTML(http.StatusOK, "service_form.html", gin.H{
+		c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
 			"title":      "Создать сервис",
 			"username":   user.Username,
 			"full_name":  user.GetFullName(),
@@ -98,7 +98,7 @@ func createServiceHandler(c *gin.Context) {
 	description := c.PostForm("description")
 
 	if key == "" || name == "" {
-		c.HTML(http.StatusBadRequest, "service_form.html", gin.H{
+		c.HTML(http.StatusBadRequest, "admin_service_form.html", gin.H{
 			"title":       "Создать сервис",
 			"error":       "Ключ и название сервиса обязательны",
 			"key_val":     key,
