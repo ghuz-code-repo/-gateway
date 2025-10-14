@@ -67,6 +67,33 @@ services:
       - MONGO_INITDB_DATABASE=authdb
       - TZ=Asia/Tashkent
 
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: gateway-dozzle
+    restart: always
+    ports:
+      - "9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOZZLE_LEVEL=info
+      - DOZZLE_TAILSIZE=300
+      - DOZZLE_FILTER=name=gateway-*,name=referal,name=notification*
+      - DOZZLE_NO_ANALYTICS=true
+      - DOZZLE_BASE=/logs
+      - TZ=Asia/Tashkent
+      # Customize theme with Golden House colors
+      - DOZZLE_THEME_PRIMARY=#d4af37
+      - DOZZLE_THEME_BACKGROUND=#f5f5f5
+    networks:
+      - public_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/logs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 volumes:
   nginx_dynamic_config:  # Shared volume for dynamic nginx configs
 

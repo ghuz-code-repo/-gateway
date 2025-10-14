@@ -97,6 +97,47 @@ func logoutHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/login")
 }
 
+// verifyAdminHandler checks if a request is from system administrator
+func verifyAdminHandler(c *gin.Context) {
+	cookie, err := c.Cookie("token")
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// Parse and validate token
+	claims := &models.Claims{}
+	token, err := jwt.ParseWithClaims(cookie, claims, func(token *jwt.Token) (interface{}, error) {
+		jwtSecret := os.Getenv("JWT_SECRET")
+		if jwtSecret == "" {
+			jwtSecret = "default_jwt_secret_change_in_production"
+		}
+		return []byte(jwtSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// Get user info
+	user, err := models.GetUserByID(claims.UserID)
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// Check if user is system admin
+	if !hasAdminRole(user) {
+		log.Printf("Access denied: user '%s' is not a system admin", user.Username)
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
+	// User is admin, return 200 OK
+	c.Status(http.StatusOK)
+}
+
 // verifyHandler checks if a request is authenticated and has permission for the requested service
 func verifyHandler(c *gin.Context) {
 	log.Printf("DEBUG verifyHandler: incoming request from %s", c.ClientIP())

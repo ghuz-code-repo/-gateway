@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Golden House Analytics</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/logs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    {{ template "header" . }}
+    
+    <div class="logs-container">
+        <!-- Sidebar with service list -->
+        <aside class="logs-sidebar">
+            <h2><i class="fas fa-server"></i> Сервисы</h2>
+            <ul class="services-list">
+                <li class="service-item active" data-service="all">
+                    <i class="fas fa-globe"></i>
+                    <span>Все сервисы</span>
+                    <span class="service-status running"></span>
+                </li>
+                {{ range .containers }}
+                <li class="service-item" data-service="{{ .Name }}">
+                    <i class="fas fa-box"></i>
+                    <span>{{ .Name }}</span>
+                    <span class="service-status {{ .Status }}"></span>
+                </li>
+                {{ end }}
+            </ul>
+        </aside>
+
+        <!-- Main logs area -->
+        <main class="logs-main">
+            <!-- Control panel -->
+            <div class="logs-controls">
+                <div class="controls-left">
+                    <h1><i class="fas fa-list-alt"></i> Логи: <span id="current-service">Все сервисы</span></h1>
+                </div>
+                <div class="controls-right">
+                    <!-- Level filter -->
+                    <select id="level-filter" class="control-select">
+                        <option value="all">Все уровни</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="WARN">WARN</option>
+                        <option value="INFO">INFO</option>
+                        <option value="DEBUG">DEBUG</option>
+                    </select>
+
+                    <!-- Search input -->
+                    <input type="text" id="search-input" class="control-input" placeholder="Поиск в логах..." />
+
+                    <!-- Control buttons -->
+                    <button id="pause-btn" class="control-btn" title="Пауза/Старт">
+                        <i class="fas fa-pause"></i>
+                    </button>
+                    <button id="clear-btn" class="control-btn" title="Очистить">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button id="export-btn" class="control-btn" title="Экспорт в файл">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button id="autoscroll-btn" class="control-btn active" title="Автопрокрутка">
+                        <i class="fas fa-arrow-down"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status bar -->
+            <div class="logs-status">
+                <span id="connection-status">
+                    <i class="fas fa-circle status-dot"></i>
+                    <span id="status-text">Подключение...</span>
+                </span>
+                <span id="logs-count">Строк: 0</span>
+                <span id="filtered-count"></span>
+            </div>
+
+            <!-- Logs display area -->
+            <div class="logs-content" id="logs-content">
+                <div class="logs-empty">
+                    <i class="fas fa-hourglass-half"></i>
+                    <p>Ожидание подключения к серверу логов...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/logs.js"></script>
+</body>
+</html>
