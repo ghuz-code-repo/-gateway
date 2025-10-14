@@ -40,10 +40,12 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 	})
 }
 
-// listServicesHandler displays all services (system admin only)
+// listServicesHandler displays all services including deleted ones (system admin only)
 func listServicesHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
-	services, err := models.GetAllServices()
+	
+	// System admins can see deleted services
+	services, err := models.GetAllServicesWithOptions(true) // Include deleted services
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 			"error": "Не удалось получить сервисы",
@@ -252,21 +254,63 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/services/"+newKey)
 }
 
-// deleteServiceHandler deletes a service (system admin only)
+// deleteServiceHandler performs soft delete of a service (system admin only)
+// The service is marked as deleted but can be restored
 func deleteServiceHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
 	
-	service, err := models.GetServiceByKey(serviceKey)
+	// Verify service exists
+	_, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
 	}
-	objectID := service.ID
 
-	err = models.DeleteService(objectID)
+	// Perform soft delete
+	err = models.SoftDeleteService(serviceKey)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 			"error": "Не удалось удалить сервис: " + err.Error(),
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/services")
+}
+
+// restoreServiceHandler restores a soft-deleted service (system admin only)
+func restoreServiceHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	
+	// Perform restore
+	err := models.RestoreService(serviceKey)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось восстановить сервис: " + err.Error(),
+		})
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/services/"+serviceKey)
+}
+
+// hardDeleteServiceHandler permanently deletes a service (system admin only)
+// WARNING: This action cannot be undone!
+func hardDeleteServiceHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	
+	// Verify service exists (including deleted ones)
+	_, err := models.GetServiceByKeyWithOptions(serviceKey, true)
+	if err != nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
+		return
+	}
+
+	// Perform hard delete
+	err = models.HardDeleteService(serviceKey)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось окончательно удалить сервис: " + err.Error(),
 		})
 		return
 	}

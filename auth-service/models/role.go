@@ -19,6 +19,7 @@ type Role struct {
 	Permissions []string           `bson:"permissions" json:"permissions"`                  // Array of permission names (free-form)
 	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`                      // Creation timestamp
 	UpdatedAt   time.Time          `bson:"updatedAt" json:"updatedAt"`                      // Update timestamp
+	DeletedAt   *time.Time         `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"`  // Soft delete timestamp
 }
 
 // CreateRole creates a new role for a specific service
@@ -319,10 +320,47 @@ func GetServiceRoleByID(id primitive.ObjectID) (*ServiceRole, error) {
 	return &role, nil
 }
 
-// DeleteServiceRole removes a service role by ID
+// DeleteServiceRole removes a service role by ID with cascade deletion of role assignments
 func DeleteServiceRole(id primitive.ObjectID) error {
 	ctx := context.Background()
 	
-	_, err := serviceRolesCol.DeleteOne(ctx, bson.M{"_id": id})
-	return err
+	log.Printf("INFO: Starting deletion of service role %s", id.Hex())
+	
+	// First, get the role to log its details
+	var role Role
+	err := serviceRolesCol.FindOne(ctx, bson.M{"_id": id}).Decode(&role)
+	if err != nil {
+		log.Printf("ERROR: Role %s not found: %v", id.Hex(), err)
+		return fmt.Errorf("role not found: %w", err)
+	}
+	
+	// Delete all user assignments of this role
+	// We need to match by both service_key and role_name to find assignments
+	assignmentResult, err := userServiceRolesCol.DeleteMany(
+		ctx,
+		bson.M{
+			"service_key": role.ServiceKey,
+			"role_name":   role.Name,
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to delete user role assignments for role %s: %v", id.Hex(), err)
+		return fmt.Errorf("failed to delete user role assignments: %w", err)
+	}
+	log.Printf("INFO: Deleted %d user assignments for role '%s' in service '%s'", 
+		assignmentResult.DeletedCount, role.Name, role.ServiceKey)
+	
+	// Delete the role itself
+	result, err := serviceRolesCol.DeleteOne(ctx, bson.M{"_id": id})
+	if err != nil {
+		log.Printf("ERROR: Failed to delete role %s: %v", id.Hex(), err)
+		return fmt.Errorf("failed to delete role: %w", err)
+	}
+	if result.DeletedCount == 0 {
+		log.Printf("WARNING: Role %s was not deleted (may have been already deleted)", id.Hex())
+	}
+	
+	log.Printf("INFO: Successfully deleted service role %s ('%s' in '%s')", 
+		id.Hex(), role.Name, role.ServiceKey)
+	return nil
 }

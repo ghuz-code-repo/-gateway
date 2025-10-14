@@ -30,6 +30,7 @@ type Service struct {
 	Status               string             `bson:"status" json:"status"`                                        // active, deprecated, disabled
 	CreatedAt            time.Time          `bson:"created_at" json:"created_at"`                               // Creation timestamp
 	UpdatedAt            time.Time          `bson:"updated_at" json:"updated_at"`                               // Update timestamp
+	DeletedAt            *time.Time         `bson:"deleted_at,omitempty" json:"deleted_at,omitempty"`           // Soft delete timestamp
 	
 	// Legacy field for backward compatibility - will be removed after migration
 	Permissions []string `bson:"permissions,omitempty" json:"permissions,omitempty"`
@@ -92,11 +93,22 @@ func CreateServiceLegacy(key, name, description string, permissions []string) (*
 	return service, nil
 }
 
-// GetAllServices returns all services
+// GetAllServices returns all non-deleted services by default
 func GetAllServices() ([]Service, error) {
+	return GetAllServicesWithOptions(false)
+}
+
+// GetAllServicesWithOptions returns services with optional inclusion of deleted ones
+func GetAllServicesWithOptions(includeDeleted bool) ([]Service, error) {
 	ctx := context.Background()
 
-	cursor, err := servicesCol.Find(ctx, bson.M{})
+	// Build filter to exclude deleted services by default
+	filter := bson.M{}
+	if !includeDeleted {
+		filter["deleted_at"] = bson.M{"$exists": false}
+	}
+
+	cursor, err := servicesCol.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -107,9 +119,13 @@ func GetAllServices() ([]Service, error) {
 		return nil, err
 	}
 
-	log.Printf("DEBUG: GetAllServices found %d services:", len(services))
+	log.Printf("DEBUG: GetAllServicesWithOptions(includeDeleted=%v) found %d services:", includeDeleted, len(services))
 	for i, service := range services {
-		log.Printf("DEBUG: Service %d - Key: '%s', Name: '%s'", i+1, service.Key, service.Name)
+		deletedStatus := "active"
+		if service.DeletedAt != nil {
+			deletedStatus = "deleted"
+		}
+		log.Printf("DEBUG: Service %d - Key: '%s', Name: '%s', Status: %s", i+1, service.Key, service.Name, deletedStatus)
 	}
 
 	return services, nil
@@ -128,20 +144,34 @@ func GetServiceByID(id primitive.ObjectID) (*Service, error) {
 	return &service, nil
 }
 
-// GetServiceByKey retrieves a service by its key
+// GetServiceByKey retrieves a non-deleted service by its key
 func GetServiceByKey(key string) (*Service, error) {
+	return GetServiceByKeyWithOptions(key, false)
+}
+
+// GetServiceByKeyWithOptions retrieves a service by its key with optional inclusion of deleted
+func GetServiceByKeyWithOptions(key string, includeDeleted bool) (*Service, error) {
 	ctx := context.Background()
 	
-	log.Printf("DEBUG: Searching for service with key: '%s'", key)
+	log.Printf("DEBUG: Searching for service with key: '%s' (includeDeleted=%v)", key, includeDeleted)
+
+	filter := bson.M{"key": key}
+	if !includeDeleted {
+		filter["deleted_at"] = bson.M{"$exists": false}
+	}
 
 	var service Service
-	err := servicesCol.FindOne(ctx, bson.M{"key": key}).Decode(&service)
+	err := servicesCol.FindOne(ctx, filter).Decode(&service)
 	if err != nil {
 		log.Printf("DEBUG: Service with key '%s' not found in database: %v", key, err)
 		return nil, err
 	}
 
-	log.Printf("DEBUG: Found service with key '%s', name: '%s'", service.Key, service.Name)
+	deletedStatus := "active"
+	if service.DeletedAt != nil {
+		deletedStatus = "deleted"
+	}
+	log.Printf("DEBUG: Found service with key '%s', name: '%s', status: %s", service.Key, service.Name, deletedStatus)
 	return &service, nil
 }
 
@@ -211,7 +241,7 @@ func UpdateServiceLegacy(id primitive.ObjectID, key, name, description string, p
 	return err
 }
 
-// DeleteService removes a service
+// DeleteService removes a service (hard delete - use with caution!)
 func DeleteService(id primitive.ObjectID) error {
 	ctx := context.Background()
 
@@ -219,12 +249,252 @@ func DeleteService(id primitive.ObjectID) error {
 	return err
 }
 
-// DeleteServiceByKey removes a service by its key
+// DeleteServiceByKey removes a service by its key (hard delete - use with caution!)
 func DeleteServiceByKey(key string) error {
 	ctx := context.Background()
 
 	_, err := servicesCol.DeleteOne(ctx, bson.M{"key": key})
 	return err
+}
+
+// SoftDeleteService performs a soft delete of a service and all related entities
+// This marks the service as deleted but keeps all data for potential restoration
+func SoftDeleteService(serviceKey string) error {
+	ctx := context.Background()
+	now := time.Now()
+	
+	log.Printf("INFO: Starting soft delete for service '%s'", serviceKey)
+	
+	// 1. Mark the service as deleted
+	result, err := servicesCol.UpdateOne(
+		ctx,
+		bson.M{"key": serviceKey, "deleted_at": bson.M{"$exists": false}},
+		bson.M{
+			"$set": bson.M{
+				"deleted_at": now,
+				"updated_at": now,
+			},
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to soft delete service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to soft delete service: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		log.Printf("WARNING: Service '%s' not found or already deleted", serviceKey)
+		return fmt.Errorf("service not found or already deleted")
+	}
+	log.Printf("INFO: Service '%s' marked as deleted", serviceKey)
+	
+	// 2. Soft delete all roles of this service
+	roleResult, err := rolesCol.UpdateMany(
+		ctx,
+		bson.M{"service": serviceKey, "deletedAt": bson.M{"$exists": false}},
+		bson.M{
+			"$set": bson.M{
+				"deletedAt": now,
+				"updatedAt": now,
+			},
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to soft delete roles for service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to soft delete service roles: %w", err)
+	}
+	log.Printf("INFO: Soft deleted %d roles for service '%s'", roleResult.ModifiedCount, serviceKey)
+	
+	// 3. Delete all user role assignments for this service (hard delete as these are references)
+	assignmentResult, err := userServiceRolesCol.DeleteMany(
+		ctx,
+		bson.M{"service_key": serviceKey},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to delete user role assignments for service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to delete user role assignments: %w", err)
+	}
+	log.Printf("INFO: Deleted %d user role assignments for service '%s'", assignmentResult.DeletedCount, serviceKey)
+	
+	// 4. Soft delete all permissions for this service
+	permResult, err := permsCol.UpdateMany(
+		ctx,
+		bson.M{"service": serviceKey, "deleted_at": bson.M{"$exists": false}},
+		bson.M{
+			"$set": bson.M{
+				"deleted_at": now,
+			},
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to soft delete permissions for service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to soft delete service permissions: %w", err)
+	}
+	log.Printf("INFO: Soft deleted %d permissions for service '%s'", permResult.ModifiedCount, serviceKey)
+	
+	// 5. Remove serviceKey from allowed_services in all user documents
+	docResult, err := usersCol.UpdateMany(
+		ctx,
+		bson.M{"documents.allowed_services": serviceKey},
+		bson.M{
+			"$pull": bson.M{
+				"documents.$[].allowed_services": serviceKey,
+			},
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to remove service '%s' from user documents: %v", serviceKey, err)
+		return fmt.Errorf("failed to update user documents: %w", err)
+	}
+	log.Printf("INFO: Removed service '%s' from %d user document entries", serviceKey, docResult.ModifiedCount)
+	
+	log.Printf("INFO: Successfully completed soft delete for service '%s'", serviceKey)
+	return nil
+}
+
+// HardDeleteService permanently deletes a service and all related data
+// WARNING: This operation cannot be undone! Use SoftDeleteService for recoverable deletion.
+func HardDeleteService(serviceKey string) error {
+	ctx := context.Background()
+	
+	log.Printf("WARNING: Starting HARD DELETE for service '%s' - this cannot be undone!", serviceKey)
+	
+	// 1. Delete the service itself
+	result, err := servicesCol.DeleteOne(ctx, bson.M{"key": serviceKey})
+	if err != nil {
+		log.Printf("ERROR: Failed to hard delete service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to delete service: %w", err)
+	}
+	if result.DeletedCount == 0 {
+		log.Printf("WARNING: Service '%s' not found", serviceKey)
+		return fmt.Errorf("service not found")
+	}
+	log.Printf("INFO: Service '%s' deleted from database", serviceKey)
+	
+	// 2. Delete all roles of this service
+	roleResult, err := rolesCol.DeleteMany(ctx, bson.M{"service": serviceKey})
+	if err != nil {
+		log.Printf("ERROR: Failed to delete roles for service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to delete service roles: %w", err)
+	}
+	log.Printf("INFO: Deleted %d roles for service '%s'", roleResult.DeletedCount, serviceKey)
+	
+	// 3. Delete all user role assignments for this service
+	assignmentResult, err := userServiceRolesCol.DeleteMany(ctx, bson.M{"service_key": serviceKey})
+	if err != nil {
+		log.Printf("ERROR: Failed to delete user role assignments for service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to delete user role assignments: %w", err)
+	}
+	log.Printf("INFO: Deleted %d user role assignments for service '%s'", assignmentResult.DeletedCount, serviceKey)
+	
+	// 4. Delete all permissions for this service
+	permResult, err := permsCol.DeleteMany(ctx, bson.M{"service": serviceKey})
+	if err != nil {
+		log.Printf("ERROR: Failed to delete permissions for service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to delete service permissions: %w", err)
+	}
+	log.Printf("INFO: Deleted %d permissions for service '%s'", permResult.DeletedCount, serviceKey)
+	
+	// 5. Delete import logs for this service
+	importLogsCol := db.Collection("import_logs")
+	logResult, err := importLogsCol.DeleteMany(ctx, bson.M{"service_key": serviceKey})
+	if err != nil {
+		log.Printf("ERROR: Failed to delete import logs for service '%s': %v", serviceKey, err)
+		// Don't fail the entire operation if logs can't be deleted
+		log.Printf("WARNING: Continuing despite import log deletion failure")
+	} else {
+		log.Printf("INFO: Deleted %d import logs for service '%s'", logResult.DeletedCount, serviceKey)
+	}
+	
+	// 6. Remove serviceKey from allowed_services in all user documents
+	docResult, err := usersCol.UpdateMany(
+		ctx,
+		bson.M{"documents.allowed_services": serviceKey},
+		bson.M{
+			"$pull": bson.M{
+				"documents.$[].allowed_services": serviceKey,
+			},
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to remove service '%s' from user documents: %v", serviceKey, err)
+		return fmt.Errorf("failed to update user documents: %w", err)
+	}
+	log.Printf("INFO: Removed service '%s' from %d user document entries", serviceKey, docResult.ModifiedCount)
+	
+	log.Printf("INFO: Successfully completed HARD DELETE for service '%s'", serviceKey)
+	return nil
+}
+
+// RestoreService restores a soft-deleted service and its related entities
+func RestoreService(serviceKey string) error {
+	ctx := context.Background()
+	
+	log.Printf("INFO: Starting restore for service '%s'", serviceKey)
+	
+	// 1. Check if service exists and is deleted
+	var service Service
+	err := servicesCol.FindOne(ctx, bson.M{"key": serviceKey}).Decode(&service)
+	if err != nil {
+		log.Printf("ERROR: Service '%s' not found: %v", serviceKey, err)
+		return fmt.Errorf("service not found: %w", err)
+	}
+	if service.DeletedAt == nil {
+		log.Printf("WARNING: Service '%s' is not deleted, nothing to restore", serviceKey)
+		return fmt.Errorf("service is not deleted")
+	}
+	
+	// 2. Restore the service
+	result, err := servicesCol.UpdateOne(
+		ctx,
+		bson.M{"key": serviceKey},
+		bson.M{
+			"$unset": bson.M{"deleted_at": ""},
+			"$set":   bson.M{"updated_at": time.Now()},
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to restore service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to restore service: %w", err)
+	}
+	if result.ModifiedCount == 0 {
+		log.Printf("WARNING: Service '%s' was not modified during restore", serviceKey)
+	}
+	log.Printf("INFO: Service '%s' restored", serviceKey)
+	
+	// 3. Restore all roles of this service
+	roleResult, err := rolesCol.UpdateMany(
+		ctx,
+		bson.M{"service": serviceKey, "deletedAt": bson.M{"$exists": true}},
+		bson.M{
+			"$unset": bson.M{"deletedAt": ""},
+			"$set":   bson.M{"updatedAt": time.Now()},
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to restore roles for service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to restore service roles: %w", err)
+	}
+	log.Printf("INFO: Restored %d roles for service '%s'", roleResult.ModifiedCount, serviceKey)
+	
+	// 4. Restore all permissions for this service
+	permResult, err := permsCol.UpdateMany(
+		ctx,
+		bson.M{"service": serviceKey, "deleted_at": bson.M{"$exists": true}},
+		bson.M{
+			"$unset": bson.M{"deleted_at": ""},
+		},
+	)
+	if err != nil {
+		log.Printf("ERROR: Failed to restore permissions for service '%s': %v", serviceKey, err)
+		return fmt.Errorf("failed to restore service permissions: %w", err)
+	}
+	log.Printf("INFO: Restored %d permissions for service '%s'", permResult.ModifiedCount, serviceKey)
+	
+	// Note: We do NOT restore user_service_roles assignments automatically
+	// These should be reassigned manually by administrators after restoration
+	log.Printf("INFO: Note - User role assignments were not restored and must be reassigned manually")
+	
+	log.Printf("INFO: Successfully completed restore for service '%s'", serviceKey)
+	return nil
 }
 
 // AddPermissionToService adds a new permission to a service (new schema)

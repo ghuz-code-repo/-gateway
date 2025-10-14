@@ -123,7 +123,9 @@ func SetupAdminRoutes(router *gin.Engine) {
 	// Service-specific management (service admin or system admin)
 	router.GET("/services/:serviceKey", serviceAdminAuthRequired(), getServiceHandlerWithAccess)
 	router.POST("/services/:serviceKey", serviceAdminAuthRequired(), updateServiceHandlerWithAccess)
-	router.POST("/services/:serviceKey/delete", serviceAdminAuthRequired(), deleteServiceHandler)
+	router.POST("/services/:serviceKey/delete", serviceAdminAuthRequired(), deleteServiceHandler)          // Soft delete
+	router.POST("/services/:serviceKey/restore", adminAuthRequired(), restoreServiceHandler)               // Restore soft-deleted service (system admin only)
+	router.POST("/services/:serviceKey/hard-delete", adminAuthRequired(), hardDeleteServiceHandler)       // Permanent delete (system admin only)
 	router.POST("/services/:serviceKey/permissions", serviceAdminAuthRequired(), addServicePermissionHandler)
 	router.PUT("/services/:serviceKey/permissions/:permName", serviceAdminAuthRequired(), updateServicePermissionHandler)
 	router.POST("/services/:serviceKey/permissions/:permName/delete", serviceAdminAuthRequired(), deleteServicePermissionHandler)

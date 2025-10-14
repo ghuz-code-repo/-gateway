@@ -16,6 +16,7 @@ type Permission struct {
 	DisplayName string             `bson:"display_name" json:"display_name"` // Отображаемое имя сервиса
 	Icon        string             `bson:"icon" json:"icon"`
 	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
+	DeletedAt   *time.Time         `bson:"deleted_at,omitempty" json:"deleted_at,omitempty"` // Soft delete timestamp
 }
 
 // CreatePermission creates a new service permission

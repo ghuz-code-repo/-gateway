@@ -372,9 +372,10 @@ func InitDB(uri, dbName string) error {
 	}
 
 	// Create default services
-	if err := CreateDefaultServices(); err != nil {
-		log.Printf("Warning: Failed to create default services: %v", err)
-	}
+	// COMMENTED OUT: Auto-creation of default services disabled
+	// if err := CreateDefaultServices(); err != nil {
+	// 	log.Printf("Warning: Failed to create default services: %v", err)
+	// }
 
 	// Create default permissions
 	CreateDefaultPermissions()
