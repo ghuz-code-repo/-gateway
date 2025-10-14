@@ -29,9 +29,26 @@
                 }
                 return null;
             }
+            
+            // Определение системной темы
+            function getSystemTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
 
             const cookieTheme = getCookie('gh_theme');
-            const theme = cookieTheme || localStorage.getItem('theme');
+            let theme;
+            
+            if (cookieTheme) {
+                // Используем сохраненную тему пользователя
+                theme = cookieTheme;
+            } else {
+                // Первый визит - используем системную тему
+                theme = getSystemTheme();
+            }
+            
             if (theme === 'dark') {
                 document.documentElement.classList.add('dark-theme');
             } else {

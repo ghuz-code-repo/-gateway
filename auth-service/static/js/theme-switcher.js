@@ -30,6 +30,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
+    // Определение системной темы пользователя
+    function getSystemTheme() {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            return 'dark';
+        }
+        return 'light';
+    }
+
     function applyTheme(theme) {
         localStorage.setItem('theme', theme);
         setCookie('gh_theme', theme, 365); // Сохраняем в cookie на год
@@ -70,7 +78,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // The inline script in <head> already handles the class on <html> and body background for FOUC.
     // This part ensures the button icon and logo are correct on load.
     const cookieTheme = getCookie('gh_theme');
-    const currentTheme = cookieTheme || localStorage.getItem('theme') || 'light';
+    let currentTheme;
+    
+    // Логика определения темы:
+    // 1. Если есть cookie - используем его (пользователь уже выбрал тему)
+    // 2. Если нет cookie - используем системную тему (первый визит)
+    if (cookieTheme) {
+        currentTheme = cookieTheme;
+    } else {
+        // Первый визит - используем системную тему
+        currentTheme = getSystemTheme();
+        // Сохраняем системную тему в localStorage и cookie
+        localStorage.setItem('theme', currentTheme);
+        setCookie('gh_theme', currentTheme, 365);
+    }
     
     // Sync localStorage with cookie if different
     if (cookieTheme && cookieTheme !== localStorage.getItem('theme')) {
