@@ -187,6 +187,45 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
     
+    # ================================================================
+    # LOGS VIEWER (DOZZLE) - Admin Only
+    # ================================================================
+    
+    location /logs {
+        # Admin-only access check
+        auth_request /verify-admin;
+        error_page 401 = @error401;
+        error_page 403 = @error403_logs;
+        
+        # Dozzle web UI with WebSocket support
+        proxy_pass http://gateway-dozzle:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Important for WebSocket
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_connect_timeout 75s;
+        
+        # Disable buffering for real-time logs
+        proxy_buffering off;
+        proxy_cache off;
+        
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+    
+    # Special error handler for logs - redirect to menu
+    location @error403_logs {
+        return 302 /menu;
+    }
+    
     # User existence check
     location /check-user-exists {
         proxy_pass http://auth-service:8080/check-user-exists;
@@ -318,6 +357,18 @@ server {
     location = /verify {
         internal;
         proxy_pass http://auth-service:8080/verify;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # Admin-only verification endpoint
+    location = /verify-admin {
+        internal;
+        proxy_pass http://auth-service:8080/verify-admin;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
