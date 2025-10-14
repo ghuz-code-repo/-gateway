@@ -1461,6 +1461,7 @@
         // Сортировка пользователей по username в алфавитном порядке
         function sortUsersByUsername() {
             const usersList = document.getElementById('usersList');
+            if (!usersList) return; // Если список не существует, выходим
             const userItems = usersList.querySelectorAll('.user-item');
             
             // Конвертируем NodeList в массив и сортируем
