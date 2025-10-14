@@ -41,7 +41,7 @@ func SetupAuthRoutes(router *gin.Engine) {
 	
 	// Authentication routes
 	router.GET("/login", loginPageHandler)
-	router.POST("/login", loginHandler)
+	router.POST("/login", RateLimitMiddleware(), loginHandler) // Rate limiting for login
 	router.GET("/logout", logoutHandler)
 	router.GET("/verify", verifyHandler)
 	router.GET("/access-denied", accessDeniedHandler)

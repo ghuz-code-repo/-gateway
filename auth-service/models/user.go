@@ -769,6 +769,19 @@ func ValidateUser(username, password string) (*User, bool) {
 	ctx := context.Background()
 	var user User
 	
+	// Input validation and sanitization
+	username = SanitizeString(username)
+	if username == "" {
+		log.Printf("Empty username after sanitization")
+		return nil, false
+	}
+	
+	// Basic validation to prevent injection attacks
+	if len(username) > 254 { // Max reasonable length for username or email
+		log.Printf("Username too long")
+		return nil, false
+	}
+	
 	// Try to find user by username or email
 	filter := bson.M{
 		"$or": []bson.M{
@@ -2387,7 +2400,7 @@ func CreatePasswordResetToken(email string) (*PasswordResetToken, error) {
 		UserID:    user.ID,
 		Email:     email,
 		Token:     token,
-		ExpiresAt: time.Now().Add(1 * time.Hour), // Token expires in 1 hour
+		ExpiresAt: time.Now().Add(15 * time.Minute), // Token expires in 15 minutes (security improvement)
 		Used:      false,
 		CreatedAt: time.Now(),
 	}

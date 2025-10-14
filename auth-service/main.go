@@ -4,6 +4,7 @@ import (
 	"auth-service/models"
 	"auth-service/routes"
 	"auth-service/migrations"
+	"auth-service/utils"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -190,6 +191,37 @@ func main() {
 	// Setup router
 	router := gin.Default()
 
+	// CORS middleware configuration
+	router.Use(func(c *gin.Context) {
+		// Get allowed origin from environment or use default
+		allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
+		if allowedOrigin == "" {
+			allowedOrigin = "http://localhost" // Default for development
+		}
+		
+		origin := c.Request.Header.Get("Origin")
+		// Only set CORS headers if origin matches or in development
+		if origin == allowedOrigin || os.Getenv("ENVIRONMENT") != "production" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+		}
+		
+		// Security headers
+		c.Writer.Header().Set("X-Frame-Options", "DENY")
+		c.Writer.Header().Set("X-Content-Type-Options", "nosniff")
+		c.Writer.Header().Set("X-XSS-Protection", "1; mode=block")
+		c.Writer.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		
+		c.Next()
+	})
+
 	// Set trusted proxies (nginx and docker internal networks)
 	router.SetTrustedProxies([]string{
 		"172.16.0.0/12",  // Docker default networks
@@ -210,7 +242,7 @@ func main() {
 	// Setup avatar serving with no-cache headers BEFORE general /data route
 	router.GET("/avatar/:userID", func(c *gin.Context) {
 		userID := c.Param("userID")
-		avatarPath := filepath.Join("./data", userID, "avatar.jpg")
+		avatarPath := filepath.Join(userID, "avatar.jpg")
 		
 		// Set no-cache headers to prevent browser caching
 		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -219,13 +251,12 @@ func main() {
 		c.Header("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
 		c.Header("ETag", fmt.Sprintf("\"%d\"", time.Now().Unix()))
 		
-		// Check if file exists
-		if _, err := os.Stat(avatarPath); os.IsNotExist(err) {
+		// Serve file with path traversal protection
+		if err := utils.SafeServeFile(c, "./data", avatarPath); err != nil {
+			log.Printf("Error serving avatar: %v", err)
 			c.Status(http.StatusNotFound)
 			return
 		}
-		
-		c.File(avatarPath)
 	})
 	
 	// Serve other data files normally (documents, etc.)

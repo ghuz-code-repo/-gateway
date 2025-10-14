@@ -37,6 +37,8 @@ func loginHandler(c *gin.Context) {
 
 	user, valid := models.ValidateUser(username, password)
 	if !valid {
+		// Record failed login attempt
+		RecordFailedLogin(c.ClientIP())
 		c.HTML(http.StatusUnauthorized, "login_clean.html", gin.H{
 			"error":    "Invalid username or password",
 			"redirect": redirect,
@@ -52,6 +54,8 @@ func loginHandler(c *gin.Context) {
 		}
 		banMessage += ". Обратитесь к администратору для разблокировки."
 		
+		// Record failed login attempt for banned users
+		RecordFailedLogin(c.ClientIP())
 		c.HTML(http.StatusForbidden, "login_clean.html", gin.H{
 			"error":    banMessage,
 			"redirect": redirect,
@@ -69,8 +73,14 @@ func loginHandler(c *gin.Context) {
 		return
 	}
 
-	// Set token in cookie
-	c.SetCookie("token", tokenString, 86400, "/", "", false, true) // 24 hours, http only
+	// Set token in cookie with security flags
+	// Secure flag: true for production (requires HTTPS)
+	isProduction := os.Getenv("ENVIRONMENT") == "production"
+	c.SetSameSite(http.SameSiteLaxMode) // Protection against CSRF
+	c.SetCookie("token", tokenString, 86400, "/", "", isProduction, true) // 24 hours, httpOnly, secure in production
+
+	// Reset rate limit on successful login
+	ResetLoginAttempts(c.ClientIP())
 
 	// Redirect to requested page or menu
 	if redirect == "" {
@@ -81,7 +91,9 @@ func loginHandler(c *gin.Context) {
 
 // logoutHandler handles user logout
 func logoutHandler(c *gin.Context) {
-	c.SetCookie("token", "", -1, "/", "", false, true) // Delete cookie
+	isProduction := os.Getenv("ENVIRONMENT") == "production"
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("token", "", -1, "/", "", isProduction, true) // Delete cookie
 	c.Redirect(http.StatusFound, "/login")
 }
 
@@ -349,7 +361,12 @@ func forgotPasswordHandler(c *gin.Context) {
 		})
 		return
 	}
-	log.Printf("DEBUG: Token created successfully: %s", token.Token)
+	// Security: Don't log tokens in production
+	if os.Getenv("ENVIRONMENT") != "production" {
+		log.Printf("DEBUG: Password reset token created for email: %s", user.Email)
+	} else {
+		log.Printf("Password reset token created for user: %s", user.Username)
+	}
 
 	// Get base URL from environment or use default
 	baseURL := os.Getenv("BASE_URL")
