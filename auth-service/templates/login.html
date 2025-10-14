@@ -18,7 +18,38 @@
 <body>
     <script>
         (function() {
-            const theme = localStorage.getItem('theme');
+            // Helper function to get cookie
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+            
+            // Определение системной темы
+            function getSystemTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
+            
+            // Проверяем cookie (приоритет - пользователь уже выбрал тему)
+            const cookieTheme = getCookie('gh_theme');
+            let theme;
+            
+            if (cookieTheme) {
+                // Используем сохраненную тему пользователя
+                theme = cookieTheme;
+            } else {
+                // Первый визит - используем системную тему
+                theme = getSystemTheme();
+            }
+            
             if (theme === 'dark') {
                 document.documentElement.classList.add('dark-theme');
             } else {
