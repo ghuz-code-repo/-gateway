@@ -157,3 +157,83 @@ func startHealthCheckMonitor() {
 
 	log.Println("Started service health check monitor")
 }
+
+// ServiceHealthStatus represents the health status of a service
+type ServiceHealthStatus struct {
+	ServiceKey      string    `json:"service_key"`
+	ServiceName     string    `json:"service_name"`
+	ExternalPrefix  string    `json:"external_prefix"`
+	Status          string    `json:"status"`           // "healthy", "unhealthy", "offline"
+	LastHeartbeat   time.Time `json:"last_heartbeat"`
+	HasActiveInstance bool    `json:"has_active_instance"`
+	HealthCheckURL  string    `json:"health_check_url,omitempty"`
+}
+
+// getServicesHealthHandler handles GET /api/services/health
+// Returns health status for all services (for admin panel cards)
+func getServicesHealthHandler(c *gin.Context) {
+	// Get all services from database (not deleted)
+	services, err := models.GetAllServices()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})
+		return
+	}
+
+	// Get active instances
+	instances, err := models.GetActiveServiceInstances()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch instances"})
+		return
+	}
+
+	// Build instance map
+	instanceMap := make(map[string]*models.ServiceInstance)
+	for i := range instances {
+		instanceMap[instances[i].ServiceKey] = &instances[i]
+	}
+
+	// Build health status for each service
+	var healthStatuses []ServiceHealthStatus
+	for _, service := range services {
+		if service.Status == "deleted" {
+			continue
+		}
+
+		// Build external prefix from service key
+		externalPrefix := "/" + service.Key
+		
+		status := ServiceHealthStatus{
+			ServiceKey:        service.Key,
+			ServiceName:       service.Name,
+			ExternalPrefix:    externalPrefix,
+			HasActiveInstance: false,
+			Status:            "offline", // default
+		}
+
+		// Check if service has active instance
+		if instance, exists := instanceMap[service.Key]; exists {
+			status.HasActiveInstance = true
+			status.LastHeartbeat = instance.LastHeartbeat
+			status.HealthCheckURL = instance.HealthCheckPath
+			status.ExternalPrefix = instance.ExternalPrefix // Use from instance if available
+
+			// Determine status based on instance status and last heartbeat
+			timeSinceHeartbeat := time.Since(instance.LastHeartbeat)
+			
+			if instance.Status == "active" && timeSinceHeartbeat < 1*time.Minute {
+				status.Status = "healthy" // Green
+			} else if instance.Status == "active" && timeSinceHeartbeat < 2*time.Minute {
+				status.Status = "unhealthy" // Yellow - registered but heartbeat is stale
+			} else {
+				status.Status = "offline" // Red - no recent heartbeat or inactive
+			}
+		}
+
+		healthStatuses = append(healthStatuses, status)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"services": healthStatuses,
+		"count":    len(healthStatuses),
+	})
+}

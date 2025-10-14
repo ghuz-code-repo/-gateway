@@ -275,6 +275,11 @@ func deleteServiceHandler(c *gin.Context) {
 		return
 	}
 
+	// Regenerate nginx config to remove deleted service
+	if err := regenerateNginxConfig(); err != nil {
+		log.Printf("Warning: Failed to regenerate nginx config after service deletion: %v", err)
+	}
+
 	c.Redirect(http.StatusFound, "/services")
 }
 
@@ -289,6 +294,11 @@ func restoreServiceHandler(c *gin.Context) {
 			"error": "Не удалось восстановить сервис: " + err.Error(),
 		})
 		return
+	}
+
+	// Regenerate nginx config (service might have active instance)
+	if err := regenerateNginxConfig(); err != nil {
+		log.Printf("Warning: Failed to regenerate nginx config after service restore: %v", err)
 	}
 
 	c.Redirect(http.StatusFound, "/services/"+serviceKey)
@@ -313,6 +323,11 @@ func hardDeleteServiceHandler(c *gin.Context) {
 			"error": "Не удалось окончательно удалить сервис: " + err.Error(),
 		})
 		return
+	}
+
+	// Regenerate nginx config to remove deleted service
+	if err := regenerateNginxConfig(); err != nil {
+		log.Printf("Warning: Failed to regenerate nginx config after hard delete: %v", err)
 	}
 
 	c.Redirect(http.StatusFound, "/services")

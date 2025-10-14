@@ -268,6 +268,14 @@ func main() {
 	// Load HTML templates after setting function map
 	router.LoadHTMLGlob("templates/*")
 
+	// Initialize nginx configuration with empty services config
+	// This ensures nginx can start even without any registered services
+	log.Println("Initializing nginx dynamic configuration...")
+	if err := routes.InitializeNginxConfig(); err != nil {
+		log.Printf("Warning: Could not initialize nginx config: %v", err)
+		log.Println("Continuing anyway - nginx will create it on first service registration")
+	}
+
 	// Setup all routes using the new modular structure
 	routes.SetupAllRoutes(router)
 	
