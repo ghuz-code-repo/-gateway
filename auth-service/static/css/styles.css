@@ -1428,6 +1428,95 @@ input[type="file"]:hover {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    position: relative; /* For status indicator positioning */
+}
+
+/* Service Status Indicator */
+.service-status-indicator {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 10;
+}
+
+.service-status-indicator .status-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+    animation: pulse 2s infinite;
+}
+
+/* Status colors */
+.service-status-indicator[data-status="healthy"] .status-dot {
+    background-color: #10b981;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+}
+
+.service-status-indicator[data-status="unhealthy"] .status-dot {
+    background-color: #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+}
+
+.service-status-indicator[data-status="offline"] .status-dot {
+    background-color: #ef4444;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+    animation: none; /* No pulse for offline */
+}
+
+.service-status-indicator[data-status="loading"] .status-dot {
+    background-color: #6b7280;
+    box-shadow: 0 0 8px rgba(107, 114, 128, 0.4);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+/* Inactive Service Overlay */
+.service-inactive-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    backdrop-filter: blur(3px);
+    pointer-events: none; /* Allow clicks to pass through */
+}
+
+.service-card.inactive .service-inactive-overlay {
+    pointer-events: all; /* Block clicks for inactive services */
+}
+
+.service-card.inactive a {
+    pointer-events: none; /* Prevent link clicks */
+    cursor: not-allowed;
+}
+
+.inactive-label {
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffffff;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+    letter-spacing: 2px;
+    padding: 10px 20px;
+    background: rgba(239, 68, 68, 0.3);
+    border-radius: 10px;
+    border: 2px solid rgba(239, 68, 68, 0.6);
 }
 
 
@@ -1442,10 +1531,18 @@ input[type="file"]:hover {
 }
 
 
-.service-card:hover {
+/* Hover effect only for active cards */
+.service-card:hover:not(.inactive) {
     transform: translateY(-5px);
     box-shadow: 0 0 8px 1px var(--primary-color);
     /* Subtle glow */
+}
+
+/* No hover effect for inactive cards */
+.service-card.inactive:hover {
+    transform: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    cursor: not-allowed;
 }
 
 .service-card h3 {
@@ -1501,11 +1598,6 @@ input[type="file"]:hover {
     width: 100px;
     vertical-align: middle;
     /* Helps align with adjacent elements if any */
-}
-
-/* Ensure logo in header also respects dark theme if needed */
-.dark-theme .logo {
-    /* filter: var(--logo-filter); This rule is no longer needed and can be removed */
 }
 
 

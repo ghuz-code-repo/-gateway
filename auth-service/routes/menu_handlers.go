@@ -85,15 +85,14 @@ func menuHandler(c *gin.Context) {
 		showServiceCard := isAdmin || hasAnyServiceRole
 		
 		if showServiceCard {
-			if canManageService {
-				service, err := models.GetServiceByKey(serviceKey)
-				if err == nil && service != nil {
-					serviceInfo["serviceKey"] = service.Key
-					fmt.Printf("Добавлен serviceKey для %s: %s (isSystemAdmin: %v, isServiceAdmin: %v)\n", 
-						serviceKey, service.Key, isAdmin, hasServiceAdmin)
-				} else {
-					fmt.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
-				}
+			// Always get service info for health check (needed for all users)
+			service, err := models.GetServiceByKey(serviceKey)
+			if err == nil && service != nil {
+				serviceInfo["serviceKey"] = service.Key
+				fmt.Printf("Добавлен serviceKey для %s: %s (isSystemAdmin: %v, isServiceAdmin: %v, canManage: %v)\n", 
+					serviceKey, service.Key, isAdmin, hasServiceAdmin, canManageService)
+			} else {
+				fmt.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
 			}
 			
 			serviceInfos = append(serviceInfos, serviceInfo)

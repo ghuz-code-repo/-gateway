@@ -50,7 +50,7 @@ services:
       - TZ=Asia/Tashkent
       - NOTIFICATION_SERVICE_URL=http://notification-service:8082
       - NGINX_CONTAINER_NAME=gateway-nginx-1
-      - NGINX_DYNAMIC_CONFIG_PATH=/etc/nginx/conf.d/dynamic/services.conf
+      - NGINX_DYNAMIC_CONFIG_DIR=/etc/nginx/conf.d/dynamic
     restart: always
 
   mongo:

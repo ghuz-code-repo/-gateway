@@ -40,6 +40,9 @@ func SetupAllRoutes(router *gin.Engine) {
 			registry.GET("/services", listServiceInstancesHandler)
 			registry.GET("/services/:serviceKey", getServiceInstancesHandler)
 		}
+		
+		// Services Health API (for admin panel UI)
+		api.GET("/services/health", getServicesHealthHandler)
 	}
 	
 	// Start health check monitor in background

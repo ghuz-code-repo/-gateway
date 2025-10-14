@@ -72,7 +72,17 @@
         
         <div class="services-list">
             {{ range .serviceInfos }}
-            <div class="service-card">
+            <div class="service-card" data-service-key="{{ .serviceKey }}">
+                <!-- Status Indicator -->
+                <div class="service-status-indicator" data-status="loading">
+                    <span class="status-dot" title="Проверка статуса..."></span>
+                </div>
+                
+                <!-- Inactive Overlay (hidden by default) -->
+                <div class="service-inactive-overlay" style="display: none;">
+                    <div class="inactive-label">НЕАКТИВЕН</div>
+                </div>
+                
                 <a href="/{{ .id }}/" class="service-link" data-service="{{ .id }}">
                     <div class="service-icon">
                         {{ if eq .id "calculators" }}
@@ -168,6 +178,79 @@
         },
         "retina_detect": true
     });
+    </script>
+<script>
+        // Load service health statuses
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServiceHealthStatuses();
+            
+            // Refresh statuses every 30 seconds
+            setInterval(loadServiceHealthStatuses, 30000);
+        });
+        
+        async function loadServiceHealthStatuses() {
+            try {
+                const response = await fetch('/api/services/health');
+                if (!response.ok) {
+                    console.error('Failed to load service health statuses');
+                    return;
+                }
+                
+                const data = await response.json();
+                updateServiceCards(data.services || []);
+            } catch (error) {
+                console.error('Error loading service health:', error);
+            }
+        }
+        
+        function updateServiceCards(services) {
+            const isAdmin = {{ if .isAdmin }}true{{ else }}false{{ end }};
+            
+            console.log('Updating service cards, isAdmin:', isAdmin, 'services:', services);
+            
+            services.forEach(service => {
+                const card = document.querySelector(`.service-card[data-service-key="${service.service_key}"]`);
+                if (!card) {
+                    console.log('Card not found for service:', service.service_key);
+                    return;
+                }
+                
+                const indicator = card.querySelector('.service-status-indicator');
+                const overlay = card.querySelector('.service-inactive-overlay');
+                const statusDot = card.querySelector('.status-dot');
+                
+                if (!indicator || !overlay || !statusDot) {
+                    console.log('Missing elements for service:', service.service_key, {indicator, overlay, statusDot});
+                    return;
+                }
+                
+                // Update status indicator
+                indicator.setAttribute('data-status', service.status);
+                
+                // Update tooltip
+                const statusText = {
+                    'healthy': 'Сервис работает',
+                    'unhealthy': 'Возможны проблемы',
+                    'offline': 'Сервис недоступен',
+                    'loading': 'Проверка статуса...'
+                };
+                statusDot.setAttribute('title', statusText[service.status] || 'Неизвестный статус');
+                
+                console.log('Service:', service.service_key, 'Status:', service.status, 'isAdmin:', isAdmin);
+                
+                // Show/hide overlay for non-admin users
+                // Блокируем карточку если статус unhealthy или offline И пользователь не админ
+                if (!isAdmin && (service.status === 'unhealthy' || service.status === 'offline')) {
+                    console.log('Showing overlay for:', service.service_key);
+                    overlay.style.display = 'flex';
+                    card.classList.add('inactive');
+                } else {
+                    console.log('Hiding overlay for:', service.service_key);
+                    overlay.style.display = 'none';
+                    card.classList.remove('inactive');
+                }
+            });
+        }
     </script>
 <script>
         // Передача темы через cookie (cookie автоматически передается)

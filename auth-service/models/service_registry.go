@@ -34,7 +34,7 @@ func RegisterServiceInstance(serviceKey, containerName, internalURL, healthCheck
 		return nil, fmt.Errorf("service %s not found in services collection: %v", serviceKey, err)
 	}
 
-	collection := client.Database("authdb").Collection("service_registry")
+	collection := client.Database("analytics_db").Collection("service_registry")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -100,7 +100,7 @@ func RegisterServiceInstance(serviceKey, containerName, internalURL, healthCheck
 
 // UnregisterServiceInstance removes a service instance from the registry
 func UnregisterServiceInstance(serviceKey, containerName string) error {
-	collection := client.Database("authdb").Collection("service_registry")
+	collection := client.Database("analytics_db").Collection("service_registry")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -125,7 +125,7 @@ func UnregisterServiceInstance(serviceKey, containerName string) error {
 
 // UpdateHeartbeat updates the last heartbeat time for a service instance
 func UpdateHeartbeat(serviceKey, containerName string) error {
-	collection := client.Database("authdb").Collection("service_registry")
+	collection := client.Database("analytics_db").Collection("service_registry")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -155,7 +155,7 @@ func UpdateHeartbeat(serviceKey, containerName string) error {
 
 // GetActiveServiceInstances returns all active service instances
 func GetActiveServiceInstances() ([]ServiceInstance, error) {
-	collection := client.Database("authdb").Collection("service_registry")
+	collection := client.Database("analytics_db").Collection("service_registry")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -178,7 +178,7 @@ func GetActiveServiceInstances() ([]ServiceInstance, error) {
 
 // GetServiceInstancesByKey returns all instances for a specific service
 func GetServiceInstancesByKey(serviceKey string) ([]ServiceInstance, error) {
-	collection := client.Database("authdb").Collection("service_registry")
+	collection := client.Database("analytics_db").Collection("service_registry")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -199,7 +199,7 @@ func GetServiceInstancesByKey(serviceKey string) ([]ServiceInstance, error) {
 
 // MarkUnhealthyInstances marks instances as unhealthy if they haven't sent heartbeat
 func MarkUnhealthyInstances(timeout time.Duration) error {
-	collection := client.Database("authdb").Collection("service_registry")
+	collection := client.Database("analytics_db").Collection("service_registry")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -229,7 +229,7 @@ func MarkUnhealthyInstances(timeout time.Duration) error {
 
 // CleanupOldInstances removes instances that have been unhealthy for too long
 func CleanupOldInstances(unhealthyFor time.Duration) error {
-	collection := client.Database("authdb").Collection("service_registry")
+	collection := client.Database("analytics_db").Collection("service_registry")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
