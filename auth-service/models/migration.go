@@ -44,10 +44,11 @@ func MigrateToADR001Schema() (*MigrationResult, error) {
 	}
 
 	// Phase 3: Create default services if they don't exist
-	err = ensureDefaultServices(result)
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("Default services creation failed: %v", err))
-	}
+	// COMMENTED OUT: Auto-creation of default services disabled
+	// err = ensureDefaultServices(result)
+	// if err != nil {
+	// 	result.Errors = append(result.Errors, fmt.Sprintf("Default services creation failed: %v", err))
+	// }
 
 	// Phase 4: Remove unwanted system administration service
 	err = DeleteServiceByKey("system")
