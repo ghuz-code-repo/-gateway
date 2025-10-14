@@ -46,24 +46,6 @@ services:
       - NGINX_DYNAMIC_CONFIG_PATH=/etc/nginx/conf.d/dynamic/services.conf
     restart: always
 
-  # notification-service и notification-postgres
-  # Теперь запускаются отдельным docker-compose.yml
-  # в папке ./notification-service/
-  # Это позволяет пересобирать их независимо
-
-  # Demo service for testing service discovery
-  demo-service:
-    build:
-      context: ./demo-service
-      dockerfile: Dockerfile
-    container_name: demo-service
-    networks:
-      - service_network
-      - auth_network
-    environment:
-      - TZ=Asia/Tashkent
-    restart: unless-stopped
-
   mongo:
     image: mongo:6
     restart: always
