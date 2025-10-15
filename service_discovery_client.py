@@ -10,8 +10,8 @@ Usage:
     # Create client
     client = ServiceDiscoveryClient(
         service_key="my-service",
-        internal_url="http://my-service:8080",
-        registry_url="http://auth-service:8080/api/registry"
+        internal_url="http://my-service:80",
+        registry_url="http://auth-service:80/api/registry"
     )
     
     # Register on startup
@@ -45,7 +45,7 @@ class ServiceDiscoveryClient:
         self,
         service_key: str,
         internal_url: str,
-        registry_url: str = "http://auth-service:8080/api/registry",
+        registry_url: str = "http://auth-service:80/api/registry",
         container_name: Optional[str] = None,
         health_check_path: str = "/health",
         heartbeat_interval: int = 30,
@@ -56,7 +56,7 @@ class ServiceDiscoveryClient:
         
         Args:
             service_key: Unique key identifying the service (must exist in services collection)
-            internal_url: Internal Docker network URL (e.g., "http://my-service:8080")
+            internal_url: Internal Docker network URL (e.g., "http://my-service:80")
             registry_url: URL of the service registry API
             container_name: Docker container name (auto-detected if None)
             health_check_path: Path to health check endpoint

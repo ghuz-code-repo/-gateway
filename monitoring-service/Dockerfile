@@ -1,3 +1,4 @@
+# Build stage
 FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
@@ -24,10 +25,10 @@ WORKDIR /root/
 # Copy the binary from builder stage
 COPY --from=builder /app/main .
 
-# Create directory for logs
-RUN mkdir -p /var/log/notification-service
+# Create log directory
+RUN mkdir -p /var/log/monitoring-service
 
-# Set timezone to Tashkent
+# Set timezone
 ENV TZ=Asia/Tashkent
 
 EXPOSE 80

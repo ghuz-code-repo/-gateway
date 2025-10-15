@@ -26,7 +26,7 @@ server {
     
     # Main favicon endpoints - proxy to auth-service
     location = /vite.svg {
-        proxy_pass http://auth-service:8080/vite.svg;
+        proxy_pass http://auth-service:80/vite.svg;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -55,7 +55,7 @@ server {
         if ($http_referer ~ favicon) {
             return 404;
         }
-        proxy_pass http://auth-service:8080$request_uri;
+        proxy_pass http://auth-service:80$request_uri;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -76,7 +76,7 @@ server {
     
     # Main page
     location = / {
-        proxy_pass http://auth-service:8080/;
+        proxy_pass http://auth-service:80/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -85,7 +85,7 @@ server {
     
     # Login and Logout
     location /login {
-        proxy_pass http://auth-service:8080/login;
+        proxy_pass http://auth-service:80/login;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -93,7 +93,7 @@ server {
     }
     
     location /logout {
-        proxy_pass http://auth-service:8080/logout;
+        proxy_pass http://auth-service:80/logout;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -102,7 +102,7 @@ server {
     
     # Password recovery
     location /forgot-password {
-        proxy_pass http://auth-service:8080/forgot-password;
+        proxy_pass http://auth-service:80/forgot-password;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -110,7 +110,7 @@ server {
     }
     
     location /reset-password {
-        proxy_pass http://auth-service:8080/reset-password;
+        proxy_pass http://auth-service:80/reset-password;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -118,7 +118,7 @@ server {
     }
     
     location /access-denied {
-        proxy_pass http://auth-service:8080/access-denied;
+        proxy_pass http://auth-service:80/access-denied;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -131,7 +131,7 @@ server {
     
     # Menu endpoint (accessible to all authenticated users)
     location /menu {
-        proxy_pass http://auth-service:8080/menu;
+        proxy_pass http://auth-service:80/menu;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -140,7 +140,7 @@ server {
     
     # Admin menu
     location /admin-menu {
-        proxy_pass http://auth-service:8080/admin-menu;
+        proxy_pass http://auth-service:80/admin-menu;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -149,7 +149,7 @@ server {
     
     # User profile
     location /profile {
-        proxy_pass http://auth-service:8080/profile;
+        proxy_pass http://auth-service:80/profile;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -162,7 +162,7 @@ server {
     
     # Service management
     location /services {
-        proxy_pass http://auth-service:8080/services;
+        proxy_pass http://auth-service:80/services;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -171,7 +171,7 @@ server {
     
     # Service-specific Excel import/export endpoints (HIGH PRIORITY)
     location /service/ {
-        proxy_pass http://auth-service:8080;
+        proxy_pass http://auth-service:80;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -180,7 +180,7 @@ server {
     
     # User management
     location /users {
-        proxy_pass http://auth-service:8080/users;
+        proxy_pass http://auth-service:80/users;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -228,7 +228,7 @@ server {
     
     # User existence check
     location /check-user-exists {
-        proxy_pass http://auth-service:8080/check-user-exists;
+        proxy_pass http://auth-service:80/check-user-exists;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -237,7 +237,7 @@ server {
     
     # Role management
     location /roles {
-        proxy_pass http://auth-service:8080/roles;
+        proxy_pass http://auth-service:80/roles;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -246,7 +246,7 @@ server {
     
     # Permission management
     location /permissions {
-        proxy_pass http://auth-service:8080/permissions;
+        proxy_pass http://auth-service:80/permissions;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -255,7 +255,7 @@ server {
     
     # Notification settings
     location /notification-settings {
-        proxy_pass http://auth-service:8080/notification-settings;
+        proxy_pass http://auth-service:80/notification-settings;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -264,7 +264,7 @@ server {
     
     # Migration management
     location /migration {
-        proxy_pass http://auth-service:8080/migration;
+        proxy_pass http://auth-service:80/migration;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -273,7 +273,7 @@ server {
     
     # Document types
     location /document-types {
-        proxy_pass http://auth-service:8080/document-types;
+        proxy_pass http://auth-service:80/document-types;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -282,7 +282,7 @@ server {
     
     # Available services
     location /available-services {
-        proxy_pass http://auth-service:8080/available-services;
+        proxy_pass http://auth-service:80/available-services;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -295,7 +295,7 @@ server {
     
     # General API endpoints (high priority prefix)
     location ^~ /api/ {
-        proxy_pass http://auth-service:8080/api/;
+        proxy_pass http://auth-service:80/api/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -304,7 +304,7 @@ server {
     
     # Specific API for documents
     location /api/profile/documents {
-        proxy_pass http://auth-service:8080/api/profile/documents;
+        proxy_pass http://auth-service:80/api/profile/documents;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -317,7 +317,7 @@ server {
     
     # Data files from auth-service
     location /data/ {
-        proxy_pass http://auth-service:8080/data/;
+        proxy_pass http://auth-service:80/data/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -326,7 +326,7 @@ server {
     
     # Avatar endpoint (no caching for fresh images)
     location /avatar/ {
-        proxy_pass http://auth-service:8080/avatar/;
+        proxy_pass http://auth-service:80/avatar/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -338,7 +338,7 @@ server {
     
     # Static CSS/JS files with caching
     location /static/ {
-        proxy_pass http://auth-service:8080/static/;
+        proxy_pass http://auth-service:80/static/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -356,7 +356,7 @@ server {
     # Special endpoint to verify permissions without redirection
     location = /verify {
         internal;
-        proxy_pass http://auth-service:8080/verify;
+        proxy_pass http://auth-service:80/verify;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -368,7 +368,7 @@ server {
     # Admin-only verification endpoint
     location = /verify-admin {
         internal;
-        proxy_pass http://auth-service:8080/verify-admin;
+        proxy_pass http://auth-service:80/verify-admin;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;

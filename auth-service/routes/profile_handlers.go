@@ -12,7 +12,7 @@ import (
 
 // SetupProfileRoutes настраивает роуты для профиля (доступные через /profile)
 func SetupProfileRoutes(router *gin.Engine) {
-	// Эти роуты будут доступны через nginx прокси /profile -> auth-service:8080/profile
+	// Эти роуты будут доступны через nginx прокси /profile -> auth-service:80/profile
 	router.GET("/profile", authRequired(), profileHandler)
 	router.POST("/profile", authRequired(), updateProfileHandler) // JavaScript отправляет POST на /profile
 	router.POST("/profile/update", authRequired(), updateProfileHandler)

@@ -32,6 +32,6 @@ COPY --from=builder /app/templates/ ./templates/
 COPY --from=builder /app/static/ ./static/
 COPY --from=builder /app/resources/ ./resources/
 
-EXPOSE 8080
+EXPOSE 80
 
 CMD ["./auth-service"]

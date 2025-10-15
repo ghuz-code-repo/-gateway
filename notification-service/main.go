@@ -199,7 +199,7 @@ func main() {
 	// Get port from environment
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8082"
+		port = "80"
 	}
 
 	log.Println("========================================")
@@ -496,6 +496,9 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 		return
 	}
 
+	// Debug: log received config
+	log.Printf("DEBUG: Received config data: %+v", config)
+
 	// Get existing config or create new one
 	var dbConfig NotificationConfig
 	result := ns.db.First(&dbConfig)
@@ -577,14 +580,29 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 		updated = append(updated, "SYSTEM_TELEGRAM_USERNAME")
 	}
 	
-	if sendSystemEmailNotifications, ok := config["send_system_email_notifications"].(bool); ok {
-		dbConfig.SendSystemEmailNotifications = sendSystemEmailNotifications
-		updated = append(updated, "SEND_SYSTEM_EMAIL_NOTIFICATIONS")
+	// Handle system notification booleans with explicit key checking
+	if val, exists := config["send_system_email_notifications"]; exists {
+		if sendSystemEmailNotifications, ok := val.(bool); ok {
+			dbConfig.SendSystemEmailNotifications = sendSystemEmailNotifications
+			updated = append(updated, "SEND_SYSTEM_EMAIL_NOTIFICATIONS")
+			log.Printf("DEBUG: Updated SendSystemEmailNotifications to %v", sendSystemEmailNotifications)
+		} else {
+			log.Printf("WARNING: send_system_email_notifications value is not boolean: %v (type: %T)", val, val)
+		}
+	} else {
+		log.Printf("DEBUG: send_system_email_notifications key not found in config")
 	}
 	
-	if sendSystemTelegramNotifications, ok := config["send_system_telegram_notifications"].(bool); ok {
-		dbConfig.SendSystemTelegramNotifications = sendSystemTelegramNotifications
-		updated = append(updated, "SEND_SYSTEM_TELEGRAM_NOTIFICATIONS")
+	if val, exists := config["send_system_telegram_notifications"]; exists {
+		if sendSystemTelegramNotifications, ok := val.(bool); ok {
+			dbConfig.SendSystemTelegramNotifications = sendSystemTelegramNotifications
+			updated = append(updated, "SEND_SYSTEM_TELEGRAM_NOTIFICATIONS")
+			log.Printf("DEBUG: Updated SendSystemTelegramNotifications to %v", sendSystemTelegramNotifications)
+		} else {
+			log.Printf("WARNING: send_system_telegram_notifications value is not boolean: %v (type: %T)", val, val)
+		}
+	} else {
+		log.Printf("DEBUG: send_system_telegram_notifications key not found in config")
 	}
 	
 	if maxRetryAttempts, ok := config["max_retry_attempts"].(float64); ok {

@@ -38,7 +38,7 @@ func getNotificationSettings(c *gin.Context) {
 	// Get current settings from notification service
 	notificationServiceURL := os.Getenv("NOTIFICATION_SERVICE_URL")
 	if notificationServiceURL == "" {
-		notificationServiceURL = "http://notification-service:8082"
+		notificationServiceURL = "http://notification-service:80"
 	}
 
 	var currentSettings NotificationSettings
@@ -143,7 +143,7 @@ func testNotificationSettings(c *gin.Context) {
 	// Send to notification service
 	notificationServiceURL := os.Getenv("NOTIFICATION_SERVICE_URL")
 	if notificationServiceURL == "" {
-		notificationServiceURL = "http://notification-service:8082"
+		notificationServiceURL = "http://notification-service:80"
 	}
 
 	jsonData, err := json.Marshal(testNotification)
@@ -262,7 +262,7 @@ func mapToNotificationSettings(config map[string]interface{}) NotificationSettin
 func updateNotificationServiceConfig(settings NotificationSettings) error {
 	notificationServiceURL := os.Getenv("NOTIFICATION_SERVICE_URL")
 	if notificationServiceURL == "" {
-		notificationServiceURL = "http://notification-service:8082"
+		notificationServiceURL = "http://notification-service:80"
 	}
 
 	// Convert settings to map for JSON

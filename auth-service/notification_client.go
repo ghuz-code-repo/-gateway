@@ -20,7 +20,7 @@ type NotificationClient struct {
 func NewNotificationClient() *NotificationClient {
 	baseURL := os.Getenv("NOTIFICATION_SERVICE_URL")
 	if baseURL == "" {
-		baseURL = "http://notification-service:8082"
+		baseURL = "http://notification-service:80"
 	}
 
 	return &NotificationClient{
