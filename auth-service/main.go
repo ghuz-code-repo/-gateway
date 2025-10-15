@@ -279,7 +279,10 @@ func main() {
 	// Setup all routes using the new modular structure
 	routes.SetupAllRoutes(router)
 	
-
+	// Start service monitoring
+	log.Println("Initializing service monitoring...")
+	serviceMonitor := routes.NewServiceMonitor()
+	serviceMonitor.Start()
 
 	log.Println("Starting auth service on port 8080")
 	if err := router.Run(":8080"); err != nil {

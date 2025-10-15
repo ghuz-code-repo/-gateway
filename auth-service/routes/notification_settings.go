@@ -4,27 +4,33 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 // NotificationSettings represents notification service configuration
 type NotificationSettings struct {
-	SMTPHost         string `json:"smtp_host" form:"smtp_host"`
-	SMTPPort         string `json:"smtp_port" form:"smtp_port"`
-	SMTPUsername     string `json:"smtp_username" form:"smtp_username"`
-	SMTPPassword     string `json:"smtp_password" form:"smtp_password"`
-	SMTPFrom         string `json:"smtp_from" form:"smtp_from"`
-	SMTPUseTLS       bool   `json:"smtp_use_tls" form:"smtp_use_tls"`
-	SMTPUseAuth      bool   `json:"smtp_use_auth" form:"smtp_use_auth"`
-	SMTPAuthMethod   string `json:"smtp_auth_method" form:"smtp_auth_method"`
-	MaxRetryAttempts int    `json:"max_retry_attempts" form:"max_retry_attempts"`
-	BatchSize        int    `json:"batch_size" form:"batch_size"`
-	DelayBetweenMS   int    `json:"delay_between_batches_ms" form:"delay_between_batches_ms"`
+	SMTPHost                        string `json:"smtp_host" form:"smtp_host"`
+	SMTPPort                        string `json:"smtp_port" form:"smtp_port"`
+	SMTPUsername                    string `json:"smtp_username" form:"smtp_username"`
+	SMTPPassword                    string `json:"smtp_password" form:"smtp_password"`
+	SMTPFrom                        string `json:"smtp_from" form:"smtp_from"`
+	SMTPUseTLS                      bool   `json:"smtp_use_tls" form:"smtp_use_tls"`
+	SMTPUseAuth                     bool   `json:"smtp_use_auth" form:"smtp_use_auth"`
+	SMTPAuthMethod                  string `json:"smtp_auth_method" form:"smtp_auth_method"`
+	SystemEmailRecipient            string `json:"system_email_recipient" form:"system_email_recipient"`
+	SystemTelegramUsername          string `json:"system_telegram_username" form:"system_telegram_username"`
+	SendSystemEmailNotifications    bool   `json:"send_system_email_notifications" form:"send_system_email_notifications"`
+	SendSystemTelegramNotifications bool   `json:"send_system_telegram_notifications" form:"send_system_telegram_notifications"`
+	MaxRetryAttempts                int    `json:"max_retry_attempts" form:"max_retry_attempts"`
+	BatchSize                       int    `json:"batch_size" form:"batch_size"`
+	DelayBetweenMS                  int    `json:"delay_between_batches_ms" form:"delay_between_batches_ms"`
 }
 
 // getNotificationSettings displays the notification settings page
@@ -76,13 +82,24 @@ func getNotificationSettings(c *gin.Context) {
 // updateNotificationSettings handles the form submission for notification settings
 func updateNotificationSettings(c *gin.Context) {
 	var settings NotificationSettings
-	if err := c.ShouldBind(&settings); err != nil {
+	
+	// Log incoming request body for debugging
+	body, _ := c.GetRawData()
+	log.Printf("DEBUG: Received notification settings data: %s", string(body))
+	
+	// Restore body for binding
+	c.Request.Body = io.NopCloser(strings.NewReader(string(body)))
+	
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		log.Printf("ERROR: Failed to bind JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "Invalid form data: " + err.Error(),
+			"error":   "Invalid JSON data: " + err.Error(),
 		})
 		return
 	}
+	
+	log.Printf("DEBUG: Parsed settings: %+v", settings)
 
 	// Update notification service configuration
 	err := updateNotificationServiceConfig(settings)
@@ -175,17 +192,21 @@ func testNotificationSettings(c *gin.Context) {
 
 func getDefaultNotificationSettings() NotificationSettings {
 	return NotificationSettings{
-		SMTPHost:         "smtp.gmail.com",
-		SMTPPort:         "587",
-		SMTPUsername:     "",
-		SMTPPassword:     "",
-		SMTPFrom:         "",
-		SMTPUseTLS:       true,
-		SMTPUseAuth:      true,
-		SMTPAuthMethod:   "plain",
-		MaxRetryAttempts: 3,
-		BatchSize:        10,
-		DelayBetweenMS:   1000,
+		SMTPHost:                        "smtp.gmail.com",
+		SMTPPort:                        "587",
+		SMTPUsername:                    "",
+		SMTPPassword:                    "",
+		SMTPFrom:                        "",
+		SMTPUseTLS:                      true,
+		SMTPUseAuth:                     true,
+		SMTPAuthMethod:                  "plain",
+		SystemEmailRecipient:            "",
+		SystemTelegramUsername:          "",
+		SendSystemEmailNotifications:    true,
+		SendSystemTelegramNotifications: true,
+		MaxRetryAttempts:                3,
+		BatchSize:                       10,
+		DelayBetweenMS:                  1000,
 	}
 }
 
@@ -204,20 +225,35 @@ func mapToNotificationSettings(config map[string]interface{}) NotificationSettin
 	if val, ok := config["smtp_from"].(string); ok {
 		settings.SMTPFrom = val
 	}
-	if val, ok := config["smtp_use_tls"].(string); ok {
-		settings.SMTPUseTLS = val == "true"
+	if val, ok := config["smtp_use_tls"].(bool); ok {
+		settings.SMTPUseTLS = val
 	}
-	if val, ok := config["smtp_use_auth"].(string); ok {
-		settings.SMTPUseAuth = val == "true"
+	if val, ok := config["smtp_use_auth"].(bool); ok {
+		settings.SMTPUseAuth = val
 	}
 	if val, ok := config["smtp_auth_method"].(string); ok {
 		settings.SMTPAuthMethod = val
+	}
+	if val, ok := config["system_email_recipient"].(string); ok {
+		settings.SystemEmailRecipient = val
+	}
+	if val, ok := config["system_telegram_username"].(string); ok {
+		settings.SystemTelegramUsername = val
+	}
+	if val, ok := config["send_system_email_notifications"].(bool); ok {
+		settings.SendSystemEmailNotifications = val
+	}
+	if val, ok := config["send_system_telegram_notifications"].(bool); ok {
+		settings.SendSystemTelegramNotifications = val
 	}
 	if val, ok := config["max_retry_attempts"].(float64); ok {
 		settings.MaxRetryAttempts = int(val)
 	}
 	if val, ok := config["batch_size"].(float64); ok {
 		settings.BatchSize = int(val)
+	}
+	if val, ok := config["delay_between_batches_ms"].(float64); ok {
+		settings.DelayBetweenMS = int(val)
 	}
 
 	return settings
@@ -231,17 +267,21 @@ func updateNotificationServiceConfig(settings NotificationSettings) error {
 
 	// Convert settings to map for JSON
 	configMap := map[string]interface{}{
-		"smtp_host":              settings.SMTPHost,
-		"smtp_port":              settings.SMTPPort,
-		"smtp_username":          settings.SMTPUsername,
-		"smtp_password":          settings.SMTPPassword,
-		"smtp_from":              settings.SMTPFrom,
-		"smtp_use_tls":           strconv.FormatBool(settings.SMTPUseTLS),
-		"smtp_use_auth":          strconv.FormatBool(settings.SMTPUseAuth),
-		"smtp_auth_method":       settings.SMTPAuthMethod,
-		"max_retry_attempts":     settings.MaxRetryAttempts,
-		"batch_size":             settings.BatchSize,
-		"delay_between_batches_ms": settings.DelayBetweenMS,
+		"smtp_host":                        settings.SMTPHost,
+		"smtp_port":                        settings.SMTPPort,
+		"smtp_username":                    settings.SMTPUsername,
+		"smtp_password":                    settings.SMTPPassword,
+		"smtp_from":                        settings.SMTPFrom,
+		"smtp_use_tls":                     settings.SMTPUseTLS,
+		"smtp_use_auth":                    settings.SMTPUseAuth,
+		"smtp_auth_method":                 settings.SMTPAuthMethod,
+		"system_email_recipient":           settings.SystemEmailRecipient,
+		"system_telegram_username":         settings.SystemTelegramUsername,
+		"send_system_email_notifications":  settings.SendSystemEmailNotifications,
+		"send_system_telegram_notifications": settings.SendSystemTelegramNotifications,
+		"max_retry_attempts":               settings.MaxRetryAttempts,
+		"batch_size":                       settings.BatchSize,
+		"delay_between_batches_ms":         settings.DelayBetweenMS,
 	}
 
 	jsonData, err := json.Marshal(configMap)
