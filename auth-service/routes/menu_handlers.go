@@ -13,6 +13,14 @@ func homeHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/menu")
 }
 
+// healthHandler handles health check requests
+func healthHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "healthy",
+		"service": "auth-service",
+	})
+}
+
 // menuHandler shows the list of accessible services
 func menuHandler(c *gin.Context) {
 	// Get user from middleware

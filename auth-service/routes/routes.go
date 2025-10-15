@@ -53,6 +53,7 @@ func SetupAllRoutes(router *gin.Engine) {
 func SetupAuthRoutes(router *gin.Engine) {
 	// Basic routes
 	router.GET("/", homeHandler)
+	router.GET("/health", healthHandler)
 	router.GET("/menu", authRequired(), menuHandler)
 	
 	// Authentication routes

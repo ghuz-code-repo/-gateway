@@ -27,6 +27,12 @@ services:
       - auth_network
       - service_network
     restart: always
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   auth-service:
     build:
@@ -48,47 +54,72 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro  # Access to Docker for nginx reload
     environment:
       - TZ=Asia/Tashkent
-      - NOTIFICATION_SERVICE_URL=http://notification-service:8082
+      - NOTIFICATION_SERVICE_URL=http://notification-service:80
       - NGINX_CONTAINER_NAME=gateway-nginx-1
       - NGINX_DYNAMIC_CONFIG_DIR=/etc/nginx/conf.d/dynamic
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   mongo:
     image: mongo:6
     restart: always
-    ports:
-      - "27017:27017"  # Возвращаем для разработки
     networks:
       - data_network
-      - public_network  # Возвращаем для внешнего доступа
     volumes:
       - ./mongo_data:/data/db
     environment:
       - MONGO_INITDB_DATABASE=authdb
       - TZ=Asia/Tashkent
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  monitoring-service:
+    build:
+      context: ./monitoring-service
+      dockerfile: Dockerfile
+    container_name: gateway-monitoring-service
+    env_file:
+      - ./monitoring-service/.env
+    depends_on:
+      - auth-service
+    networks:
+      - service_network
+      - public_network
+    environment:
+      - TZ=Asia/Tashkent
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   dozzle:
     image: amir20/dozzle:latest
     container_name: gateway-dozzle
     restart: always
-    ports:
-      - "9999:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DOZZLE_LEVEL=info
-      - DOZZLE_TAILSIZE=300
-      - DOZZLE_FILTER=name=gateway-*,name=referal,name=notification*
+      - DOZZLE_FILTER=name=gateway-*,name=referal,name=notification*,name=monitoring*
       - DOZZLE_NO_ANALYTICS=true
       - DOZZLE_BASE=/logs
       - TZ=Asia/Tashkent
-      # Customize theme with Golden House colors
-      - DOZZLE_THEME_PRIMARY=#d4af37
-      - DOZZLE_THEME_BACKGROUND=#f5f5f5
     networks:
       - public_network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/logs"]
+      test: ["CMD", "/dozzle", "healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3
