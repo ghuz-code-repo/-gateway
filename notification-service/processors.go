@@ -1,10 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"mime/quotedprintable"
 	"net"
+	"net/http"
 	"net/smtp"
 	"os"
 	"strconv"
@@ -87,6 +93,10 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 		switch notification.Type {
 		case NotificationTypeEmail:
 			err = ns.sendEmail(notification)
+		case NotificationTypeTelegram:
+			err = ns.sendTelegram(notification, false) // Обычный бот
+		case NotificationTypeTelegramSystem:
+			err = ns.sendTelegram(notification, true) // Системный бот
 		case NotificationTypeSMS:
 			err = ns.sendSMS(notification)
 		case NotificationTypePush:
@@ -131,6 +141,22 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 	log.Printf("Notification %d failed after %d attempts: %v", notification.ID, maxAttempts, err)
 }
 
+// encodeRFC2047 кодирует строку в формат RFC 2047 для email заголовков (UTF-8)
+func encodeRFC2047(s string) string {
+	// RFC 2047: =?charset?encoding?encoded-text?=
+	// Используем base64 encoding (B)
+	return "=?UTF-8?B?" + base64.StdEncoding.EncodeToString([]byte(s)) + "?="
+}
+
+// encodeQuotedPrintable кодирует содержимое в quoted-printable для UTF-8
+func encodeQuotedPrintable(s string) string {
+	var buf bytes.Buffer
+	w := quotedprintable.NewWriter(&buf)
+	w.Write([]byte(s))
+	w.Close()
+	return buf.String()
+}
+
 // sendEmail sends an email notification
 func (ns *NotificationService) sendEmail(notification *Notification) error {
 	log.Printf("📧 Sending email to %s, subject: %s", notification.Recipient, notification.Subject)
@@ -150,7 +176,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	
 	log.Printf("🔧 Using SMTP: %s:%s, auth=%v, tls=%v", config.Host, config.Port, config.UseAuth, config.UseTLS)
 
-	// Compose message
+	// Простое сообщение без сложных кодировок
 	message := []string{
 		"From: " + config.From,
 		"To: " + notification.Recipient,
@@ -244,6 +270,86 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	}
 
 	log.Printf("✅ Email successfully sent to %s (notification #%d)", notification.Recipient, notification.ID)
+	return nil
+}
+
+// sendTelegram sends a Telegram notification
+func (ns *NotificationService) sendTelegram(notification *Notification, isSystemBot bool) error {
+	log.Printf("📱 Sending Telegram message to chat %s (system bot: %v)", notification.Recipient, isSystemBot)
+	
+	config := ns.getConfigFromDB()
+	
+	// Select appropriate bot token
+	var botToken string
+	if isSystemBot {
+		botToken = config.TelegramSystemBotToken
+		if !config.TelegramSystemEnabled {
+			return fmt.Errorf("telegram system bot is not enabled")
+		}
+	} else {
+		botToken = config.TelegramBotToken
+		if !config.TelegramEnabled {
+			return fmt.Errorf("telegram bot is not enabled")
+		}
+	}
+	
+	if botToken == "" {
+		log.Printf("❌ Telegram bot token not configured")
+		return fmt.Errorf("telegram bot token not configured")
+	}
+	
+	// Prepare message text
+	messageText := notification.Content
+	if notification.Subject != "" {
+		messageText = fmt.Sprintf("*%s*\n\n%s", notification.Subject, notification.Content)
+	}
+	
+	// Prepare request payload
+	payload := map[string]interface{}{
+		"chat_id":    notification.Recipient,
+		"text":       messageText,
+		"parse_mode": "Markdown",
+	}
+	
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %v", err)
+	}
+	
+	// Send request to Telegram Bot API
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("telegram API request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %v", err)
+	}
+	
+	// Check response
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("❌ Telegram API error (status %d): %s", resp.StatusCode, string(body))
+		return fmt.Errorf("telegram API error: %s", string(body))
+	}
+	
+	// Parse response to check if message was sent
+	var response map[string]interface{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return fmt.Errorf("failed to parse response: %v", err)
+	}
+	
+	if ok, exists := response["ok"].(bool); !exists || !ok {
+		description := "unknown error"
+		if desc, exists := response["description"].(string); exists {
+			description = desc
+		}
+		return fmt.Errorf("telegram API returned error: %s", description)
+	}
+	
+	log.Printf("✅ Telegram message successfully sent to %s (notification #%d)", notification.Recipient, notification.ID)
 	return nil
 }
 

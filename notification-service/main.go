@@ -20,9 +20,11 @@ type NotificationService struct {
 type NotificationType string
 
 const (
-	NotificationTypeEmail NotificationType = "email"
-	NotificationTypeSMS   NotificationType = "sms"
-	NotificationTypePush  NotificationType = "push"
+	NotificationTypeEmail          NotificationType = "email"
+	NotificationTypeSMS            NotificationType = "sms"
+	NotificationTypePush           NotificationType = "push"
+	NotificationTypeTelegram       NotificationType = "telegram"        // Для отправки пользователям
+	NotificationTypeTelegramSystem NotificationType = "telegram_system" // Для системных уведомлений
 )
 
 type NotificationStatus string
@@ -72,7 +74,7 @@ type BatchNotificationRequest struct {
 
 // SingleNotificationRequest represents a single notification request
 type SingleNotificationRequest struct {
-	Type      NotificationType `json:"type" binding:"required,oneof=email sms push"`
+	Type      NotificationType `json:"type" binding:"required,oneof=email sms push telegram telegram_system"`
 	Recipient string           `json:"recipient" binding:"required"`
 	Subject   string           `json:"subject,omitempty"`
 	Content   string           `json:"content" binding:"required"`
@@ -80,20 +82,28 @@ type SingleNotificationRequest struct {
 
 // NotificationConfig represents stored notification service configuration
 type NotificationConfig struct {
-	ID                      uint   `json:"id" gorm:"primaryKey"`
-	SMTPHost                string `json:"smtp_host" gorm:"default:'smtp.gmail.com'"`
-	SMTPPort                string `json:"smtp_port" gorm:"default:'587'"`
-	SMTPUsername            string `json:"smtp_username"`
-	SMTPPassword            string `json:"smtp_password"`
-	SMTPFrom                string `json:"smtp_from"`
-	SMTPUseTLS              bool   `json:"smtp_use_tls" gorm:"default:true"`
-	SMTPUseAuth             bool   `json:"smtp_use_auth" gorm:"default:true"`
-	SMTPAuthMethod          string `json:"smtp_auth_method" gorm:"default:'plain'"`
-	MaxRetryAttempts        int    `json:"max_retry_attempts" gorm:"default:3"`
-	BatchSize               int    `json:"batch_size" gorm:"default:10"`
-	DelayBetweenBatchesMS   int    `json:"delay_between_batches_ms" gorm:"default:1000"`
-	CreatedAt               int64  `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt               int64  `json:"updated_at" gorm:"autoUpdateTime"`
+	ID                          uint   `json:"id" gorm:"primaryKey"`
+	SMTPHost                    string `json:"smtp_host" gorm:"default:'smtp.gmail.com'"`
+	SMTPPort                    string `json:"smtp_port" gorm:"default:'587'"`
+	SMTPUsername                string `json:"smtp_username"`
+	SMTPPassword                string `json:"smtp_password"`
+	SMTPFrom                    string `json:"smtp_from"`
+	SMTPUseTLS                  bool   `json:"smtp_use_tls" gorm:"default:true"`
+	SMTPUseAuth                 bool   `json:"smtp_use_auth" gorm:"default:true"`
+	SMTPAuthMethod              string `json:"smtp_auth_method" gorm:"default:'plain'"`
+	TelegramBotToken            string `json:"telegram_bot_token"`              // Токен для обычного бота
+	TelegramSystemBotToken      string `json:"telegram_system_bot_token"`       // Токен для системного бота
+	TelegramEnabled             bool   `json:"telegram_enabled" gorm:"default:false"`
+	TelegramSystemEnabled       bool   `json:"telegram_system_enabled" gorm:"default:false"`
+	SystemEmailRecipient        string `json:"system_email_recipient"`          // Email для системных уведомлений
+	SystemTelegramUsername      string `json:"system_telegram_username"`        // Telegram Username для системных уведомлений
+	SendSystemEmailNotifications     bool   `json:"send_system_email_notifications" gorm:"default:true"`      // Включить отправку системных уведомлений на почту
+	SendSystemTelegramNotifications  bool   `json:"send_system_telegram_notifications" gorm:"default:true"`   // Включить отправку системных уведомлений в Telegram
+	MaxRetryAttempts            int    `json:"max_retry_attempts" gorm:"default:3"`
+	BatchSize                   int    `json:"batch_size" gorm:"default:10"`
+	DelayBetweenBatchesMS       int    `json:"delay_between_batches_ms" gorm:"default:1000"`
+	CreatedAt                   int64  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt                   int64  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 // isInternalIP checks if the IP is from internal Docker networks
@@ -102,6 +112,11 @@ func isInternalIP(ip string) bool {
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		return false
+	}
+	
+	// Allow IPv6 localhost
+	if parsedIP.IsLoopback() {
+		return true
 	}
 
 	// Define allowed internal networks
@@ -246,6 +261,18 @@ func initDB() (*gorm.DB, error) {
 }
 
 func (ns *NotificationService) setupRoutes(router *gin.Engine) {
+	// Статические файлы
+	router.Static("/static", "./static")
+	
+	// Главная страница с интерфейсом настроек
+	router.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/static/config.html")
+	})
+	
+	router.GET("/config", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/static/config.html")
+	})
+
 	api := router.Group("/api/v1")
 	{
 		// Batch notifications endpoint
@@ -415,33 +442,49 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 	if result.Error != nil {
 		// If no config found in DB, create default config from environment
 		dbConfig = NotificationConfig{
-			SMTPHost:              getEnvOrDefault("SMTP_HOST", "smtp.gmail.com"),
-			SMTPPort:              getEnvOrDefault("SMTP_PORT", "587"),
-			SMTPUsername:          getEnvOrDefault("SMTP_USERNAME", ""),
-			SMTPPassword:          getEnvOrDefault("SMTP_PASSWORD", ""),
-			SMTPFrom:              getEnvOrDefault("SMTP_FROM", ""),
-			SMTPUseTLS:            getEnvAsBool("SMTP_USE_TLS", true),
-			SMTPUseAuth:           getEnvAsBool("SMTP_USE_AUTH", true),
-			SMTPAuthMethod:        getEnvOrDefault("SMTP_AUTH_METHOD", "plain"),
-			MaxRetryAttempts:      getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
-			BatchSize:             getEnvAsInt("BATCH_SIZE", 10),
-			DelayBetweenBatchesMS: getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
+			SMTPHost:                        getEnvOrDefault("SMTP_HOST", "smtp.gmail.com"),
+			SMTPPort:                        getEnvOrDefault("SMTP_PORT", "587"),
+			SMTPUsername:                    getEnvOrDefault("SMTP_USERNAME", ""),
+			SMTPPassword:                    getEnvOrDefault("SMTP_PASSWORD", ""),
+			SMTPFrom:                        getEnvOrDefault("SMTP_FROM", ""),
+			SMTPUseTLS:                      getEnvAsBool("SMTP_USE_TLS", true),
+			SMTPUseAuth:                     getEnvAsBool("SMTP_USE_AUTH", true),
+			SMTPAuthMethod:                  getEnvOrDefault("SMTP_AUTH_METHOD", "plain"),
+			TelegramBotToken:                getEnvOrDefault("TELEGRAM_BOT_TOKEN", ""),
+			TelegramSystemBotToken:          getEnvOrDefault("TELEGRAM_SYSTEM_BOT_TOKEN", ""),
+			TelegramEnabled:                 getEnvAsBool("TELEGRAM_ENABLED", false),
+			TelegramSystemEnabled:           getEnvAsBool("TELEGRAM_SYSTEM_ENABLED", false),
+			SystemEmailRecipient:            getEnvOrDefault("SYSTEM_EMAIL_RECIPIENT", ""),
+			SystemTelegramUsername:          getEnvOrDefault("SYSTEM_TELEGRAM_USERNAME", ""),
+			SendSystemEmailNotifications:    getEnvAsBool("SEND_SYSTEM_EMAIL_NOTIFICATIONS", true),
+			SendSystemTelegramNotifications: getEnvAsBool("SEND_SYSTEM_TELEGRAM_NOTIFICATIONS", true),
+			MaxRetryAttempts:                getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
+			BatchSize:                       getEnvAsInt("BATCH_SIZE", 10),
+			DelayBetweenBatchesMS:           getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
 		}
 		// Save default config to DB
 		ns.db.Create(&dbConfig)
 	}
 
 	config := map[string]interface{}{
-		"smtp_host":                dbConfig.SMTPHost,
-		"smtp_port":                dbConfig.SMTPPort,
-		"smtp_username":            dbConfig.SMTPUsername,
-		"smtp_from":                dbConfig.SMTPFrom,
-		"smtp_use_tls":             strconv.FormatBool(dbConfig.SMTPUseTLS),
-		"smtp_use_auth":            strconv.FormatBool(dbConfig.SMTPUseAuth),
-		"smtp_auth_method":         dbConfig.SMTPAuthMethod,
-		"max_retry_attempts":       dbConfig.MaxRetryAttempts,
-		"batch_size":               dbConfig.BatchSize,
-		"delay_between_batches_ms": dbConfig.DelayBetweenBatchesMS,
+		"smtp_host":                        dbConfig.SMTPHost,
+		"smtp_port":                        dbConfig.SMTPPort,
+		"smtp_username":                    dbConfig.SMTPUsername,
+		"smtp_from":                        dbConfig.SMTPFrom,
+		"smtp_use_tls":                     dbConfig.SMTPUseTLS,
+		"smtp_use_auth":                    dbConfig.SMTPUseAuth,
+		"smtp_auth_method":                 dbConfig.SMTPAuthMethod,
+		"telegram_bot_token":               dbConfig.TelegramBotToken,
+		"telegram_system_bot_token":        dbConfig.TelegramSystemBotToken,
+		"telegram_enabled":                 dbConfig.TelegramEnabled,
+		"telegram_system_enabled":          dbConfig.TelegramSystemEnabled,
+		"system_email_recipient":           dbConfig.SystemEmailRecipient,
+		"system_telegram_username":         dbConfig.SystemTelegramUsername,
+		"send_system_email_notifications":  dbConfig.SendSystemEmailNotifications,
+		"send_system_telegram_notifications": dbConfig.SendSystemTelegramNotifications,
+		"max_retry_attempts":               dbConfig.MaxRetryAttempts,
+		"batch_size":                       dbConfig.BatchSize,
+		"delay_between_batches_ms":         dbConfig.DelayBetweenBatchesMS,
 	}
 	c.JSON(http.StatusOK, config)
 }
@@ -489,19 +532,59 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 		updated = append(updated, "SMTP_FROM")
 	}
 	
-	if smtpUseTLS, ok := config["smtp_use_tls"].(string); ok {
-		dbConfig.SMTPUseTLS = smtpUseTLS == "true"
+	if smtpUseTLS, ok := config["smtp_use_tls"].(bool); ok {
+		dbConfig.SMTPUseTLS = smtpUseTLS
 		updated = append(updated, "SMTP_USE_TLS")
 	}
 	
-	if smtpUseAuth, ok := config["smtp_use_auth"].(string); ok {
-		dbConfig.SMTPUseAuth = smtpUseAuth == "true"
+	if smtpUseAuth, ok := config["smtp_use_auth"].(bool); ok {
+		dbConfig.SMTPUseAuth = smtpUseAuth
 		updated = append(updated, "SMTP_USE_AUTH")
 	}
 	
 	if smtpAuthMethod, ok := config["smtp_auth_method"].(string); ok {
 		dbConfig.SMTPAuthMethod = smtpAuthMethod
 		updated = append(updated, "SMTP_AUTH_METHOD")
+	}
+	
+	if telegramBotToken, ok := config["telegram_bot_token"].(string); ok {
+		dbConfig.TelegramBotToken = telegramBotToken
+		updated = append(updated, "TELEGRAM_BOT_TOKEN")
+	}
+	
+	if telegramSystemBotToken, ok := config["telegram_system_bot_token"].(string); ok {
+		dbConfig.TelegramSystemBotToken = telegramSystemBotToken
+		updated = append(updated, "TELEGRAM_SYSTEM_BOT_TOKEN")
+	}
+	
+	if telegramEnabled, ok := config["telegram_enabled"].(bool); ok {
+		dbConfig.TelegramEnabled = telegramEnabled
+		updated = append(updated, "TELEGRAM_ENABLED")
+	}
+	
+	if telegramSystemEnabled, ok := config["telegram_system_enabled"].(bool); ok {
+		dbConfig.TelegramSystemEnabled = telegramSystemEnabled
+		updated = append(updated, "TELEGRAM_SYSTEM_ENABLED")
+	}
+	
+	if systemEmailRecipient, ok := config["system_email_recipient"].(string); ok {
+		dbConfig.SystemEmailRecipient = systemEmailRecipient
+		updated = append(updated, "SYSTEM_EMAIL_RECIPIENT")
+	}
+	
+	if systemTelegramUsername, ok := config["system_telegram_username"].(string); ok {
+		dbConfig.SystemTelegramUsername = systemTelegramUsername
+		updated = append(updated, "SYSTEM_TELEGRAM_USERNAME")
+	}
+	
+	if sendSystemEmailNotifications, ok := config["send_system_email_notifications"].(bool); ok {
+		dbConfig.SendSystemEmailNotifications = sendSystemEmailNotifications
+		updated = append(updated, "SEND_SYSTEM_EMAIL_NOTIFICATIONS")
+	}
+	
+	if sendSystemTelegramNotifications, ok := config["send_system_telegram_notifications"].(bool); ok {
+		dbConfig.SendSystemTelegramNotifications = sendSystemTelegramNotifications
+		updated = append(updated, "SEND_SYSTEM_TELEGRAM_NOTIFICATIONS")
 	}
 	
 	if maxRetryAttempts, ok := config["max_retry_attempts"].(float64); ok {
@@ -597,6 +680,10 @@ func (ns *NotificationService) getConfigFromDB() NotificationConfig {
 			SMTPUseTLS:            getEnvAsBool("SMTP_USE_TLS", true),
 			SMTPUseAuth:           getEnvAsBool("SMTP_USE_AUTH", true),
 			SMTPAuthMethod:        getEnvOrDefault("SMTP_AUTH_METHOD", "plain"),
+			TelegramBotToken:      getEnvOrDefault("TELEGRAM_BOT_TOKEN", ""),
+			TelegramSystemBotToken: getEnvOrDefault("TELEGRAM_SYSTEM_BOT_TOKEN", ""),
+			TelegramEnabled:       getEnvAsBool("TELEGRAM_ENABLED", false),
+			TelegramSystemEnabled: getEnvAsBool("TELEGRAM_SYSTEM_ENABLED", false),
 			MaxRetryAttempts:      getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
 			BatchSize:             getEnvAsInt("BATCH_SIZE", 10),
 			DelayBetweenBatchesMS: getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
