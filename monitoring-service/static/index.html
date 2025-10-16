@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .timestamp {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .service-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .service-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .service-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .status-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-healthy {
+            background: #10b981;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+        
+        .status-unhealthy {
+            background: #ef4444;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+        
+        .status-unknown {
+            background: #f59e0b;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+        
+        .service-info {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .info-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+            padding: 50px;
+        }
+        
+        .refresh-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+        
+        .refresh-button:hover {
+            transform: scale(1.1) rotate(180deg);
+        }
+        
+        .refresh-button:active {
+            transform: scale(0.95);
+        }
+        
+        .summary {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+        
+        .summary-item {
+            text-align: center;
+        }
+        
+        .summary-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .summary-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .healthy-count { color: #10b981; }
+        .unhealthy-count { color: #ef4444; }
+        .unknown-count { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 Service Monitoring Dashboard</h1>
+            <div class="timestamp" id="timestamp">Loading...</div>
+        </header>
+        
+        <div id="summary" class="summary" style="display: none;">
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-value" id="total-services">0</div>
+                    <div class="summary-label">Total Services</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value healthy-count" id="healthy-count">0</div>
+                    <div class="summary-label">Healthy</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value unhealthy-count" id="unhealthy-count">0</div>
+                    <div class="summary-label">Unhealthy</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value unknown-count" id="unknown-count">0</div>
+                    <div class="summary-label">Unknown</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading">Loading services...</div>
+        <div id="services" class="services-grid"></div>
+    </div>
+    
+    <button class="refresh-button" onclick="loadServices()" title="Refresh">↻</button>
+    
+    <script>
+        let autoRefreshInterval;
+        
+        function formatDate(dateString) {
+            if (!dateString || dateString === "0001-01-01T00:00:00Z") {
+                return "Never";
+            }
+            const date = new Date(dateString);
+            return date.toLocaleString('ru-RU');
+        }
+        
+        function formatTimeSince(dateString) {
+            if (!dateString || dateString === "0001-01-01T00:00:00Z") {
+                return "Never";
+            }
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000); // seconds
+            
+            if (diff < 60) return `${diff}s ago`;
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+            return `${Math.floor(diff / 86400)}d ago`;
+        }
+        
+        async function loadServices() {
+            try {
+                const response = await fetch('/monitoring/api/v1/status');
+                const data = await response.json();
+                
+                document.getElementById('timestamp').textContent = 
+                    `Last updated: ${formatDate(data.timestamp)}`;
+                
+                const services = data.services || {};
+                const servicesArray = Object.values(services);
+                
+                // Update summary
+                const healthyCount = servicesArray.filter(s => s.status === 'healthy').length;
+                const unhealthyCount = servicesArray.filter(s => s.status === 'unhealthy').length;
+                const unknownCount = servicesArray.filter(s => s.status === 'unknown').length;
+                
+                document.getElementById('total-services').textContent = servicesArray.length;
+                document.getElementById('healthy-count').textContent = healthyCount;
+                document.getElementById('unhealthy-count').textContent = unhealthyCount;
+                document.getElementById('unknown-count').textContent = unknownCount;
+                document.getElementById('summary').style.display = 'block';
+                
+                // Render services
+                const servicesContainer = document.getElementById('services');
+                servicesContainer.innerHTML = '';
+                
+                servicesArray.forEach(service => {
+                    const card = document.createElement('div');
+                    card.className = 'service-card';
+                    
+                    let errorSection = '';
+                    if (service.last_error) {
+                        errorSection = `
+                            <div class="error-message">
+                                <strong>Error:</strong> ${service.last_error}
+                            </div>
+                        `;
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="service-header">
+                            <div class="service-name">${service.name}</div>
+                            <div class="status-indicator status-${service.status}"></div>
+                        </div>
+                        <div class="service-info">
+                            <div class="info-row">
+                                <span class="info-label">Status</span>
+                                <span class="info-value">${service.status.toUpperCase()}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">URL</span>
+                                <span class="info-value" style="font-size: 0.8rem; word-break: break-all;">${service.url}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Last Check</span>
+                                <span class="info-value">${formatTimeSince(service.last_check)}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Last Healthy</span>
+                                <span class="info-value">${formatTimeSince(service.last_healthy)}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Error Count</span>
+                                <span class="info-value">${service.error_count}</span>
+                            </div>
+                        </div>
+                        ${errorSection}
+                    `;
+                    
+                    servicesContainer.appendChild(card);
+                });
+                
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Failed to load services:', error);
+                document.getElementById('loading').textContent = 
+                    'Failed to load services. Please check your connection.';
+            }
+        }
+        
+        // Auto-refresh every 10 seconds
+        function startAutoRefresh() {
+            autoRefreshInterval = setInterval(loadServices, 10000);
+        }
+        
+        // Initial load
+        loadServices();
+        startAutoRefresh();
+        
+        // Stop auto-refresh when page is hidden
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                clearInterval(autoRefreshInterval);
+            } else {
+                loadServices();
+                startAutoRefresh();
+            }
+        });
+    </script>
+</body>
+</html>

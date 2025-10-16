@@ -23,9 +23,8 @@ services:
     environment:
       - TZ=Asia/Tashkent
     networks:
-      - public_network
-      - auth_network
-      - service_network
+      - public_network      # Для приема внешних запросов
+      - service_network     # Для проксирования в микросервисы
     restart: always
     healthcheck:
       test: ["CMD", "nginx", "-t"]
@@ -43,9 +42,8 @@ services:
     depends_on:
       - mongo
     networks:
-      - auth_network
-      - data_network
-      - public_network
+      - service_network     # Для общения с другими сервисами
+      - data_network        # Для доступа к MongoDB
     volumes:
       - ./auth-service/data:/root/data
       - ./auth-service/static:/root/static
@@ -92,8 +90,7 @@ services:
     depends_on:
       - auth-service
     networks:
-      - service_network
-      - public_network
+      - service_network     # Только внутренняя сеть сервисов
     environment:
       - TZ=Asia/Tashkent
     restart: always
@@ -112,12 +109,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DOZZLE_LEVEL=info
-      - DOZZLE_FILTER=name=gateway-*,name=referal,name=notification*,name=monitoring*
+      # Показываем ВСЕ контейнеры (без фильтра по сети, чтобы видеть все БД)
+      # Dozzle будет доступен только через nginx с admin-авторизацией
       - DOZZLE_NO_ANALYTICS=true
       - DOZZLE_BASE=/logs
       - TZ=Asia/Tashkent
     networks:
-      - public_network
+      - service_network     # Только внутренняя сеть (доступ через nginx)
     healthcheck:
       test: ["CMD", "/dozzle", "healthcheck"]
       interval: 30s
@@ -129,20 +127,19 @@ volumes:
   nginx_dynamic_config:  # Shared volume for dynamic nginx configs
 
 networks:
-  # Публичная сеть - для nginx и всех сервисов
+  # Публичная сеть - ТОЛЬКО для nginx (единственная точка входа извне)
   public_network:
     name: public_network
     driver: bridge
   
-  # Внутренние сети
-  auth_network:
-    name: auth_network
-    driver: bridge
-  
+  # Сеть для всех микросервисов (изолирована от внешнего мира через nginx)
   service_network:
     name: service_network
     driver: bridge
+    internal: false  # Разрешаем исходящие подключения (для внешних API, etc)
   
+  # Изолированная сеть для auth-service и MongoDB
   data_network:
     name: data_network
     driver: bridge
+    internal: true  # Полностью изолирована - только auth-service имеет доступ

@@ -11,8 +11,8 @@ services:
     depends_on:
       - notification-postgres
     networks:
-      - notification_network  # Для доступа к БД
-      - public_network       # Для приема запросов от других сервисов
+      - notification_network  # Для доступа к БД (изолированная)
+      - service_network      # Для приема запросов от других сервисов
       - smtp_network         # Для отправки на внешние SMTP серверы
     restart: always
     volumes:
@@ -53,10 +53,9 @@ networks:
     driver: bridge
     internal: true
   
-  # Публичная сеть - для приема запросов от auth-service и других сервисов
-  # Подключается к существующей сети из главного docker-compose
-  public_network:
-    name: public_network
+  # Сеть микросервисов - для приема запросов от других сервисов через внутреннюю сеть
+  service_network:
+    name: service_network
     external: true
   
   # SMTP сеть - для отправки на внешние SMTP серверы
