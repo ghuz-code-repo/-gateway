@@ -57,6 +57,14 @@ func main() {
 	
 	r := gin.Default()
 
+	// Serve static files
+	r.Static("/static", "./static")
+	
+	// Main page - monitoring dashboard
+	r.GET("/", func(c *gin.Context) {
+		c.File("./static/index.html")
+	})
+
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "monitoring-service"})

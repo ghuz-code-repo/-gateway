@@ -26,12 +26,70 @@
 # CLIENT SERVICE
 # ================================================================
 
-location /client-service {
+location /client-service/ {
+    # Authentication disabled temporarily for testing
+    # auth_request /verify;
+    # auth_request_set $auth_status $upstream_status;
+    # auth_request_set $auth_user_name $upstream_http_x_user_name;
+    # auth_request_set $auth_user_id $upstream_http_x_user_id;
+    # auth_request_set $auth_user_admin $upstream_http_x_user_admin;
+    # auth_request_set $auth_user_full_name $upstream_http_x_user_full_name;
+    # auth_request_set $auth_user_roles $upstream_http_x_user_roles;
+    # auth_request_set $auth_user_permissions $upstream_http_x_user_permissions;
+    # auth_request_set $auth_user_service_roles $upstream_http_x_user_service_roles; 
+    # auth_request_set $auth_user_service_permissions $upstream_http_x_user_service_permissions;
+    
+    # Strip prefix - Flask routes are without prefix, APPLICATION_ROOT handles URL generation
+    rewrite ^/client-service/(.*) /$1 break;
+    
     proxy_pass http://client-service-service:80;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Prefix /client-service;
+    proxy_set_header X-Original-URI $request_uri;
+    
+    # Pass authentication information (disabled for testing)
+    # proxy_set_header X-User-Name $auth_user_name;
+    # proxy_set_header X-User-ID $auth_user_id;
+    # proxy_set_header X-User-Admin $auth_user_admin;
+    # proxy_set_header X-User-Full-Name $auth_user_full_name;
+    # proxy_set_header X-User-Full-Name-Encoding "base64";
+    # proxy_set_header X-User-Roles $auth_user_roles;
+    # proxy_set_header X-User-Permissions $auth_user_permissions;
+    # proxy_set_header X-User-Service-Roles $auth_user_service_roles;
+    # proxy_set_header X-User-Service-Permissions $auth_user_service_permissions;
+    
+    # Add service identification headers
+    proxy_set_header X-Service-Key client-service;
+    proxy_set_header X-Service-Prefix /client-service;
+    
+    # Timeout settings
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 60s;
+    
+    # Buffer settings
+    proxy_buffering on;
+    proxy_buffer_size 4k;
+    proxy_buffers 8 4k;
+    
+    # Debug header (disabled for testing)
+    # add_header X-Auth-Status $auth_status always;
+}
+
+# Client service static files
+location /client-service/static/ {
+    proxy_pass http://client-service-service:80/static/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    
+    # Cache static files
+    expires 1h;
+    add_header Cache-Control "public, immutable";
 }
 
 # ================================================================

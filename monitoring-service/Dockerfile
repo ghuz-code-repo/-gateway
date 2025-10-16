@@ -25,6 +25,9 @@ WORKDIR /root/
 # Copy the binary from builder stage
 COPY --from=builder /app/main .
 
+# Copy static files for web interface
+COPY --from=builder /app/static ./static
+
 # Create log directory
 RUN mkdir -p /var/log/monitoring-service
 
