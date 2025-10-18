@@ -275,22 +275,34 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 
 // sendTelegram sends a Telegram notification
 func (ns *NotificationService) sendTelegram(notification *Notification, isSystemBot bool) error {
-	log.Printf("📱 Sending Telegram message to chat %s (system bot: %v)", notification.Recipient, isSystemBot)
-	
 	config := ns.getConfigFromDB()
 	
-	// Select appropriate bot token
+	// Select appropriate bot token and recipient
 	var botToken string
+	var chatID string
+	
 	if isSystemBot {
 		botToken = config.TelegramSystemBotToken
 		if !config.TelegramSystemEnabled {
 			return fmt.Errorf("telegram system bot is not enabled")
 		}
+		
+		// For system bot, use Chat ID from config if available
+		// Otherwise fall back to the recipient (username)
+		if config.SystemTelegramChatID != "" {
+			chatID = config.SystemTelegramChatID
+			log.Printf("📱 Sending Telegram message to Chat ID %s (system bot)", chatID)
+		} else {
+			chatID = notification.Recipient
+			log.Printf("📱 Sending Telegram message to %s (system bot, no Chat ID configured)", chatID)
+		}
 	} else {
 		botToken = config.TelegramBotToken
+		chatID = notification.Recipient
 		if !config.TelegramEnabled {
 			return fmt.Errorf("telegram bot is not enabled")
 		}
+		log.Printf("📱 Sending Telegram message to chat %s (regular bot)", chatID)
 	}
 	
 	if botToken == "" {
@@ -306,7 +318,7 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 	
 	// Prepare request payload
 	payload := map[string]interface{}{
-		"chat_id":    notification.Recipient,
+		"chat_id":    chatID,
 		"text":       messageText,
 		"parse_mode": "Markdown",
 	}

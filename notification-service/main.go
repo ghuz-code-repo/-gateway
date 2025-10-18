@@ -1,11 +1,16 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -96,7 +101,8 @@ type NotificationConfig struct {
 	TelegramEnabled             bool   `json:"telegram_enabled" gorm:"default:false"`
 	TelegramSystemEnabled       bool   `json:"telegram_system_enabled" gorm:"default:false"`
 	SystemEmailRecipient        string `json:"system_email_recipient"`          // Email для системных уведомлений
-	SystemTelegramUsername      string `json:"system_telegram_username"`        // Telegram Username для системных уведомлений
+	SystemTelegramUsername      string `json:"system_telegram_username"`        // Telegram Username для системных уведомлений (сохраняется для UI)
+	SystemTelegramChatID        string `json:"system_telegram_chat_id"`         // Telegram Chat ID (используется для отправки)
 	SendSystemEmailNotifications     bool   `json:"send_system_email_notifications" gorm:"default:true"`      // Включить отправку системных уведомлений на почту
 	SendSystemTelegramNotifications  bool   `json:"send_system_telegram_notifications" gorm:"default:true"`   // Включить отправку системных уведомлений в Telegram
 	MaxRetryAttempts            int    `json:"max_retry_attempts" gorm:"default:3"`
@@ -576,8 +582,24 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	}
 	
 	if systemTelegramUsername, ok := config["system_telegram_username"].(string); ok {
+		// Check if username changed
+		usernameChanged := dbConfig.SystemTelegramUsername != systemTelegramUsername
 		dbConfig.SystemTelegramUsername = systemTelegramUsername
 		updated = append(updated, "SYSTEM_TELEGRAM_USERNAME")
+		
+		// If username changed and not empty, try to resolve Chat ID
+		if usernameChanged && systemTelegramUsername != "" && dbConfig.TelegramSystemBotToken != "" {
+			log.Printf("📱 Telegram username changed to %s, attempting to resolve Chat ID...", systemTelegramUsername)
+			chatID, err := ns.resolveTelegramChatID(dbConfig.TelegramSystemBotToken, systemTelegramUsername)
+			if err != nil {
+				log.Printf("⚠️ Failed to resolve Chat ID for %s: %v", systemTelegramUsername, err)
+				log.Printf("💡 User must send /start to the bot first")
+			} else {
+				dbConfig.SystemTelegramChatID = chatID
+				updated = append(updated, "SYSTEM_TELEGRAM_CHAT_ID")
+				log.Printf("✅ Resolved Chat ID for %s: %s", systemTelegramUsername, chatID)
+			}
+		}
 	}
 	
 	// Handle system notification booleans with explicit key checking
@@ -642,6 +664,61 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 		"message": "Configuration updated successfully",
 		"updated_fields": updated,
 	})
+}
+
+// resolveTelegramChatID attempts to get Chat ID from Telegram username
+// by querying bot updates. User must have sent /start to the bot first.
+func (ns *NotificationService) resolveTelegramChatID(botToken, username string) (string, error) {
+	// Remove @ prefix if present
+	username = strings.TrimPrefix(username, "@")
+	
+	// Request recent updates from Telegram API
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?limit=100", botToken)
+	
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to request Telegram API: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return "", fmt.Errorf("Telegram API returned status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	// Parse response
+	var result struct {
+		Ok     bool `json:"ok"`
+		Result []struct {
+			Message struct {
+				Chat struct {
+					ID       int64  `json:"id"`
+					Username string `json:"username"`
+					Type     string `json:"type"`
+				} `json:"chat"`
+			} `json:"message"`
+		} `json:"result"`
+	}
+	
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to parse Telegram API response: %v", err)
+	}
+	
+	if !result.Ok {
+		return "", fmt.Errorf("Telegram API returned ok=false")
+	}
+	
+	// Search for matching username in updates
+	for _, update := range result.Result {
+		chat := update.Message.Chat
+		if chat.Type == "private" && strings.EqualFold(chat.Username, username) {
+			chatID := strconv.FormatInt(chat.ID, 10)
+			return chatID, nil
+		}
+	}
+	
+	return "", fmt.Errorf("chat not found for username @%s (user must send /start to bot first)", username)
 }
 
 // These functions are now defined as variables in processors.go and initialized there

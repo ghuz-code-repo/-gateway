@@ -16,7 +16,9 @@ import (
 )
 
 type MonitoringService struct {
-	services map[string]*ServiceStatus
+	services     map[string]*ServiceStatus
+	configCache  *NotificationConfig
+	lastConfigFetch time.Time
 }
 
 type ServiceStatus struct {
@@ -34,6 +36,13 @@ type NotificationRequest struct {
 	Recipient string `json:"recipient"`
 	Subject   string `json:"subject"`
 	Content   string `json:"content"`
+}
+
+type NotificationConfig struct {
+	SendSystemEmailNotifications    bool   `json:"send_system_email_notifications"`
+	SendSystemTelegramNotifications bool   `json:"send_system_telegram_notifications"`
+	SystemEmailRecipient            string `json:"system_email_recipient"`
+	SystemTelegramUsername          string `json:"system_telegram_username"`
 }
 
 func main() {
@@ -172,6 +181,17 @@ func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
 		}
 	}
 
+	// Get notification settings from API (with caching)
+	config := ms.getNotificationConfig()
+	sendEmailAlerts := config.SendSystemEmailNotifications
+	sendTelegramAlerts := config.SendSystemTelegramNotifications
+	enablePersistentAlerts := getEnvAsBool("ENABLE_PERSISTENT_ALERTS", false)
+	
+	if !sendEmailAlerts && !sendTelegramAlerts {
+		// Skip all alerts if both notification types are disabled
+		return
+	}
+
 	// Send alert if status changed from healthy to unhealthy
 	if previousStatus == "healthy" && service.Status == "unhealthy" {
 		ms.sendAlert(name, service, "Service became unhealthy")
@@ -182,21 +202,24 @@ func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
 		ms.sendAlert(name, service, "Service recovered")
 	}
 
-	// Send persistent alert if service is unhealthy for too long
-	persistentAlertThreshold := getEnvAsInt("PERSISTENT_ALERT_THRESHOLD", 5)
-	if service.Status == "unhealthy" && service.ErrorCount%persistentAlertThreshold == 0 {
-		ms.sendAlert(name, service, fmt.Sprintf("Service still unhealthy after %d checks", service.ErrorCount))
+	// Send persistent alert if service is unhealthy for too long (only if enabled)
+	if enablePersistentAlerts {
+		persistentAlertThreshold := getEnvAsInt("PERSISTENT_ALERT_THRESHOLD", 20)
+		if service.Status == "unhealthy" && service.ErrorCount > 0 && service.ErrorCount%persistentAlertThreshold == 0 {
+			ms.sendAlert(name, service, fmt.Sprintf("Service still unhealthy after %d checks", service.ErrorCount))
+		}
 	}
 }
 
 func (ms *MonitoringService) sendAlert(serviceName string, service *ServiceStatus, alertType string) {
 	notificationServiceURL := getEnvOrDefault("NOTIFICATION_SERVICE_URL", "http://notification-service:80")
 	
-	// Get notification settings
-	systemEmailRecipient := getEnvOrDefault("SYSTEM_EMAIL_RECIPIENT", "")
-	systemTelegramUsername := getEnvOrDefault("SYSTEM_TELEGRAM_USERNAME", "")
-	sendEmailAlerts := getEnvAsBool("SEND_SYSTEM_EMAIL_NOTIFICATIONS", true)
-	sendTelegramAlerts := getEnvAsBool("SEND_SYSTEM_TELEGRAM_NOTIFICATIONS", true)
+	// Get notification settings from API (with caching) - includes recipients
+	config := ms.getNotificationConfig()
+	sendEmailAlerts := config.SendSystemEmailNotifications
+	sendTelegramAlerts := config.SendSystemTelegramNotifications
+	systemEmailRecipient := config.SystemEmailRecipient
+	systemTelegramUsername := config.SystemTelegramUsername
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	subject := fmt.Sprintf("🚨 Service Monitor Alert: %s", serviceName)
@@ -300,6 +323,82 @@ func (ms *MonitoringService) forceHealthCheck(c *gin.Context) {
 	log.Println("🔄 Forced health check triggered")
 	go ms.checkAllServices()
 	c.JSON(http.StatusOK, gin.H{"message": "Health check triggered"})
+}
+
+// getNotificationConfig fetches notification settings from notification-service API
+// Uses caching with 60 second TTL to avoid excessive API calls
+func (ms *MonitoringService) getNotificationConfig() NotificationConfig {
+	// Use cached config if less than 60 seconds old
+	if ms.configCache != nil && time.Since(ms.lastConfigFetch) < 60*time.Second {
+		return *ms.configCache
+	}
+
+	notificationServiceURL := getEnvOrDefault("NOTIFICATION_SERVICE_URL", "http://notification-service:80")
+	
+	// Try to fetch from API
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(notificationServiceURL + "/api/v1/config")
+	
+	if err != nil {
+		log.Printf("⚠️ Failed to fetch notification config from API, using env fallback: %v", err)
+		return ms.getConfigFromEnv()
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("⚠️ Notification service returned status %d, using env fallback", resp.StatusCode)
+		return ms.getConfigFromEnv()
+	}
+
+	var apiResponse map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		log.Printf("⚠️ Failed to parse notification config, using env fallback: %v", err)
+		return ms.getConfigFromEnv()
+	}
+
+	config := NotificationConfig{
+		SendSystemEmailNotifications:    true,  // Default to true
+		SendSystemTelegramNotifications: true,
+		SystemEmailRecipient:            "",
+		SystemTelegramUsername:          "",
+	}
+
+	if val, ok := apiResponse["send_system_email_notifications"].(bool); ok {
+		config.SendSystemEmailNotifications = val
+	}
+	if val, ok := apiResponse["send_system_telegram_notifications"].(bool); ok {
+		config.SendSystemTelegramNotifications = val
+	}
+	if val, ok := apiResponse["system_email_recipient"].(string); ok {
+		config.SystemEmailRecipient = val
+	}
+	if val, ok := apiResponse["system_telegram_username"].(string); ok {
+		config.SystemTelegramUsername = val
+	}
+
+	// Cache the config
+	ms.configCache = &config
+	ms.lastConfigFetch = time.Now()
+	
+	log.Printf("✅ Fetched notification config from API: Email=%v (to: %s), Telegram=%v (to: %s)", 
+		config.SendSystemEmailNotifications, config.SystemEmailRecipient,
+		config.SendSystemTelegramNotifications, config.SystemTelegramUsername)
+
+	return config
+}
+
+// getConfigFromEnv returns notification settings from environment variables as fallback
+func (ms *MonitoringService) getConfigFromEnv() NotificationConfig {
+	config := NotificationConfig{
+		SendSystemEmailNotifications:    getEnvAsBool("SEND_SYSTEM_EMAIL_NOTIFICATIONS", false),
+		SendSystemTelegramNotifications: getEnvAsBool("SEND_SYSTEM_TELEGRAM_NOTIFICATIONS", false),
+		SystemEmailRecipient:            getEnvOrDefault("SYSTEM_EMAIL_RECIPIENT", ""),
+		SystemTelegramUsername:          getEnvOrDefault("SYSTEM_TELEGRAM_USERNAME", ""),
+	}
+	log.Printf("📝 Using notification config from ENV: Email=%v (to: %s), Telegram=%v (to: %s)", 
+		config.SendSystemEmailNotifications, config.SystemEmailRecipient,
+		config.SendSystemTelegramNotifications, config.SystemTelegramUsername)
+	return config
 }
 
 // Utility functions
