@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 
@@ -29,6 +30,21 @@ const serviceConfigTemplate = `# AUTO-GENERATED SERVICE CONFIG: {{.ServiceKey}}
 # Container: {{.ContainerName}}
 # Status: {{.Status}}
 
+# Static files for {{.ServiceKey}}
+location {{.ExternalPrefix}}/static/ {
+    proxy_pass {{.InternalURL}}/static/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    
+    # Cache static files
+    proxy_cache_valid 200 1h;
+    proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
+    add_header Cache-Control "public, max-age=3600" always;
+    expires 1h;
+}
+
 location {{.ExternalPrefix}}/ {
     # Authentication
     auth_request /verify;
@@ -43,12 +59,12 @@ location {{.ExternalPrefix}}/ {
     
     # Use variable for dynamic DNS resolution
     # This allows nginx to start even if upstream is not available
-    set $backend_{{.ServiceKey}} {{.InternalURL}};
+    set $backend_{{.SafeServiceKey}} {{.InternalURL}};
     
     # Strip the service prefix before proxying
     rewrite ^{{.ExternalPrefix}}/(.*) /$1 break;
     
-    proxy_pass $backend_{{.ServiceKey}};
+    proxy_pass $backend_{{.SafeServiceKey}};
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -83,8 +99,8 @@ location {{.ExternalPrefix}}/ {
 
 # Health check endpoint for {{.ServiceKey}}
 location = {{.ExternalPrefix}}{{.HealthCheckPath}} {
-    set $backend_{{.ServiceKey}}_health {{.InternalURL}}{{.HealthCheckPath}};
-    proxy_pass $backend_{{.ServiceKey}}_health;
+    set $backend_{{.SafeServiceKey}}_health {{.InternalURL}}{{.HealthCheckPath}};
+    proxy_pass $backend_{{.SafeServiceKey}}_health;
     proxy_set_header Host $host;
     access_log off;
 }
@@ -125,11 +141,17 @@ func GenerateServiceConfig(instance models.ServiceInstance) (string, error) {
 	}
 
 	// Prepare data
+	// SafeServiceKey: Replace hyphens with underscores for nginx variable names
+	safeKey := instance.ServiceKey
+	safeKey = replaceHyphensWithUnderscores(safeKey)
+	
 	data := struct {
 		models.ServiceInstance
-		GeneratedAt string
+		SafeServiceKey string
+		GeneratedAt    string
 	}{
 		ServiceInstance: instance,
+		SafeServiceKey:  safeKey,
 		GeneratedAt:     time.Now().Format(time.RFC3339),
 	}
 
@@ -140,6 +162,11 @@ func GenerateServiceConfig(instance models.ServiceInstance) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// replaceHyphensWithUnderscores replaces hyphens with underscores for nginx variable names
+func replaceHyphensWithUnderscores(s string) string {
+	return strings.ReplaceAll(s, "-", "_")
 }
 
 // GenerateMasterConfig generates the master include file for all active services
