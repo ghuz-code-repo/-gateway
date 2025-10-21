@@ -870,20 +870,39 @@ func syncServicePermissionsHandler(c *gin.Context) {
 
 // getServiceURL returns the URL for a service based on service key
 func getServiceURL(serviceKey string) string {
-	// Map service keys to their URLs
-	// In production, this should come from configuration
+	// First, try to get URL from Service Discovery (highest priority)
+	instances, err := models.GetServiceInstancesByKey(serviceKey)
+	if err == nil && len(instances) > 0 {
+		// Return the URL of the first healthy instance
+		for _, instance := range instances {
+			if instance.Status == "healthy" || instance.Status == "active" {
+				log.Printf("Using Service Discovery URL for '%s': %s", serviceKey, instance.InternalURL)
+				return instance.InternalURL
+			}
+		}
+		// If no healthy instances, use the first one anyway
+		if instances[0].InternalURL != "" {
+			log.Printf("Using Service Discovery URL (not healthy) for '%s': %s", serviceKey, instances[0].InternalURL)
+			return instances[0].InternalURL
+		}
+	}
+	
+	// Fallback to hardcoded URLs
 	serviceURLs := map[string]string{
-		"referal":  "http://referal:80",
-		"client":   "http://client-service:5000", 
+		"referal":        "http://referal:80",
+		"client-service": "http://client-service-service:80", 
 		// Add more services as needed
 	}
 	
 	if url, exists := serviceURLs[serviceKey]; exists {
+		log.Printf("Using hardcoded URL for '%s': %s", serviceKey, url)
 		return url
 	}
 	
-	// Default pattern: http://service-key:5000
-	return fmt.Sprintf("http://%s:5000", serviceKey)
+	// Default pattern: http://service-key:80
+	defaultURL := fmt.Sprintf("http://%s:80", serviceKey)
+	log.Printf("Using default URL pattern for '%s': %s", serviceKey, defaultURL)
+	return defaultURL
 }
 
 // fetchServicePermissions fetches permissions from external service
