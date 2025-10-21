@@ -56,6 +56,11 @@ location {{.ExternalPrefix}}/ {
     auth_request_set $auth_user_permissions $upstream_http_x_user_permissions;
     auth_request_set $auth_user_service_roles $upstream_http_x_user_service_roles;
     auth_request_set $auth_user_service_permissions $upstream_http_x_user_service_permissions;
+    auth_request_set $auth_user_full_name $upstream_http_x_user_full_name;
+    auth_request_set $auth_user_full_name_encoding $upstream_http_x_user_full_name_encoding;
+    auth_request_set $auth_user_avatar $upstream_http_x_user_avatar;
+    auth_request_set $auth_user_email $upstream_http_x_user_email;
+    auth_request_set $auth_user_phone $upstream_http_x_user_phone;
     
     # Use variable for dynamic DNS resolution
     # This allows nginx to start even if upstream is not available
@@ -80,6 +85,11 @@ location {{.ExternalPrefix}}/ {
     proxy_set_header X-User-Permissions $auth_user_permissions;
     proxy_set_header X-User-Service-Roles $auth_user_service_roles;
     proxy_set_header X-User-Service-Permissions $auth_user_service_permissions;
+    proxy_set_header X-User-Full-Name $auth_user_full_name;
+    proxy_set_header X-User-Full-Name-Encoding $auth_user_full_name_encoding;
+    proxy_set_header X-User-Avatar $auth_user_avatar;
+    proxy_set_header X-User-Email $auth_user_email;
+    proxy_set_header X-User-Phone $auth_user_phone;
     
     # Add service identification headers
     proxy_set_header X-Service-Key {{.ServiceKey}};
