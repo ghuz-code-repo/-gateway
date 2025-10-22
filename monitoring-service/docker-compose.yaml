@@ -22,7 +22,7 @@ services:
 networks:
   service_network:
     external: true
-    name: gateway_service_network
+    name: service_network
   public_network:
     external: true
-    name: gateway_public_network
+    name: public_network

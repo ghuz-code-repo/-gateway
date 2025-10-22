@@ -8,10 +8,26 @@
 # - Internal auth verification endpoint
 # ===================================================================
 
+# Redirect HTTP -> HTTPS
 server {
     listen 80;
     server_name analytics.gh.uz localhost;
-    
+    return 301 https://$host$request_uri;
+}
+
+# Main HTTPS server
+server {
+    listen 443 ssl;
+    server_name analytics.gh.uz localhost;
+
+    # SSL Configuration - use certs mounted into the container
+    ssl_certificate /etc/nginx/certs/gh.uz.chain.txt;
+    ssl_certificate_key /etc/nginx/certs/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
     client_max_body_size 100M;
     add_header X-Debug-Message "Request processed by Nginx" always;
 
