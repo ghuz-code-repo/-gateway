@@ -665,7 +665,7 @@ func sendUserNotification(email, notificationType, password string) models.Email
 
 Рекомендуем сменить пароль после первого входа.
 
-Ссылка для входа: http://localhost/login
+Ссылка для входа: https://analytics.gh.uz/login
 
 С уважением,
 Команда Golden House`, email, password)
@@ -684,7 +684,7 @@ Email: %s`, email)
 		}
 		body += `
 
-Ссылка для входа: http://localhost/login
+Ссылка для входа: https://analytics.gh.uz/login
 
 С уважением,
 Команда Golden House`
