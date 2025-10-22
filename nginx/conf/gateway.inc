@@ -21,7 +21,7 @@ server {
     server_name analytics.gh.uz localhost;
 
     # SSL Configuration - use certs mounted into the container
-    ssl_certificate /etc/nginx/certs/gh.uz.chain.txt;
+    ssl_certificate /etc/nginx/certs/gh.uz.chain.pem;
     ssl_certificate_key /etc/nginx/certs/key.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
