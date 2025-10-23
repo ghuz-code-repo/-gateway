@@ -150,8 +150,15 @@ type User struct {
 	IsBanned   bool               `bson:"is_banned,omitempty" json:"is_banned,omitempty"`     // User ban status
 	BannedAt   *time.Time         `bson:"banned_at,omitempty" json:"banned_at,omitempty"`     // When user was banned
 	BanReason  string             `bson:"ban_reason,omitempty" json:"ban_reason,omitempty"`   // Reason for ban
+	ServiceRoles []ServiceRoleAssignment `bson:"service_roles,omitempty" json:"service_roles,omitempty"` // Service-based roles
 	CreatedAt  time.Time          `bson:"created_at,omitempty" json:"created_at,omitempty"`
 	UpdatedAt  time.Time          `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
+}
+
+// ServiceRoleAssignment represents a role assignment for a specific service
+type ServiceRoleAssignment struct {
+	ServiceKey string `bson:"service_key" json:"service_key"`
+	RoleName   string `bson:"role_name" json:"role_name"`
 }
 
 // GetFullName returns the complete full name with suffix
@@ -1239,25 +1246,9 @@ func GetAllUsers() ([]User, error) {
 func GetUsersWithServiceRoles(serviceKey string) ([]User, error) {
 	ctx := context.Background()
 	
-	// Find roles for this service
-	serviceRoles, err := GetRolesByService(serviceKey)
-	if err != nil {
-		return nil, err
-	}
-	
-	// Extract role names
-	roleNames := make([]string, 0, len(serviceRoles))
-	for _, role := range serviceRoles {
-		roleNames = append(roleNames, role.Name)
-	}
-	
-	if len(roleNames) == 0 {
-		return []User{}, nil // No roles, no users
-	}
-	
-	// Find users who have any of these roles
+	// Find users with service_roles array containing matching service_key
 	cursor, err := usersCol.Find(ctx, bson.M{
-		"roles": bson.M{"$in": roleNames},
+		"service_roles.service_key": serviceKey,
 	})
 	if err != nil {
 		return nil, err
