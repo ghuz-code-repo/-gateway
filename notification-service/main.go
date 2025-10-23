@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -44,19 +45,21 @@ const (
 
 // Notification represents a single notification
 type Notification struct {
-	ID          uint                `json:"id" gorm:"primaryKey"`
-	Type        NotificationType    `json:"type" gorm:"not null"`
-	Recipient   string              `json:"recipient" gorm:"not null"`
-	Subject     string              `json:"subject,omitempty"`
-	Content     string              `json:"content" gorm:"not null"`
-	Status      NotificationStatus  `json:"status" gorm:"default:pending"`
-	Attempts    int                 `json:"attempts" gorm:"default:0"`
-	MaxAttempts int                 `json:"max_attempts" gorm:"default:3"`
-	LastError   string              `json:"last_error,omitempty"`
-	BatchID     string              `json:"batch_id,omitempty"`
-	CreatedAt   int64               `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt   int64               `json:"updated_at" gorm:"autoUpdateTime"`
-	SentAt      *int64              `json:"sent_at,omitempty"`
+	ID                  uint                `json:"id" gorm:"primaryKey"`
+	Type                NotificationType    `json:"type" gorm:"not null"`
+	Recipient           string              `json:"recipient" gorm:"not null"`
+	Subject             string              `json:"subject,omitempty"`
+	Content             string              `json:"content" gorm:"not null"`
+	AttachmentFilename  string              `json:"attachment_filename,omitempty"`
+	AttachmentContent   []byte              `json:"attachment_content,omitempty" gorm:"type:bytea"`
+	Status              NotificationStatus  `json:"status" gorm:"default:pending"`
+	Attempts            int                 `json:"attempts" gorm:"default:0"`
+	MaxAttempts         int                 `json:"max_attempts" gorm:"default:3"`
+	LastError           string              `json:"last_error,omitempty"`
+	BatchID             string              `json:"batch_id,omitempty"`
+	CreatedAt           int64               `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt           int64               `json:"updated_at" gorm:"autoUpdateTime"`
+	SentAt              *int64              `json:"sent_at,omitempty"`
 }
 
 // NotificationBatch represents a batch of notifications
@@ -79,10 +82,12 @@ type BatchNotificationRequest struct {
 
 // SingleNotificationRequest represents a single notification request
 type SingleNotificationRequest struct {
-	Type      NotificationType `json:"type" binding:"required,oneof=email sms push telegram telegram_system"`
-	Recipient string           `json:"recipient" binding:"required"`
-	Subject   string           `json:"subject,omitempty"`
-	Content   string           `json:"content" binding:"required"`
+	Type               NotificationType `json:"type" binding:"required,oneof=email sms push telegram telegram_system"`
+	Recipient          string           `json:"recipient" binding:"required"`
+	Subject            string           `json:"subject,omitempty"`
+	Content            string           `json:"content" binding:"required"`
+	AttachmentFilename string           `json:"attachment_filename,omitempty"`
+	AttachmentContent  string           `json:"attachment_content,omitempty"` // base64 encoded
 }
 
 // NotificationConfig represents stored notification service configuration
@@ -105,6 +110,8 @@ type NotificationConfig struct {
 	SystemTelegramChatID        string `json:"system_telegram_chat_id"`         // Telegram Chat ID (используется для отправки)
 	SendSystemEmailNotifications     bool   `json:"send_system_email_notifications" gorm:"default:true"`      // Включить отправку системных уведомлений на почту
 	SendSystemTelegramNotifications  bool   `json:"send_system_telegram_notifications" gorm:"default:true"`   // Включить отправку системных уведомлений в Telegram
+	DebugMode                   bool   `json:"debug_mode" gorm:"default:false"`                          // Debug режим - все письма на debug email
+	DebugEmail                  string `json:"debug_email"`                                               // Email для всех писем в debug режиме
 	MaxRetryAttempts            int    `json:"max_retry_attempts" gorm:"default:3"`
 	BatchSize                   int    `json:"batch_size" gorm:"default:10"`
 	DelayBetweenBatchesMS       int    `json:"delay_between_batches_ms" gorm:"default:1000"`
@@ -382,6 +389,20 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 		Content:   req.Content,
 	}
 
+	// Handle attachment if present
+	if req.AttachmentFilename != "" && req.AttachmentContent != "" {
+		// Decode base64 attachment
+		attachmentBytes, err := base64.StdEncoding.DecodeString(req.AttachmentContent)
+		if err != nil {
+			log.Printf("⚠️ Failed to decode attachment: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid attachment encoding"})
+			return
+		}
+		notification.AttachmentFilename = req.AttachmentFilename
+		notification.AttachmentContent = attachmentBytes
+		log.Printf("📎 Attachment received: %s (%d bytes)", req.AttachmentFilename, len(attachmentBytes))
+	}
+
 	if err := ns.db.Create(&notification).Error; err != nil {
 		log.Printf("❌ Failed to create notification: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create notification"})
@@ -488,6 +509,8 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 		"system_telegram_username":         dbConfig.SystemTelegramUsername,
 		"send_system_email_notifications":  dbConfig.SendSystemEmailNotifications,
 		"send_system_telegram_notifications": dbConfig.SendSystemTelegramNotifications,
+		"debug_mode":                       dbConfig.DebugMode,
+		"debug_email":                      dbConfig.DebugEmail,
 		"max_retry_attempts":               dbConfig.MaxRetryAttempts,
 		"batch_size":                       dbConfig.BatchSize,
 		"delay_between_batches_ms":         dbConfig.DelayBetweenBatchesMS,
@@ -640,6 +663,23 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	if delayBetweenMS, ok := config["delay_between_batches_ms"].(float64); ok {
 		dbConfig.DelayBetweenBatchesMS = int(delayBetweenMS)
 		updated = append(updated, "DELAY_BETWEEN_BATCHES_MS")
+	}
+	
+	// Handle debug mode settings
+	if val, exists := config["debug_mode"]; exists {
+		if debugMode, ok := val.(bool); ok {
+			dbConfig.DebugMode = debugMode
+			updated = append(updated, "DEBUG_MODE")
+			log.Printf("DEBUG: Updated DebugMode to %v", debugMode)
+		} else {
+			log.Printf("WARNING: debug_mode value is not boolean: %v (type: %T)", val, val)
+		}
+	}
+	
+	if debugEmail, ok := config["debug_email"].(string); ok {
+		dbConfig.DebugEmail = debugEmail
+		updated = append(updated, "DEBUG_EMAIL")
+		log.Printf("DEBUG: Updated DebugEmail to %s", debugEmail)
 	}
 
 	// Save config to database

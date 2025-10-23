@@ -207,6 +207,24 @@
                     </div>
                 </div>
 
+                <div class="section-title" style="color: #ff9800; border-bottom-color: #ff9800;">
+                    🐛 Debug режим
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="debug_mode" {{if .settings.DebugMode}}checked{{end}}>
+                        Включить Debug режим
+                    </label>
+                    <div class="help-text" style="color: #ff9800;">⚠️ В этом режиме ВСЕ письма будут отправляться на указанный ниже email</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="debug_email">Email для Debug режима:</label>
+                    <input type="email" id="debug_email" name="debug_email" value="{{.settings.DebugEmail}}" placeholder="debug@example.com">
+                    <div class="help-text">Все письма будут перенаправлены на этот адрес с пометкой [DEBUG] в теме и информацией о конечном получателе в начале письма</div>
+                </div>
+
                 <div class="section-title">Настройки обработки</div>
 
                 <div class="form-row">
@@ -321,7 +339,7 @@
                 }
                 
                 // Handle checkboxes - if not present in FormData, they should be false
-                const checkboxes = ['smtp_use_tls', 'smtp_use_auth', 'send_system_email_notifications', 'send_system_telegram_notifications'];
+                const checkboxes = ['smtp_use_tls', 'smtp_use_auth', 'send_system_email_notifications', 'send_system_telegram_notifications', 'debug_mode'];
                 checkboxes.forEach(checkbox => {
                     if (!(checkbox in data)) {
                         data[checkbox] = false;
