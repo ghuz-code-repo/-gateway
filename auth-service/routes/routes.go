@@ -25,6 +25,7 @@ func SetupAllRoutes(router *gin.Engine) {
 	{
 		api.GET("/test", testAPIHandler)
 		api.POST("/services/:serviceKey/permissions/sync", syncServicePermissionsHandler)
+		api.GET("/services/:serviceKey/users", getServiceUsersAPIHandler) // Get users for specific service
 		api.GET("/users/:userId/documents", getUserDocumentsAPIHandler)
 		api.GET("/users/:userId/documents/grouped", getUserDocumentsGroupedAPIHandler)
 		api.GET("/users/:userId/documents/for-service/:serviceKey", getUserDocumentsForServiceAPIHandler)
@@ -499,4 +500,58 @@ func createUserDocumentAPIHandler(c *gin.Context) {
 		"message": "Document created successfully",
 		"document": document,
 	})
+}
+
+// getServiceUsersAPIHandler returns users for a specific service (internal API)
+// Returns only basic user information (no documents or sensitive data)
+func getServiceUsersAPIHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	
+	if serviceKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Service key is required"})
+		return
+	}
+	
+	log.Printf("API: Getting users for service: %s", serviceKey)
+	
+	// Use the new ADR-001 function that works with user_service_roles collection
+	usersWithRoles, err := models.GetUsersWithServiceRolesNew(serviceKey)
+	if err != nil {
+		log.Printf("API: Error getting users for service %s: %v", serviceKey, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get users"})
+		return
+	}
+	
+	// Transform to API response with only basic fields (no documents)
+	type UserBasicInfo struct {
+		ID             string   `json:"id"`
+		Username       string   `json:"username"`
+		Email          string   `json:"email,omitempty"`
+		Phone          string   `json:"phone,omitempty"`
+		LastName       string   `json:"last_name,omitempty"`
+		FirstName      string   `json:"first_name,omitempty"`
+		MiddleName     string   `json:"middle_name,omitempty"`
+		FullName       string   `json:"full_name,omitempty"`
+		AvatarPath     string   `json:"avatar_path,omitempty"`
+		Roles          []string `json:"roles,omitempty"`
+	}
+	
+	basicUsers := make([]UserBasicInfo, 0, len(usersWithRoles))
+	for _, userWithRoles := range usersWithRoles {
+		basicUsers = append(basicUsers, UserBasicInfo{
+			ID:         userWithRoles.User.ID.Hex(),
+			Username:   userWithRoles.User.Username,
+			Email:      userWithRoles.User.Email,
+			Phone:      userWithRoles.User.Phone,
+			LastName:   userWithRoles.User.LastName,
+			FirstName:  userWithRoles.User.FirstName,
+			MiddleName: userWithRoles.User.MiddleName,
+			FullName:   userWithRoles.User.GetFullName(),
+			AvatarPath: userWithRoles.User.AvatarPath,
+			Roles:      userWithRoles.ServiceRoles, // Roles from user_service_roles collection
+		})
+	}
+	
+	log.Printf("API: Returning %d users (basic info only) for service %s", len(basicUsers), serviceKey)
+	c.JSON(http.StatusOK, basicUsers)
 }
