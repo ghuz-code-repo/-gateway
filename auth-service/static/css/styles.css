@@ -38,8 +38,8 @@
     /* Added for input focus */
 
     /* Дополнительные переменные для админки */
-    --manage-button-color: #bbc4cc;
-    --manage-button-color-hover: #6c757d;
+    --manage-button-color: #ccc7bb;
+    --manage-button-color-hover: #7d766c;
 
     --secondary-color: #6c757d;
     --secondary-color-hover: #5a6268;
@@ -121,8 +121,8 @@
     /* Adjusted opacity for dark theme if needed */
 
     /* Дополнительные переменные для темной темы админки */
-    --manage-button-color: #6c757d;
-    --manage-button-color-hover: #44494e;
+    --manage-button-color: #7d766c;
+    --manage-button-color-hover: #5e574e;
 
     --secondary-color: #6c757d;
     --secondary-color-hover: #5a6268;
