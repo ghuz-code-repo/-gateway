@@ -666,25 +666,33 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	}
 	
 	// Handle debug mode settings
-	if val, exists := config["debug_mode"]; exists {
-		if debugMode, ok := val.(bool); ok {
+	log.Printf("DEBUG: Checking debug_mode key in config map...")
+	debugModeVal, debugModeExists := config["debug_mode"]
+	log.Printf("DEBUG: debug_mode exists=%v, value=%v, type=%T", debugModeExists, debugModeVal, debugModeVal)
+	
+	if debugModeExists {
+		if debugMode, ok := debugModeVal.(bool); ok {
 			dbConfig.DebugMode = debugMode
 			updated = append(updated, "DEBUG_MODE")
 			log.Printf("DEBUG: Updated DebugMode to %v", debugMode)
 		} else {
-			log.Printf("WARNING: debug_mode value is not boolean: %v (type: %T)", val, val)
+			log.Printf("WARNING: debug_mode value is not boolean: %v (type: %T)", debugModeVal, debugModeVal)
 		}
 	} else {
-		log.Printf("DEBUG: debug_mode key not found in config")
+		log.Printf("DEBUG: debug_mode key not found in config")	
 	}
 	
-	if val, exists := config["debug_email"]; exists {
-		if debugEmail, ok := val.(string); ok {
+	log.Printf("DEBUG: Checking debug_email key in config map...")
+	debugEmailVal, debugEmailExists := config["debug_email"]
+	log.Printf("DEBUG: debug_email exists=%v, value=%v, type=%T", debugEmailExists, debugEmailVal, debugEmailVal)
+	
+	if debugEmailExists {
+		if debugEmail, ok := debugEmailVal.(string); ok {
 			dbConfig.DebugEmail = debugEmail
 			updated = append(updated, "DEBUG_EMAIL")
 			log.Printf("DEBUG: Updated DebugEmail to %s", debugEmail)
 		} else {
-			log.Printf("WARNING: debug_email value is not string: %v (type: %T)", val, val)
+			log.Printf("WARNING: debug_email value is not string: %v (type: %T)", debugEmailVal, debugEmailVal)
 		}
 	} else {
 		log.Printf("DEBUG: debug_email key not found in config")
