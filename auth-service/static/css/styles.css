@@ -38,6 +38,9 @@
     /* Added for input focus */
 
     /* Дополнительные переменные для админки */
+    --manage-button-color: #bbc4cc;
+    --manage-button-color-hover: #6c757d;
+
     --secondary-color: #6c757d;
     --secondary-color-hover: #5a6268;
     --text-color-muted: #666;
@@ -118,6 +121,9 @@
     /* Adjusted opacity for dark theme if needed */
 
     /* Дополнительные переменные для темной темы админки */
+    --manage-button-color: #6c757d;
+    --manage-button-color-hover: #44494e;
+
     --secondary-color: #6c757d;
     --secondary-color-hover: #5a6268;
     --text-color-muted: #aaa;
@@ -1574,7 +1580,7 @@ input[type="file"]:hover {
     gap: 5px;
     padding: 5px 10px;
     font-size: 12px;
-    background-color: var(--secondary-color);
+    background-color: var(--manage-button-color);
     color: white;
     text-decoration: none;
     border-radius: 15px;
@@ -1582,7 +1588,7 @@ input[type="file"]:hover {
 }
 
 .manage-btn:hover {
-    background-color: var(--secondary-color-hover);
+    background-color: var(--manage-button-color-hover);
     transform: translateY(-1px);
     color: white;
 }
