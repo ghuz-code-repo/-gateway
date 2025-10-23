@@ -674,12 +674,20 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 		} else {
 			log.Printf("WARNING: debug_mode value is not boolean: %v (type: %T)", val, val)
 		}
+	} else {
+		log.Printf("DEBUG: debug_mode key not found in config")
 	}
 	
-	if debugEmail, ok := config["debug_email"].(string); ok {
-		dbConfig.DebugEmail = debugEmail
-		updated = append(updated, "DEBUG_EMAIL")
-		log.Printf("DEBUG: Updated DebugEmail to %s", debugEmail)
+	if val, exists := config["debug_email"]; exists {
+		if debugEmail, ok := val.(string); ok {
+			dbConfig.DebugEmail = debugEmail
+			updated = append(updated, "DEBUG_EMAIL")
+			log.Printf("DEBUG: Updated DebugEmail to %s", debugEmail)
+		} else {
+			log.Printf("WARNING: debug_email value is not string: %v (type: %T)", val, val)
+		}
+	} else {
+		log.Printf("DEBUG: debug_email key not found in config")
 	}
 
 	// Save config to database
