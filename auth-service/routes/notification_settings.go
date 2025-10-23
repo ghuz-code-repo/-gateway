@@ -206,6 +206,8 @@ func getDefaultNotificationSettings() NotificationSettings {
 		SystemTelegramUsername:          "",
 		SendSystemEmailNotifications:    true,
 		SendSystemTelegramNotifications: true,
+		DebugMode:                       false,
+		DebugEmail:                      "",
 		MaxRetryAttempts:                3,
 		BatchSize:                       10,
 		DelayBetweenMS:                  1000,
