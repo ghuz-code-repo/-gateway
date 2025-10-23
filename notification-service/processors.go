@@ -176,18 +176,74 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	
 	log.Printf("🔧 Using SMTP: %s:%s, auth=%v, tls=%v", config.Host, config.Port, config.UseAuth, config.UseTLS)
 
-	// Простое сообщение без сложных кодировок
-	message := []string{
-		"From: " + config.From,
-		"To: " + notification.Recipient,
-		"Subject: " + notification.Subject,
-		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=UTF-8",
-		"",
-		notification.Content,
+	// Prepare recipient and content
+	originalRecipient := notification.Recipient
+	actualRecipient := notification.Recipient
+	subject := notification.Subject
+	content := notification.Content
+	
+	// Apply debug mode if enabled
+	if config.DebugMode && config.DebugEmail != "" {
+		log.Printf("🐛 DEBUG MODE: Redirecting email from %s to %s", originalRecipient, config.DebugEmail)
+		actualRecipient = config.DebugEmail
+		subject = "[DEBUG] " + subject
+		content = fmt.Sprintf("Конечным получателем является: %s\n\n%s", originalRecipient, content)
 	}
 
-	messageBody := strings.Join(message, "\r\n")
+	// Build email message
+	var messageBody string
+	
+	if notification.AttachmentFilename != "" && len(notification.AttachmentContent) > 0 {
+		// Email with attachment - use MIME multipart
+		boundary := "----=_Part_" + fmt.Sprintf("%d", time.Now().Unix())
+		
+		headers := []string{
+			"From: " + config.From,
+			"To: " + actualRecipient,
+			"Subject: " + subject,
+			"MIME-Version: 1.0",
+			"Content-Type: multipart/mixed; boundary=\"" + boundary + "\"",
+			"",
+		}
+		
+		// Text part
+		textPart := []string{
+			"--" + boundary,
+			"Content-Type: text/plain; charset=UTF-8",
+			"Content-Transfer-Encoding: 8bit",
+			"",
+			content,
+			"",
+		}
+		
+		// Attachment part
+		attachmentEncoded := base64.StdEncoding.EncodeToString(notification.AttachmentContent)
+		attachmentPart := []string{
+			"--" + boundary,
+			"Content-Type: application/octet-stream; name=\"" + notification.AttachmentFilename + "\"",
+			"Content-Transfer-Encoding: base64",
+			"Content-Disposition: attachment; filename=\"" + notification.AttachmentFilename + "\"",
+			"",
+			attachmentEncoded,
+			"",
+			"--" + boundary + "--",
+		}
+		
+		messageBody = strings.Join(headers, "\r\n") + "\r\n" + strings.Join(textPart, "\r\n") + "\r\n" + strings.Join(attachmentPart, "\r\n")
+		log.Printf("📎 Email with attachment: %s (%d bytes)", notification.AttachmentFilename, len(notification.AttachmentContent))
+	} else {
+		// Simple email without attachment
+		message := []string{
+			"From: " + config.From,
+			"To: " + actualRecipient,
+			"Subject: " + subject,
+			"MIME-Version: 1.0",
+			"Content-Type: text/plain; charset=UTF-8",
+			"",
+			content,
+		}
+		messageBody = strings.Join(message, "\r\n")
+	}
 	addr := fmt.Sprintf("%s:%s", config.Host, config.Port)
 
 	// Create SMTP client
@@ -248,7 +304,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		return fmt.Errorf("SMTP MAIL command error: %v", err)
 	}
 
-	if err = client.Rcpt(notification.Recipient); err != nil {
+	if err = client.Rcpt(actualRecipient); err != nil {
 		return fmt.Errorf("SMTP RCPT command error: %v", err)
 	}
 
@@ -269,7 +325,11 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		return fmt.Errorf("SMTP data close error: %v", err)
 	}
 
-	log.Printf("✅ Email successfully sent to %s (notification #%d)", notification.Recipient, notification.ID)
+	if config.DebugMode && config.DebugEmail != "" {
+		log.Printf("✅ Email successfully sent to %s (DEBUG: original recipient was %s, notification #%d)", actualRecipient, originalRecipient, notification.ID)
+	} else {
+		log.Printf("✅ Email successfully sent to %s (notification #%d)", actualRecipient, notification.ID)
+	}
 	return nil
 }
 
@@ -423,6 +483,8 @@ type EmailConfig struct {
 	UseAuth    bool
 	AuthMethod string
 	Debug      bool
+	DebugMode  bool   // Debug режим - все письма на debug email
+	DebugEmail string // Email для всех писем в debug режиме
 }
 
 // getEmailConfig loads email configuration from database
@@ -440,6 +502,8 @@ func (ns *NotificationService) getEmailConfig() EmailConfig {
 		UseAuth:    dbConfig.SMTPUseAuth,
 		AuthMethod: dbConfig.SMTPAuthMethod,
 		Debug:      debug,
+		DebugMode:  dbConfig.DebugMode,
+		DebugEmail: dbConfig.DebugEmail,
 	}
 
 	// Use environment variables as fallback if database values are empty

@@ -28,6 +28,8 @@ type NotificationSettings struct {
 	SystemTelegramUsername          string `json:"system_telegram_username" form:"system_telegram_username"`
 	SendSystemEmailNotifications    bool   `json:"send_system_email_notifications" form:"send_system_email_notifications"`
 	SendSystemTelegramNotifications bool   `json:"send_system_telegram_notifications" form:"send_system_telegram_notifications"`
+	DebugMode                       bool   `json:"debug_mode" form:"debug_mode"`
+	DebugEmail                      string `json:"debug_email" form:"debug_email"`
 	MaxRetryAttempts                int    `json:"max_retry_attempts" form:"max_retry_attempts"`
 	BatchSize                       int    `json:"batch_size" form:"batch_size"`
 	DelayBetweenMS                  int    `json:"delay_between_batches_ms" form:"delay_between_batches_ms"`
@@ -246,6 +248,12 @@ func mapToNotificationSettings(config map[string]interface{}) NotificationSettin
 	if val, ok := config["send_system_telegram_notifications"].(bool); ok {
 		settings.SendSystemTelegramNotifications = val
 	}
+	if val, ok := config["debug_mode"].(bool); ok {
+		settings.DebugMode = val
+	}
+	if val, ok := config["debug_email"].(string); ok {
+		settings.DebugEmail = val
+	}
 	if val, ok := config["max_retry_attempts"].(float64); ok {
 		settings.MaxRetryAttempts = int(val)
 	}
@@ -279,6 +287,8 @@ func updateNotificationServiceConfig(settings NotificationSettings) error {
 		"system_telegram_username":         settings.SystemTelegramUsername,
 		"send_system_email_notifications":  settings.SendSystemEmailNotifications,
 		"send_system_telegram_notifications": settings.SendSystemTelegramNotifications,
+		"debug_mode":                       settings.DebugMode,
+		"debug_email":                      settings.DebugEmail,
 		"max_retry_attempts":               settings.MaxRetryAttempts,
 		"batch_size":                       settings.BatchSize,
 		"delay_between_batches_ms":         settings.DelayBetweenMS,
