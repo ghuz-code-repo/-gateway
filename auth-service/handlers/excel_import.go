@@ -414,16 +414,21 @@ func createNewUser(importUser models.UserImportExport, adminUserID primitive.Obj
 	importUser.ID = userID.Hex()
 	result.CreatedUsers = append(result.CreatedUsers, importUser)
 
-	// Send email notification (CRITICAL: email must be sent)
+	// Send email notification (non-blocking - errors are logged but don't stop import)
 	// Use the original password variable, not importUser.Password which might be modified
 	log.Printf("Sending creation notification to %s with password (length %d): %s", importUser.Email, len(password), password)
 	emailResult := sendUserNotification(importUser.Email, "created", password)
 	result.EmailNotifications = append(result.EmailNotifications, emailResult)
 	
-	// If email failed, treat as error (email delivery is mandatory)
+	// Log email failure but DON'T stop the import process
+	// The notification service already stores failed emails with retry mechanism
 	if !emailResult.Success {
-		return fmt.Errorf("критическая ошибка: не удалось отправить email уведомление для %s: %s", 
+		log.Printf("⚠️ WARNING: Email notification failed for user %s: %s", 
 			importUser.Email, emailResult.ErrorMessage)
+		log.Printf("⚠️ User created successfully, but notification was not sent.")
+		log.Printf("⚠️ Failed email is stored in notification service and will be retried automatically.")
+	} else {
+		log.Printf("✅ Email notification sent successfully to %s", importUser.Email)
 	}
 
 	return nil
@@ -520,10 +525,15 @@ func updateExistingUser(existingUser *models.User, importUser models.UserImportE
 			emailResult := sendUserNotification(importUser.Email, "updated", passwordForEmail)
 			result.EmailNotifications = append(result.EmailNotifications, emailResult)
 			
-			// If email failed, treat as error (email delivery is mandatory)
+			// Log email failure but DON'T stop the import process
+			// The notification service already stores failed emails with retry mechanism
 			if !emailResult.Success {
-				return fmt.Errorf("критическая ошибка: не удалось отправить email уведомление для %s: %s", 
+				log.Printf("⚠️ WARNING: Email notification failed for user %s: %s", 
 					importUser.Email, emailResult.ErrorMessage)
+				log.Printf("⚠️ User updated successfully, but notification was not sent.")
+				log.Printf("⚠️ Failed email is stored in notification service and will be retried automatically.")
+			} else {
+				log.Printf("✅ Email notification sent successfully to %s", importUser.Email)
 			}
 		}
 	}
@@ -713,8 +723,9 @@ Email: %s`, email)
 		}
 	}
 	
-	// All attempts failed - try to notify admin as fallback
-	log.Printf("All email attempts failed for %s: %v", email, lastError)
+	// All attempts failed - log and notify admin (but this is not critical for import)
+	log.Printf("⚠️ All email attempts failed for %s: %v", email, lastError)
+	log.Printf("ℹ️ Email will be stored in notification service with retry mechanism")
 	
 	// Try to send fallback notification to admin
 	adminEmail := os.Getenv("ADMIN_EMAIL")
@@ -722,32 +733,34 @@ Email: %s`, email)
 		adminEmail = "admin@gh.uz" // Default admin email
 	}
 	
-	fallbackSubject := "КРИТИЧНО: Не удалось отправить email пользователю"
-	fallbackBody := fmt.Sprintf(`ВНИМАНИЕ! Критическая ошибка доставки email.
+	fallbackSubject := "⚠️ Не удалось отправить email пользователю"
+	fallbackBody := fmt.Sprintf(`ВНИМАНИЕ! Ошибка доставки email при импорте пользователей.
 
 Не удалось отправить уведомление пользователю:
 Email: %s
 Тип: %s
 Ошибка: %v
 
-Пользователь НЕ получил информацию о своём аккаунте.
-Требуется ручная отправка уведомления!
+Пользователь был успешно создан/обновлен, но НЕ получил email с данными аккаунта.
+Email сохранён в notification service и будет повторно отправлен автоматически.
+
+Если автоматическая повторная отправка не сработает, требуется ручная отправка!
 
 Содержимое которое должно было быть отправлено:
 Тема: %s
 
 %s`, email, notificationType, lastError, subject, body)
 	
-	// Try to send admin notification (single attempt)
+	// Try to send admin notification (single attempt - non-blocking)
 	adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
 	if adminErr != nil {
-		log.Printf("CRITICAL: Failed to send admin fallback notification: %v", adminErr)
+		log.Printf("⚠️ WARNING: Failed to send admin fallback notification: %v", adminErr)
 	} else {
-		log.Printf("Admin fallback notification sent to %s", adminEmail)
+		log.Printf("✅ Admin fallback notification sent to %s", adminEmail)
 	}
 	
 	notification.Success = false
-	notification.ErrorMessage = fmt.Sprintf("Failed to send email after %d attempts: %v", maxRetries, lastError)
+	notification.ErrorMessage = fmt.Sprintf("Failed to send email after %d attempts: %v. User created/updated successfully, email stored for retry.", maxRetries, lastError)
 	
 	return notification
 }
