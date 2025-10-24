@@ -33,6 +33,7 @@ type NotificationSettings struct {
 	MaxRetryAttempts                int    `json:"max_retry_attempts" form:"max_retry_attempts"`
 	BatchSize                       int    `json:"batch_size" form:"batch_size"`
 	DelayBetweenMS                  int    `json:"delay_between_batches_ms" form:"delay_between_batches_ms"`
+	DelayBetweenMessagesMS          int    `json:"delay_between_messages_ms" form:"delay_between_messages_ms"`
 }
 
 // getNotificationSettings displays the notification settings page
@@ -211,6 +212,7 @@ func getDefaultNotificationSettings() NotificationSettings {
 		MaxRetryAttempts:                3,
 		BatchSize:                       10,
 		DelayBetweenMS:                  1000,
+		DelayBetweenMessagesMS:          100,
 	}
 }
 
@@ -265,6 +267,9 @@ func mapToNotificationSettings(config map[string]interface{}) NotificationSettin
 	if val, ok := config["delay_between_batches_ms"].(float64); ok {
 		settings.DelayBetweenMS = int(val)
 	}
+	if val, ok := config["delay_between_messages_ms"].(float64); ok {
+		settings.DelayBetweenMessagesMS = int(val)
+	}
 
 	return settings
 }
@@ -294,6 +299,7 @@ func updateNotificationServiceConfig(settings NotificationSettings) error {
 		"max_retry_attempts":               settings.MaxRetryAttempts,
 		"batch_size":                       settings.BatchSize,
 		"delay_between_batches_ms":         settings.DelayBetweenMS,
+		"delay_between_messages_ms":        settings.DelayBetweenMessagesMS,
 	}
 
 	jsonData, err := json.Marshal(configMap)

@@ -43,6 +43,7 @@ func (ns *NotificationService) processBatch(batchID string) {
 	// Process notifications with rate limiting
 	batchSize := config.BatchSize
 	delayBetweenBatches := time.Duration(config.DelayBetweenBatchesMS) * time.Millisecond
+	delayBetweenMessages := time.Duration(config.DelayBetweenMessagesMS) * time.Millisecond
 
 	for i := 0; i < len(notifications); i += batchSize {
 		end := i + batchSize
@@ -53,6 +54,11 @@ func (ns *NotificationService) processBatch(batchID string) {
 		// Process batch of notifications
 		for j := i; j < end; j++ {
 			ns.processNotification(&notifications[j])
+			
+			// Wait between individual messages (except for the last one in batch)
+			if j < end-1 && delayBetweenMessages > 0 {
+				time.Sleep(delayBetweenMessages)
+			}
 		}
 
 		// Update batch statistics
@@ -115,6 +121,15 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 			})
 			log.Printf("Notification %d sent successfully on attempt %d", notification.ID, attempt)
 			return
+		}
+
+		// Check if error is rate-limit (Telegram 429 Too Many Requests)
+		if isRateLimitError(err) {
+			log.Printf("⏳ Rate limit exceeded for notification %d, waiting 30 seconds...", notification.ID)
+			time.Sleep(30 * time.Second)
+			// Не считаем попытку проваленной, пробуем снова
+			attempt--
+			continue
 		}
 
 		// Check if error is permanent
@@ -572,18 +587,50 @@ func getTLSConfig(host string) *tls.Config {
 func isPermanentError(err error) bool {
 	errStr := strings.ToLower(err.Error())
 	
-	// Common permanent SMTP errors
+	// Common permanent SMTP errors (НЕ временные/rate-limit ошибки!)
 	permanentErrors := []string{
-		"no such user",
-		"user unknown",
-		"mailbox unavailable",
-		"recipient address rejected",
-		"invalid recipient",
-		"550", // Requested action not taken: mailbox unavailable
+		"no such user",                  // Пользователь не существует
+		"user unknown",                  // Неизвестный пользователь
+		"recipient address rejected",    // Адрес получателя отклонён
+		"invalid recipient",             // Недействительный получатель
+		"550",                          // SMTP 550 Requested action not taken: mailbox unavailable (permanent)
+		"551",                          // SMTP 551 User not local
+		"553",                          // SMTP 553 Requested action not taken: mailbox name not allowed
+		"554",                          // SMTP 554 Transaction failed (permanent)
 	}
 
 	for _, permErr := range permanentErrors {
 		if strings.Contains(errStr, permErr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isRateLimitError checks if error is a rate limit error (Telegram 429 or SMTP rate limiting)
+func isRateLimitError(err error) bool {
+	errStr := strings.ToLower(err.Error())
+	
+	// Check for rate limit indicators (Telegram and SMTP)
+	rateLimitErrors := []string{
+		"429",                          // HTTP 429 Too Many Requests (Telegram)
+		"too many requests",            // Generic rate limit message
+		"rate limit",                   // Generic rate limit
+		"retry after",                  // Retry-After header indicator
+		"451",                          // SMTP 451 Requested action aborted: local error in processing
+		"452",                          // SMTP 452 Requested action not taken: insufficient system storage
+		"421",                          // SMTP 421 Service not available, closing transmission channel
+		"throttling",                   // Outlook/Exchange throttling
+		"exceeded sending limits",      // Outlook sending limit
+		"mailbox full",                 // Temporary mailbox full (может быть временной)
+		"try again later",              // Generic retry suggestion
+		"temporarily deferred",         // SMTP temporary deferral
+		"recipient rate limit",         // Recipient-specific rate limit
+	}
+
+	for _, rateLimitErr := range rateLimitErrors {
+		if strings.Contains(errStr, rateLimitErr) {
 			return true
 		}
 	}
