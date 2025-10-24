@@ -31,6 +31,8 @@ func SetupAllRoutes(router *gin.Engine) {
 		api.GET("/users/:userId/documents/for-service/:serviceKey", getUserDocumentsForServiceAPIHandler)
 		api.POST("/users/:userId/documents", createUserDocumentAPIHandler)
 		api.GET("/users/:userId/profile", getUserProfileAPIHandler)
+		// Document attachments download (for service-to-service calls)
+		api.GET("/users/:userId/documents/:docId/attachments/:attachmentId/download", downloadDocumentAttachmentHandlerAdmin)
 		
 		// Service Registry API (Service Discovery)
 		registry := api.Group("/registry")

@@ -1647,6 +1647,9 @@ func removeDocumentAttachmentHandlerAdmin(c *gin.Context) {
 // downloadDocumentAttachmentHandlerAdmin downloads an attachment (admin use)
 func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	userID := c.Param("id")
+	if userID == "" {
+		userID = c.Param("userId") // Support both :id and :userId
+	}
 	docID := c.Param("docId")
 	attachmentID := c.Param("attachmentId")
 	
@@ -1683,26 +1686,67 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 
 	// Find attachment
 	var attachment *models.DocumentAttachment
-	for _, att := range user.Documents[docIndex].Attachments {
-		if att.ID == attachmentObjectID {
-			attachment = &att
+	doc := user.Documents[docIndex]
+	
+	for i := range doc.Attachments {
+		if doc.Attachments[i].ID == attachmentObjectID {
+			attachment = &doc.Attachments[i]
 			break
 		}
 	}
 
 	if attachment == nil {
+		log.Printf("Attachment not found: %s", attachmentID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден"})
 		return
 	}
 
-	log.Printf("Attachment %s info retrieved successfully for user %s", attachmentID, userID)
-	c.JSON(http.StatusOK, gin.H{
-		"id":       attachment.ID.Hex(),
-		"filename": attachment.FileName,
-		"size":     attachment.Size,
-		"mime_type": attachment.ContentType,
-		"uploaded_at": attachment.UploadedAt,
-	})
+	// DEBUG: Log attachment details for download
+	log.Printf("Found attachment: ID=%s, FileName=%s, OriginalName=%s, FilePath=%s", 
+		attachment.ID.Hex(), attachment.FileName, attachment.OriginalName, attachment.FilePath)
+
+	// Check if FilePath is empty
+	if attachment.FilePath == "" {
+		log.Printf("FilePath is empty for attachment %s", attachmentID)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не был загружен на сервер"})
+		return
+	}
+
+	// Check if file exists with fallback paths
+	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
+		log.Printf("File not found: %s", attachment.FilePath)
+		
+		// Try alternative paths
+		workingDir, _ := os.Getwd()
+		log.Printf("Current working directory: %s", workingDir)
+		
+		// Try relative path
+		relativePath := filepath.Join("./", attachment.FilePath)
+		if _, err := os.Stat(relativePath); err == nil {
+			log.Printf("Found file at relative path: %s", relativePath)
+			attachment.FilePath = relativePath
+		} else {
+			// Try data directory path
+			dataPath := filepath.Join("./data", userID, "documents", doc.DocumentType, attachment.FileName)
+			if _, err := os.Stat(dataPath); err == nil {
+				log.Printf("Found file at data path: %s", dataPath)
+				attachment.FilePath = dataPath
+			} else {
+				log.Printf("File not found in any location. Checked paths: %s, %s, %s", attachment.FilePath, relativePath, dataPath)
+				c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден на диске"})
+				return
+			}
+		}
+	}
+
+	// Set headers for download
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", attachment.OriginalName))
+	c.Header("Content-Type", attachment.ContentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", attachment.Size))
+
+	// Serve the file
+	log.Printf("Serving file: %s", attachment.FilePath)
+	c.File(attachment.FilePath)
 }
 
 // previewDocumentAttachmentHandlerAdmin previews an attachment (admin use)

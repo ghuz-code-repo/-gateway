@@ -846,6 +846,13 @@ func downloadDocumentAttachmentHandler(c *gin.Context) {
 	log.Printf("Found attachment: ID=%s, FileName=%s, OriginalName=%s, FilePath=%s", 
 		attachment.ID.Hex(), attachment.FileName, attachment.OriginalName, attachment.FilePath)
 
+	// Check if FilePath is empty
+	if attachment.FilePath == "" {
+		log.Printf("FilePath is empty for attachment %s", attachmentID)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не был загружен на сервер"})
+		return
+	}
+
 	// Check if file exists with fallback paths
 	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
 		log.Printf("File not found: %s", attachment.FilePath)
