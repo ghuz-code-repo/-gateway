@@ -246,6 +246,12 @@
                     <div class="help-text">Пауза между отправкой батчей для предотвращения блокировки</div>
                 </div>
 
+                <div class="form-group">
+                    <label for="delay_between_messages_ms">Задержка между сообщениями (мс):</label>
+                    <input type="number" id="delay_between_messages_ms" name="delay_between_messages_ms" value="{{.settings.DelayBetweenMessagesMS}}" min="0">
+                    <div class="help-text">Пауза между отправкой отдельных сообщений внутри батча (рекомендуется 100-500 мс)</div>
+                </div>
+
                 <div style="margin-top: 30px;">
                     <button type="submit" class="btn primary">
                         <i class="fas fa-save"></i>
@@ -351,7 +357,7 @@
                 });
                 
                 // Convert numeric fields from strings to numbers
-                const numericFields = ['max_retry_attempts', 'batch_size', 'delay_between_batches_ms'];
+                const numericFields = ['max_retry_attempts', 'batch_size', 'delay_between_batches_ms', 'delay_between_messages_ms'];
                 numericFields.forEach(field => {
                     if (field in data) {
                         data[field] = parseInt(data[field]) || 0;

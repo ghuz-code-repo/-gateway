@@ -115,6 +115,7 @@ type NotificationConfig struct {
 	MaxRetryAttempts            int    `json:"max_retry_attempts" gorm:"default:3"`
 	BatchSize                   int    `json:"batch_size" gorm:"default:10"`
 	DelayBetweenBatchesMS       int    `json:"delay_between_batches_ms" gorm:"default:1000"`
+	DelayBetweenMessagesMS      int    `json:"delay_between_messages_ms" gorm:"default:100"`  // Задержка между отдельными сообщениями
 	CreatedAt                   int64  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt                   int64  `json:"updated_at" gorm:"autoUpdateTime"`
 }
@@ -488,6 +489,7 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 			MaxRetryAttempts:                getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
 			BatchSize:                       getEnvAsInt("BATCH_SIZE", 10),
 			DelayBetweenBatchesMS:           getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
+			DelayBetweenMessagesMS:          getEnvAsInt("DELAY_BETWEEN_MESSAGES_MS", 100),
 		}
 		// Save default config to DB
 		ns.db.Create(&dbConfig)
@@ -514,6 +516,7 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 		"max_retry_attempts":               dbConfig.MaxRetryAttempts,
 		"batch_size":                       dbConfig.BatchSize,
 		"delay_between_batches_ms":         dbConfig.DelayBetweenBatchesMS,
+		"delay_between_messages_ms":        dbConfig.DelayBetweenMessagesMS,
 	}
 	c.JSON(http.StatusOK, config)
 }
@@ -663,6 +666,11 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	if delayBetweenMS, ok := config["delay_between_batches_ms"].(float64); ok {
 		dbConfig.DelayBetweenBatchesMS = int(delayBetweenMS)
 		updated = append(updated, "DELAY_BETWEEN_BATCHES_MS")
+	}
+	
+	if delayBetweenMessagesMS, ok := config["delay_between_messages_ms"].(float64); ok {
+		dbConfig.DelayBetweenMessagesMS = int(delayBetweenMessagesMS)
+		updated = append(updated, "DELAY_BETWEEN_MESSAGES_MS")
 	}
 	
 	// Handle debug mode settings
@@ -838,6 +846,7 @@ func (ns *NotificationService) getConfigFromDB() NotificationConfig {
 			MaxRetryAttempts:      getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
 			BatchSize:             getEnvAsInt("BATCH_SIZE", 10),
 			DelayBetweenBatchesMS: getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
+			DelayBetweenMessagesMS: getEnvAsInt("DELAY_BETWEEN_MESSAGES_MS", 100),
 		}
 	}
 	
