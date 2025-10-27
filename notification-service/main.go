@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +21,9 @@ import (
 )
 
 type NotificationService struct {
-	db *gorm.DB
+	db           *gorm.DB
+	sendMutex    sync.Mutex // Мьютекс для синхронизации отправки
+	lastSendTime time.Time  // Время последней отправки
 }
 
 type NotificationType string

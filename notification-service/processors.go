@@ -19,6 +19,28 @@ import (
 	"github.com/google/uuid"
 )
 
+// waitForSendSlot применяет глобальную задержку между ВСЕМИ отправками
+func (ns *NotificationService) waitForSendSlot() {
+	ns.sendMutex.Lock()
+	defer ns.sendMutex.Unlock()
+	
+	config := ns.getConfigFromDB()
+	delayBetweenMessages := time.Duration(config.DelayBetweenMessagesMS) * time.Millisecond
+	
+	// Проверяем прошло ли достаточно времени с последней отправки
+	if !ns.lastSendTime.IsZero() {
+		timeSinceLastSend := time.Since(ns.lastSendTime)
+		if timeSinceLastSend < delayBetweenMessages {
+			waitTime := delayBetweenMessages - timeSinceLastSend
+			log.Printf("⏳ Global rate limit: waiting %v before next send", waitTime)
+			time.Sleep(waitTime)
+		}
+	}
+	
+	// Обновляем время последней отправки
+	ns.lastSendTime = time.Now()
+}
+
 // processBatch processes all notifications in a batch
 func (ns *NotificationService) processBatch(batchID string) {
 	log.Printf("Processing batch: %s", batchID)
@@ -43,7 +65,6 @@ func (ns *NotificationService) processBatch(batchID string) {
 	// Process notifications with rate limiting
 	batchSize := config.BatchSize
 	delayBetweenBatches := time.Duration(config.DelayBetweenBatchesMS) * time.Millisecond
-	delayBetweenMessages := time.Duration(config.DelayBetweenMessagesMS) * time.Millisecond
 
 	for i := 0; i < len(notifications); i += batchSize {
 		end := i + batchSize
@@ -52,13 +73,9 @@ func (ns *NotificationService) processBatch(batchID string) {
 		}
 
 		// Process batch of notifications
+		// Глобальная задержка применяется автоматически через waitForSendSlot()
 		for j := i; j < end; j++ {
 			ns.processNotification(&notifications[j])
-			
-			// Wait between individual messages (except for the last one in batch)
-			if j < end-1 && delayBetweenMessages > 0 {
-				time.Sleep(delayBetweenMessages)
-			}
 		}
 
 		// Update batch statistics
@@ -95,6 +112,9 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 	
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		notification.Attempts = attempt
+		
+		// Применяем глобальную задержку перед отправкой
+		ns.waitForSendSlot()
 		
 		switch notification.Type {
 		case NotificationTypeEmail:
