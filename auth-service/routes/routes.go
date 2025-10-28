@@ -244,6 +244,8 @@ func getUserProfileAPIHandler(c *gin.Context) {
 		"full_name": user.FullName,
 		"first_name": user.FirstName,
 		"last_name": user.LastName,
+		"middle_name": user.MiddleName,  // Отчество
+		"suffix": user.Suffix,            // Частица (O`G`LI, QIZI)
 		"phone": user.Phone,
 		"avatar_path": user.AvatarPath,
 		"passport_number": user.PassportNumber,
