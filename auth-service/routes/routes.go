@@ -26,6 +26,7 @@ func SetupAllRoutes(router *gin.Engine) {
 		api.GET("/test", testAPIHandler)
 		api.POST("/services/:serviceKey/permissions/sync", syncServicePermissionsHandler)
 		api.GET("/services/:serviceKey/users", getServiceUsersAPIHandler) // Get users for specific service
+		api.GET("/services/:serviceKey/users-by-role/:roleName", getUsersByServiceRoleHandler) // Get users by role for specific service
 		api.GET("/users/:userId/documents", getUserDocumentsAPIHandler)
 		api.GET("/users/:userId/documents/grouped", getUserDocumentsGroupedAPIHandler)
 		api.GET("/users/:userId/documents/for-service/:serviceKey", getUserDocumentsForServiceAPIHandler)
