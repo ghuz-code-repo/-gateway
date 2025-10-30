@@ -3159,3 +3159,66 @@ func GetUserDocuments(userID string) ([]UserDocument, error) {
 	return user.Documents, nil
 }
 
+// GetUsersByServiceRole returns all users who have a specific role for a service
+func GetUsersByServiceRole(serviceKey string, roleName string) ([]*User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	log.Printf("DEBUG GetUsersByServiceRole: serviceKey=%s, roleName=%s", serviceKey, roleName)
+
+	// Find all user_id's from user_service_roles collection
+	cursor, err := userServiceRolesCol.Find(ctx, bson.M{
+		"service_key": serviceKey,
+		"role_name":   roleName,
+		"is_active":   true,
+	})
+	
+	if err != nil {
+		log.Printf("ERROR GetUsersByServiceRole: failed to query user_service_roles: %v", err)
+		return nil, fmt.Errorf("failed to query user_service_roles: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	// Extract user IDs
+	var userServiceRoles []struct {
+		UserID primitive.ObjectID `bson:"user_id"`
+	}
+	if err = cursor.All(ctx, &userServiceRoles); err != nil {
+		log.Printf("ERROR GetUsersByServiceRole: failed to decode user_service_roles: %v", err)
+		return nil, fmt.Errorf("failed to decode user_service_roles: %v", err)
+	}
+
+	log.Printf("DEBUG GetUsersByServiceRole: found %d user_service_role entries", len(userServiceRoles))
+
+	if len(userServiceRoles) == 0 {
+		return []*User{}, nil
+	}
+
+	// Extract user IDs
+	var userIDs []primitive.ObjectID
+	for _, usr := range userServiceRoles {
+		userIDs = append(userIDs, usr.UserID)
+	}
+
+	// Get all users by IDs
+	var users []*User
+	usersCursor, err := usersCol.Find(ctx, bson.M{
+		"_id": bson.M{"$in": userIDs},
+		"deleted_at": bson.M{"$exists": false},
+	})
+	
+	if err != nil {
+		log.Printf("ERROR GetUsersByServiceRole: failed to query users: %v", err)
+		return nil, fmt.Errorf("failed to query users: %v", err)
+	}
+	defer usersCursor.Close(ctx)
+
+	if err = usersCursor.All(ctx, &users); err != nil {
+		log.Printf("ERROR GetUsersByServiceRole: failed to decode users: %v", err)
+		return nil, fmt.Errorf("failed to decode users: %v", err)
+	}
+
+	log.Printf("DEBUG GetUsersByServiceRole: found %d users", len(users))
+	return users, nil
+}
+
