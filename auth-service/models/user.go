@@ -3222,3 +3222,106 @@ func GetUsersByServiceRole(serviceKey string, roleName string) ([]*User, error) 
 	return users, nil
 }
 
+// GetUsersByServicePermission returns all users who have a specific permission for a service
+func GetUsersByServicePermission(serviceKey string, permissionName string) ([]*User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	log.Printf("DEBUG GetUsersByServicePermission: serviceKey=%s, permissionName=%s", serviceKey, permissionName)
+
+	// Get all roles that have this permission
+	rolesCol := client.Database("authdb").Collection("service_roles")
+	cursor, err := rolesCol.Find(ctx, bson.M{
+		"service_key": serviceKey,
+		"permissions": permissionName,
+	})
+	
+	if err != nil {
+		log.Printf("ERROR GetUsersByServicePermission: failed to query roles: %v", err)
+		return nil, fmt.Errorf("failed to query roles: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var roles []struct {
+		Name string `bson:"name"`
+	}
+	if err = cursor.All(ctx, &roles); err != nil {
+		log.Printf("ERROR GetUsersByServicePermission: failed to decode roles: %v", err)
+		return nil, fmt.Errorf("failed to decode roles: %v", err)
+	}
+
+	log.Printf("DEBUG GetUsersByServicePermission: found %d roles with permission", len(roles))
+
+	if len(roles) == 0 {
+		return []*User{}, nil
+	}
+
+	// Extract role names
+	var roleNames []string
+	for _, role := range roles {
+		roleNames = append(roleNames, role.Name)
+	}
+
+	log.Printf("DEBUG GetUsersByServicePermission: role names: %v", roleNames)
+
+	// Find all user_id's who have any of these roles
+	userServiceCursor, err := userServiceRolesCol.Find(ctx, bson.M{
+		"service_key": serviceKey,
+		"role_name":   bson.M{"$in": roleNames},
+		"is_active":   true,
+	})
+	
+	if err != nil {
+		log.Printf("ERROR GetUsersByServicePermission: failed to query user_service_roles: %v", err)
+		return nil, fmt.Errorf("failed to query user_service_roles: %v", err)
+	}
+	defer userServiceCursor.Close(ctx)
+
+	// Extract user IDs
+	var userServiceRoles []struct {
+		UserID primitive.ObjectID `bson:"user_id"`
+	}
+	if err = userServiceCursor.All(ctx, &userServiceRoles); err != nil {
+		log.Printf("ERROR GetUsersByServicePermission: failed to decode user_service_roles: %v", err)
+		return nil, fmt.Errorf("failed to decode user_service_roles: %v", err)
+	}
+
+	log.Printf("DEBUG GetUsersByServicePermission: found %d user_service_role entries", len(userServiceRoles))
+
+	if len(userServiceRoles) == 0 {
+		return []*User{}, nil
+	}
+
+	// Extract unique user IDs
+	userIDMap := make(map[primitive.ObjectID]bool)
+	for _, usr := range userServiceRoles {
+		userIDMap[usr.UserID] = true
+	}
+
+	var userIDs []primitive.ObjectID
+	for userID := range userIDMap {
+		userIDs = append(userIDs, userID)
+	}
+
+	// Get all users by IDs
+	var users []*User
+	usersCursor, err := usersCol.Find(ctx, bson.M{
+		"_id": bson.M{"$in": userIDs},
+		"deleted_at": bson.M{"$exists": false},
+	})
+	
+	if err != nil {
+		log.Printf("ERROR GetUsersByServicePermission: failed to query users: %v", err)
+		return nil, fmt.Errorf("failed to query users: %v", err)
+	}
+	defer usersCursor.Close(ctx)
+
+	if err = usersCursor.All(ctx, &users); err != nil {
+		log.Printf("ERROR GetUsersByServicePermission: failed to decode users: %v", err)
+		return nil, fmt.Errorf("failed to decode users: %v", err)
+	}
+
+	log.Printf("DEBUG GetUsersByServicePermission: found %d users", len(users))
+	return users, nil
+}
+

@@ -148,13 +148,19 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 	serviceRoles, err := models.GetRolesByService(service.Key)
 	if err != nil {
 		// Log error but don't fail the request
+		log.Printf("Warning: Failed to get roles for service %s: %v", service.Key, err)
 		serviceRoles = []models.Role{}
+	}
+	log.Printf("DEBUG: Found %d roles for service %s", len(serviceRoles), service.Key)
+	if len(serviceRoles) > 0 {
+		log.Printf("DEBUG: First role: %+v", serviceRoles[0])
 	}
 
 	// Get users with roles in this service
 	serviceUsers, err := models.GetUsersWithServiceRolesNew(service.Key)
 	if err != nil {
 		// Log error but don't fail the request
+		log.Printf("Warning: Failed to get users for service %s: %v", service.Key, err)
 		serviceUsers = []models.UserWithServiceRoles{}
 	}
 
@@ -176,6 +182,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		"isSystemAdmin": isSystemAdmin,
 		"manageMode":    manageMode,
 	}
+	log.Printf("DEBUG: Template data for service %s - serviceRoles count: %d", service.Key, len(serviceRoles))
 	
 	// Add import success message if present
 	if importSuccess != "" {

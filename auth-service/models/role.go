@@ -220,7 +220,7 @@ func GetRolesWithPermission(permission string) ([]Role, error) {
 func GetRolesByService(serviceKey string) ([]Role, error) {
 	ctx := context.Background()
 
-	cursor, err := rolesCol.Find(ctx, bson.M{"service": serviceKey})
+	cursor, err := serviceRolesCol.Find(ctx, bson.M{"service": serviceKey})
 	if err != nil {
 		return nil, err
 	}

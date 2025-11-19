@@ -27,6 +27,7 @@ func SetupAllRoutes(router *gin.Engine) {
 		api.POST("/services/:serviceKey/permissions/sync", syncServicePermissionsHandler)
 		api.GET("/services/:serviceKey/users", getServiceUsersAPIHandler) // Get users for specific service
 		api.GET("/services/:serviceKey/users-by-role/:roleName", getUsersByServiceRoleHandler) // Get users by role for specific service
+		api.GET("/services/:serviceKey/users-by-permission/:permissionName", getUsersByServicePermissionHandler) // Get users by permission for specific service
 		api.GET("/users/:userId/documents", getUserDocumentsAPIHandler)
 		api.GET("/users/:userId/documents/grouped", getUserDocumentsGroupedAPIHandler)
 		api.GET("/users/:userId/documents/for-service/:serviceKey", getUserDocumentsForServiceAPIHandler)
@@ -59,6 +60,7 @@ func SetupAuthRoutes(router *gin.Engine) {
 	router.GET("/", homeHandler)
 	router.GET("/health", healthHandler)
 	router.GET("/menu", authRequired(), menuHandler)
+	router.GET("/settings", authRequired(), systemSettingsHandler)
 	
 	// Authentication routes
 	router.GET("/login", loginPageHandler)

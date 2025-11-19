@@ -156,3 +156,33 @@ func getUsersByServiceRoleHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, result)
 }
+
+// getUsersByServicePermissionHandler returns users with a specific permission for a service
+func getUsersByServicePermissionHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	permissionName := c.Param("permissionName")
+
+	// Get all users with this permission for the service
+	users, err := models.GetUsersByServicePermission(serviceKey, permissionName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get users: " + err.Error(),
+		})
+		return
+	}
+
+	// Return user list with basic info
+	// Initialize empty slice to ensure we always return [] instead of null
+	result := make([]gin.H, 0)
+	for _, user := range users {
+		result = append(result, gin.H{
+			"user_id":    user.ID.Hex(),
+			"username":   user.Username,
+			"email":      user.Email,
+			"full_name":  user.GetFullName(),
+			"short_name": user.GetShortName(),
+		})
+	}
+
+	c.JSON(http.StatusOK, result)
+}
