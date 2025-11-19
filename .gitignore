@@ -9,3 +9,4 @@ mongo_data/*
 .exe
 /notification-service/*
 .env
+mongo_data_old/*

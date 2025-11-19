@@ -295,16 +295,33 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 
 // hasAdminRole checks if a user is a system administrator
 func hasAdminRole(user *models.User) bool {
-	// Check service_roles for system.admin role
+	// Check service_roles for system.admin or auth.GOD role
 	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
 	if err != nil {
 		fmt.Printf("Ошибка получения ролей для пользователя %s: %v\n", user.Username, err)
 		return false
 	}
 	
-	// Check if user has 'admin' role in 'system' service
+	// Check if user has 'admin' role in 'system' service OR 'GOD' role in 'auth' service
 	for _, serviceRole := range userServiceRoles {
-		if serviceRole.IsActive && serviceRole.ServiceKey == "system" && serviceRole.RoleName == "admin" {
+		if !serviceRole.IsActive {
+			continue
+		}
+		
+		// Legacy system.admin role
+		if serviceRole.ServiceKey == "system" && serviceRole.RoleName == "admin" {
+			return true
+		}
+		
+		// New auth.GOD role (supreme administrator)
+		if serviceRole.ServiceKey == "auth" && serviceRole.RoleName == "GOD" {
+			fmt.Printf("User %s has GOD role (supreme administrator)\n", user.Username)
+			return true
+		}
+		
+		// Also check for auth.admin role (system administrator)
+		if serviceRole.ServiceKey == "auth" && serviceRole.RoleName == "admin" {
+			fmt.Printf("User %s has auth.admin role (system administrator)\n", user.Username)
 			return true
 		}
 	}

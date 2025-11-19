@@ -74,6 +74,11 @@ func menuHandler(c *gin.Context) {
 	// Create a slice of service infos with display names
 	serviceInfos := []gin.H{}
 	for _, serviceKey := range accessibleServices {
+		// Skip 'auth' service - it's not a regular service card, but system settings
+		if serviceKey == "auth" {
+			continue
+		}
+		
 		// Check user's role in this service
 		hasServiceAdmin := hasServiceAdminRole(user, serviceKey)
 		hasAnyServiceRole := hasAnyRoleInService(user, serviceKey)
@@ -106,16 +111,21 @@ func menuHandler(c *gin.Context) {
 			serviceInfos = append(serviceInfos, serviceInfo)
 		}
 	}
+	
+	// Check if user has permission to view system settings (must be system admin)
+	canViewSystemSettings := hasAdminRole(user)
+	fmt.Printf("User %s can view system settings: %v\n", user.Username, canViewSystemSettings)
 
 	c.HTML(http.StatusOK, "menu.html", gin.H{
-		"username":     user.Username,
-		"full_name":    user.GetFullName(),
-		"short_name":   user.GetShortName(),
-		"user":         user, // Add full user object for header template
-		"services":     accessibleServices, // Keep for backward compatibility
-		"serviceInfos": serviceInfos,       // New structure with display names
-		"isAdmin":      hasAdminRole(user),
-		"role":         user.Roles,
+		"username":              user.Username,
+		"full_name":             user.GetFullName(),
+		"short_name":            user.GetShortName(),
+		"user":                  user, // Add full user object for header template
+		"services":              accessibleServices, // Keep for backward compatibility
+		"serviceInfos":          serviceInfos,       // New structure with display names
+		"isAdmin":               hasAdminRole(user),
+		"canViewSystemSettings": canViewSystemSettings,
+		"role":                  user.Roles,
 	})
 }
 
@@ -172,6 +182,31 @@ func getIconForService(service string) string {
 
 	// Default icon if no specific icon is defined
 	return "link"
+}
+
+// systemSettingsHandler shows system settings page with admin functions
+func systemSettingsHandler(c *gin.Context) {
+	// Get user from middleware
+	user := c.MustGet("user").(*models.User)
+	
+	// Check if user has permission to view system settings (must be system admin)
+	if !hasAdminRole(user) {
+		c.Redirect(http.StatusFound, "/access-denied")
+		return
+	}
+	
+	// All admins (GOD, admin, system.admin) have full access to all settings
+	c.HTML(http.StatusOK, "settings.html", gin.H{
+		"username":               user.Username,
+		"full_name":              user.GetFullName(),
+		"short_name":             user.GetShortName(),
+		"user":                   user,
+		"canManageUsers":         true,
+		"canManageServices":      true,
+		"canManageRoles":         true,
+		"canViewLogs":            true,
+		"canManageNotifications": true,
+	})
 }
 
 // Helper function to check if a slice contains a string

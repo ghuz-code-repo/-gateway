@@ -119,48 +119,15 @@
                 </a>
             </div>
             
-            {{ if .isAdmin }}
-            <!-- Управление пользователями -->
+            {{ if .canViewSystemSettings }}
+            <!-- Настройки системы -->
             <div class="service-card">
-                <a href="/users">
+                <a href="/settings">
                     <div class="service-icon">
-                        <i class="fas fa-users"></i>
+                        <i class="fas fa-cog"></i>
                     </div>
-                    <h3>Управление пользователями</h3>
-                    <p class="service-description">Создание, редактирование и удаление пользователей системы</p>
-                </a>
-            </div>
-            
-            <!-- Управление сервисами -->
-            <div class="service-card">
-                <a href="/services">
-                    <div class="service-icon">
-                        <i class="fas fa-server"></i>
-                    </div>
-                    <h3>Управление сервисами</h3>
-                    <p class="service-description">Управление сервисами и их разрешениями (ADR-001)</p>
-                </a>
-            </div>
-            
-            <!-- Настройки уведомлений -->
-            <div class="service-card">
-                <a href="/notification-settings">
-                    <div class="service-icon">
-                        <i class="fas fa-envelope-open-text"></i>
-                    </div>
-                    <h3>Настройки уведомлений</h3>
-                    <p class="service-description">Конфигурация сервиса уведомлений и SMTP настроек</p>
-                </a>
-            </div>
-            
-            <!-- Логи системы (Dozzle) -->
-            <div class="service-card">
-                <a href="/logs" target="_blank">
-                    <div class="service-icon">
-                        <i class="fas fa-file-alt"></i>
-                    </div>
-                    <h3>Логи системы</h3>
-                    <p class="service-description">Просмотр логов всех сервисов в реальном времени</p>
+                    <h3>Настройки системы</h3>
+                    <p class="service-description">Управление пользователями, ролями, разрешениями и сервисами</p>
                 </a>
             </div>
             {{ end }}

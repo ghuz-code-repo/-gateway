@@ -236,21 +236,7 @@
                             
                             <div class="roles-container">
                                 <div class="form-group full-width">
-                                    <label class="system-admin-toggle">
-                                        <input type="checkbox" 
-                                               id="system_admin" 
-                                               name="system_admin" 
-                                               value="true"
-                                               {{ if .isSystemAdmin }}checked{{ end }}>
-                                        <span class="toggle-switch"></span>
-                                        <span class="toggle-label">Системный администратор</span>
-                                    </label>
-                                    <span class="help-text">Предоставляет полный доступ к системе</span>
-                                </div>
-                                
-                                <div class="form-group full-width">
-                                    <label>Роли в сервисах</label>
-                                    <div class="service-roles-container">
+                                    
                                         {{ if .allServices }}
                                         {{ range $service := .allServices }}
                                         <div class="service-role-group">
@@ -292,7 +278,7 @@
                                             <p>Нет доступных сервисов. Проверьте подключение к базе данных.</p>
                                         </div>
                                         {{ end }}
-                                    </div>
+                                    
                                 </div>
                             </div>
                         </div>
