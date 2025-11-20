@@ -45,7 +45,7 @@ func getNotificationSettings(c *gin.Context) {
 	}
 
 	var currentSettings NotificationSettings
-	
+
 	// Try to get current config from notification service
 	resp, err := http.Get(notificationServiceURL + "/api/v1/config")
 	if err != nil {
@@ -85,14 +85,14 @@ func getNotificationSettings(c *gin.Context) {
 // updateNotificationSettings handles the form submission for notification settings
 func updateNotificationSettings(c *gin.Context) {
 	var settings NotificationSettings
-	
+
 	// Log incoming request body for debugging
 	body, _ := c.GetRawData()
 	log.Printf("DEBUG: Received notification settings data: %s", string(body))
-	
+
 	// Restore body for binding
 	c.Request.Body = io.NopCloser(strings.NewReader(string(body)))
-	
+
 	if err := c.ShouldBindJSON(&settings); err != nil {
 		log.Printf("ERROR: Failed to bind JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -101,7 +101,7 @@ func updateNotificationSettings(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	log.Printf("DEBUG: Parsed settings: %+v", settings)
 
 	// Update notification service configuration
@@ -179,8 +179,8 @@ func testNotificationSettings(c *gin.Context) {
 
 	if resp.StatusCode == 202 {
 		c.JSON(http.StatusOK, gin.H{
-			"success":        true,
-			"message":        fmt.Sprintf("Тестовое уведомление отправлено на %s", testEmail),
+			"success":         true,
+			"message":         fmt.Sprintf("Тестовое уведомление отправлено на %s", testEmail),
 			"notification_id": result["id"],
 		})
 	} else {
@@ -195,12 +195,12 @@ func testNotificationSettings(c *gin.Context) {
 
 func getDefaultNotificationSettings() NotificationSettings {
 	return NotificationSettings{
-		SMTPHost:                        "smtp.gmail.com",
+		SMTPHost:                        "smtp.gh.uz",
 		SMTPPort:                        "587",
 		SMTPUsername:                    "",
 		SMTPPassword:                    "",
 		SMTPFrom:                        "",
-		SMTPUseTLS:                      true,
+		SMTPUseTLS:                      false,
 		SMTPUseAuth:                     true,
 		SMTPAuthMethod:                  "plain",
 		SystemEmailRecipient:            "",
@@ -282,24 +282,24 @@ func updateNotificationServiceConfig(settings NotificationSettings) error {
 
 	// Convert settings to map for JSON
 	configMap := map[string]interface{}{
-		"smtp_host":                        settings.SMTPHost,
-		"smtp_port":                        settings.SMTPPort,
-		"smtp_username":                    settings.SMTPUsername,
-		"smtp_password":                    settings.SMTPPassword,
-		"smtp_from":                        settings.SMTPFrom,
-		"smtp_use_tls":                     settings.SMTPUseTLS,
-		"smtp_use_auth":                    settings.SMTPUseAuth,
-		"smtp_auth_method":                 settings.SMTPAuthMethod,
-		"system_email_recipient":           settings.SystemEmailRecipient,
-		"system_telegram_username":         settings.SystemTelegramUsername,
-		"send_system_email_notifications":  settings.SendSystemEmailNotifications,
+		"smtp_host":                          settings.SMTPHost,
+		"smtp_port":                          settings.SMTPPort,
+		"smtp_username":                      settings.SMTPUsername,
+		"smtp_password":                      settings.SMTPPassword,
+		"smtp_from":                          settings.SMTPFrom,
+		"smtp_use_tls":                       settings.SMTPUseTLS,
+		"smtp_use_auth":                      settings.SMTPUseAuth,
+		"smtp_auth_method":                   settings.SMTPAuthMethod,
+		"system_email_recipient":             settings.SystemEmailRecipient,
+		"system_telegram_username":           settings.SystemTelegramUsername,
+		"send_system_email_notifications":    settings.SendSystemEmailNotifications,
 		"send_system_telegram_notifications": settings.SendSystemTelegramNotifications,
-		"debug_mode":                       settings.DebugMode,
-		"debug_email":                      settings.DebugEmail,
-		"max_retry_attempts":               settings.MaxRetryAttempts,
-		"batch_size":                       settings.BatchSize,
-		"delay_between_batches_ms":         settings.DelayBetweenMS,
-		"delay_between_messages_ms":        settings.DelayBetweenMessagesMS,
+		"debug_mode":                         settings.DebugMode,
+		"debug_email":                        settings.DebugEmail,
+		"max_retry_attempts":                 settings.MaxRetryAttempts,
+		"batch_size":                         settings.BatchSize,
+		"delay_between_batches_ms":           settings.DelayBetweenMS,
+		"delay_between_messages_ms":          settings.DelayBetweenMessagesMS,
 	}
 
 	jsonData, err := json.Marshal(configMap)
