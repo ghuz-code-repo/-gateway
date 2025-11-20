@@ -14,24 +14,24 @@ import (
 
 // PermissionDef represents a permission definition with metadata
 type PermissionDef struct {
-	Name        string    `bson:"name" json:"name"`                              // Permission identifier (e.g., "users.read")
-	DisplayName string    `bson:"displayName" json:"displayName"`               // Human-readable name
-	Description string    `bson:"description" json:"description"`               // Description of what this permission allows
+	Name        string    `bson:"name" json:"name"`                               // Permission identifier (e.g., "users.read")
+	DisplayName string    `bson:"displayName" json:"displayName"`                 // Human-readable name
+	Description string    `bson:"description" json:"description"`                 // Description of what this permission allows
 	DeletedAt   time.Time `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"` // Soft delete timestamp
 }
 
 // Service represents a service with its master permission list
 type Service struct {
 	ID                   primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Key                  string             `bson:"key" json:"key" validate:"required"`                          // e.g. "referal"
-	Name                 string             `bson:"name" json:"name"`                                            // Display name
-	Description          string             `bson:"description" json:"description"`                             // Service description
-	AvailablePermissions []PermissionDef    `bson:"availablePermissions" json:"availablePermissions"`           // Canonical list of permissions
-	Status               string             `bson:"status" json:"status"`                                        // active, deprecated, disabled
-	CreatedAt            time.Time          `bson:"created_at" json:"created_at"`                               // Creation timestamp
-	UpdatedAt            time.Time          `bson:"updated_at" json:"updated_at"`                               // Update timestamp
-	DeletedAt            *time.Time         `bson:"deleted_at,omitempty" json:"deleted_at,omitempty"`           // Soft delete timestamp
-	
+	Key                  string             `bson:"key" json:"key" validate:"required"`               // e.g. "referal"
+	Name                 string             `bson:"name" json:"name"`                                 // Display name
+	Description          string             `bson:"description" json:"description"`                   // Service description
+	AvailablePermissions []PermissionDef    `bson:"availablePermissions" json:"availablePermissions"` // Canonical list of permissions
+	Status               string             `bson:"status" json:"status"`                             // active, deprecated, disabled
+	CreatedAt            time.Time          `bson:"created_at" json:"created_at"`                     // Creation timestamp
+	UpdatedAt            time.Time          `bson:"updated_at" json:"updated_at"`                     // Update timestamp
+	DeletedAt            *time.Time         `bson:"deleted_at,omitempty" json:"deleted_at,omitempty"` // Soft delete timestamp
+
 	// Legacy field for backward compatibility - will be removed after migration
 	Permissions []string `bson:"permissions,omitempty" json:"permissions,omitempty"`
 }
@@ -152,7 +152,7 @@ func GetServiceByKey(key string) (*Service, error) {
 // GetServiceByKeyWithOptions retrieves a service by its key with optional inclusion of deleted
 func GetServiceByKeyWithOptions(key string, includeDeleted bool) (*Service, error) {
 	ctx := context.Background()
-	
+
 	log.Printf("DEBUG: Searching for service with key: '%s' (includeDeleted=%v)", key, includeDeleted)
 
 	filter := bson.M{"key": key}
@@ -262,9 +262,9 @@ func DeleteServiceByKey(key string) error {
 func SoftDeleteService(serviceKey string) error {
 	ctx := context.Background()
 	now := time.Now()
-	
+
 	log.Printf("INFO: Starting soft delete for service '%s'", serviceKey)
-	
+
 	// 1. Mark the service as deleted
 	result, err := servicesCol.UpdateOne(
 		ctx,
@@ -285,9 +285,9 @@ func SoftDeleteService(serviceKey string) error {
 		return fmt.Errorf("service not found or already deleted")
 	}
 	log.Printf("INFO: Service '%s' marked as deleted", serviceKey)
-	
+
 	// 2. Soft delete all roles of this service
-	roleResult, err := rolesCol.UpdateMany(
+	roleResult, err := serviceRolesCol.UpdateMany(
 		ctx,
 		bson.M{"service": serviceKey, "deletedAt": bson.M{"$exists": false}},
 		bson.M{
@@ -302,7 +302,7 @@ func SoftDeleteService(serviceKey string) error {
 		return fmt.Errorf("failed to soft delete service roles: %w", err)
 	}
 	log.Printf("INFO: Soft deleted %d roles for service '%s'", roleResult.ModifiedCount, serviceKey)
-	
+
 	// 3. Delete all user role assignments for this service (hard delete as these are references)
 	assignmentResult, err := userServiceRolesCol.DeleteMany(
 		ctx,
@@ -313,7 +313,7 @@ func SoftDeleteService(serviceKey string) error {
 		return fmt.Errorf("failed to delete user role assignments: %w", err)
 	}
 	log.Printf("INFO: Deleted %d user role assignments for service '%s'", assignmentResult.DeletedCount, serviceKey)
-	
+
 	// 4. Soft delete all permissions for this service
 	permResult, err := permsCol.UpdateMany(
 		ctx,
@@ -329,7 +329,7 @@ func SoftDeleteService(serviceKey string) error {
 		return fmt.Errorf("failed to soft delete service permissions: %w", err)
 	}
 	log.Printf("INFO: Soft deleted %d permissions for service '%s'", permResult.ModifiedCount, serviceKey)
-	
+
 	// 5. Remove serviceKey from allowed_services in all user documents
 	docResult, err := usersCol.UpdateMany(
 		ctx,
@@ -345,7 +345,7 @@ func SoftDeleteService(serviceKey string) error {
 		return fmt.Errorf("failed to update user documents: %w", err)
 	}
 	log.Printf("INFO: Removed service '%s' from %d user document entries", serviceKey, docResult.ModifiedCount)
-	
+
 	log.Printf("INFO: Successfully completed soft delete for service '%s'", serviceKey)
 	return nil
 }
@@ -354,9 +354,9 @@ func SoftDeleteService(serviceKey string) error {
 // WARNING: This operation cannot be undone! Use SoftDeleteService for recoverable deletion.
 func HardDeleteService(serviceKey string) error {
 	ctx := context.Background()
-	
+
 	log.Printf("WARNING: Starting HARD DELETE for service '%s' - this cannot be undone!", serviceKey)
-	
+
 	// 1. Delete the service itself
 	result, err := servicesCol.DeleteOne(ctx, bson.M{"key": serviceKey})
 	if err != nil {
@@ -368,15 +368,15 @@ func HardDeleteService(serviceKey string) error {
 		return fmt.Errorf("service not found")
 	}
 	log.Printf("INFO: Service '%s' deleted from database", serviceKey)
-	
+
 	// 2. Delete all roles of this service
-	roleResult, err := rolesCol.DeleteMany(ctx, bson.M{"service": serviceKey})
+	roleResult, err := serviceRolesCol.DeleteMany(ctx, bson.M{"service": serviceKey})
 	if err != nil {
 		log.Printf("ERROR: Failed to delete roles for service '%s': %v", serviceKey, err)
 		return fmt.Errorf("failed to delete service roles: %w", err)
 	}
 	log.Printf("INFO: Deleted %d roles for service '%s'", roleResult.DeletedCount, serviceKey)
-	
+
 	// 3. Delete all user role assignments for this service
 	assignmentResult, err := userServiceRolesCol.DeleteMany(ctx, bson.M{"service_key": serviceKey})
 	if err != nil {
@@ -384,7 +384,7 @@ func HardDeleteService(serviceKey string) error {
 		return fmt.Errorf("failed to delete user role assignments: %w", err)
 	}
 	log.Printf("INFO: Deleted %d user role assignments for service '%s'", assignmentResult.DeletedCount, serviceKey)
-	
+
 	// 4. Delete all permissions for this service
 	permResult, err := permsCol.DeleteMany(ctx, bson.M{"service": serviceKey})
 	if err != nil {
@@ -392,7 +392,7 @@ func HardDeleteService(serviceKey string) error {
 		return fmt.Errorf("failed to delete service permissions: %w", err)
 	}
 	log.Printf("INFO: Deleted %d permissions for service '%s'", permResult.DeletedCount, serviceKey)
-	
+
 	// 5. Delete import logs for this service
 	importLogsCol := db.Collection("import_logs")
 	logResult, err := importLogsCol.DeleteMany(ctx, bson.M{"service_key": serviceKey})
@@ -403,7 +403,7 @@ func HardDeleteService(serviceKey string) error {
 	} else {
 		log.Printf("INFO: Deleted %d import logs for service '%s'", logResult.DeletedCount, serviceKey)
 	}
-	
+
 	// 6. Remove serviceKey from allowed_services in all user documents
 	docResult, err := usersCol.UpdateMany(
 		ctx,
@@ -419,7 +419,7 @@ func HardDeleteService(serviceKey string) error {
 		return fmt.Errorf("failed to update user documents: %w", err)
 	}
 	log.Printf("INFO: Removed service '%s' from %d user document entries", serviceKey, docResult.ModifiedCount)
-	
+
 	log.Printf("INFO: Successfully completed HARD DELETE for service '%s'", serviceKey)
 	return nil
 }
@@ -427,9 +427,9 @@ func HardDeleteService(serviceKey string) error {
 // RestoreService restores a soft-deleted service and its related entities
 func RestoreService(serviceKey string) error {
 	ctx := context.Background()
-	
+
 	log.Printf("INFO: Starting restore for service '%s'", serviceKey)
-	
+
 	// 1. Check if service exists and is deleted
 	var service Service
 	err := servicesCol.FindOne(ctx, bson.M{"key": serviceKey}).Decode(&service)
@@ -441,7 +441,7 @@ func RestoreService(serviceKey string) error {
 		log.Printf("WARNING: Service '%s' is not deleted, nothing to restore", serviceKey)
 		return fmt.Errorf("service is not deleted")
 	}
-	
+
 	// 2. Restore the service
 	result, err := servicesCol.UpdateOne(
 		ctx,
@@ -459,9 +459,9 @@ func RestoreService(serviceKey string) error {
 		log.Printf("WARNING: Service '%s' was not modified during restore", serviceKey)
 	}
 	log.Printf("INFO: Service '%s' restored", serviceKey)
-	
+
 	// 3. Restore all roles of this service
-	roleResult, err := rolesCol.UpdateMany(
+	roleResult, err := serviceRolesCol.UpdateMany(
 		ctx,
 		bson.M{"service": serviceKey, "deletedAt": bson.M{"$exists": true}},
 		bson.M{
@@ -474,7 +474,7 @@ func RestoreService(serviceKey string) error {
 		return fmt.Errorf("failed to restore service roles: %w", err)
 	}
 	log.Printf("INFO: Restored %d roles for service '%s'", roleResult.ModifiedCount, serviceKey)
-	
+
 	// 4. Restore all permissions for this service
 	permResult, err := permsCol.UpdateMany(
 		ctx,
@@ -488,11 +488,11 @@ func RestoreService(serviceKey string) error {
 		return fmt.Errorf("failed to restore service permissions: %w", err)
 	}
 	log.Printf("INFO: Restored %d permissions for service '%s'", permResult.ModifiedCount, serviceKey)
-	
+
 	// Note: We do NOT restore user_service_roles assignments automatically
 	// These should be reassigned manually by administrators after restoration
 	log.Printf("INFO: Note - User role assignments were not restored and must be reassigned manually")
-	
+
 	log.Printf("INFO: Successfully completed restore for service '%s'", serviceKey)
 	return nil
 }
@@ -588,7 +588,7 @@ func RemovePermissionFromService(serviceKey string, permissionName string) error
 	_, err := servicesCol.UpdateOne(
 		ctx,
 		bson.M{
-			"key": serviceKey,
+			"key":                       serviceKey,
 			"availablePermissions.name": permissionName,
 		},
 		bson.M{
@@ -666,7 +666,7 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 			if err != nil {
 				return []string{}, nil // Return empty if service not found
 			}
-			
+
 			// Return all active permissions for admin
 			allPerms := make([]string, 0)
 			for _, perm := range service.AvailablePermissions {
@@ -674,12 +674,12 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 					allPerms = append(allPerms, perm.Name)
 				}
 			}
-			
+
 			// Also include legacy permissions
 			for _, perm := range service.Permissions {
 				allPerms = append(allPerms, perm)
 			}
-			
+
 			// Remove duplicates
 			permMap := make(map[string]bool)
 			uniquePerms := make([]string, 0)
@@ -689,7 +689,7 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 					uniquePerms = append(uniquePerms, perm)
 				}
 			}
-			
+
 			return uniquePerms, nil
 		}
 	}
@@ -701,9 +701,9 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 		log.Printf("DEBUG GetUserServicePermissions: error getting service roles: %v", err)
 		serviceRoleNames = []string{}
 	}
-	
+
 	log.Printf("DEBUG GetUserServicePermissions: user=%s, service=%s, serviceRoleNames=%v", userID, serviceKey, serviceRoleNames)
-	
+
 	// Get all available roles for the service
 	roles, err := GetRolesByService(serviceKey)
 	if err != nil {
@@ -712,7 +712,7 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 	}
 
 	permissionSet := make(map[string]bool)
-	
+
 	// Check service-specific roles (user_service_roles)
 	for _, roleName := range serviceRoleNames {
 		for _, role := range roles {
@@ -724,7 +724,7 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 			}
 		}
 	}
-	
+
 	// Also check global roles (for backward compatibility)
 	for _, roleName := range user.Roles {
 		for _, role := range roles {
@@ -742,7 +742,7 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 	for perm := range permissionSet {
 		permissions = append(permissions, perm)
 	}
-	
+
 	log.Printf("DEBUG GetUserServicePermissions: returning %d permissions: %v", len(permissions), permissions)
 
 	return permissions, nil
@@ -777,7 +777,7 @@ func GetUserServiceRoles(userID, serviceKey string) ([]string, error) {
 	// Filter user roles to only include roles from this service
 	userServiceRoles := make([]string, 0)
 	serviceRoleMap := make(map[string]bool)
-	
+
 	for _, role := range serviceRoles {
 		serviceRoleMap[role.Name] = true
 	}
@@ -887,7 +887,7 @@ func GetServicesForRole(roleID primitive.ObjectID) ([]Service, error) {
 
 	// Get the role
 	var role Role
-	err := rolesCol.FindOne(ctx, bson.M{"_id": roleID}).Decode(&role)
+	err := serviceRolesCol.FindOne(ctx, bson.M{"_id": roleID}).Decode(&role)
 	if err != nil {
 		return nil, err
 	}
@@ -908,31 +908,31 @@ func GetServicesForRole(roleID primitive.ObjectID) ([]Service, error) {
 // UpdateServicePermissions updates the available permissions for a service
 func UpdateServicePermissions(serviceKey string, permissions []PermissionDef) error {
 	ctx := context.Background()
-	
+
 	// Check if service exists
 	_, err := GetServiceByKey(serviceKey)
 	if err != nil {
 		return fmt.Errorf("service not found: %w", err)
 	}
-	
+
 	// Update permissions and timestamp
 	update := bson.M{
 		"$set": bson.M{
 			"availablePermissions": permissions,
-			"updated_at":          time.Now(),
+			"updated_at":           time.Now(),
 		},
 	}
-	
+
 	_, err = servicesCol.UpdateOne(
-		ctx, 
-		bson.M{"key": serviceKey}, 
+		ctx,
+		bson.M{"key": serviceKey},
 		update,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to update service permissions: %w", err)
 	}
-	
+
 	log.Printf("Updated permissions for service %s: %d permissions synced", serviceKey, len(permissions))
 	return nil
 }

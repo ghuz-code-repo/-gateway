@@ -13,9 +13,9 @@ import (
 
 // MigrationResult represents the result of a migration operation
 type MigrationResult struct {
-	ServicesUpdated int      `json:"servicesUpdated"`
-	RolesUpdated    int      `json:"rolesUpdated"`
-	Errors          []string `json:"errors"`
+	ServicesUpdated int       `json:"servicesUpdated"`
+	RolesUpdated    int       `json:"rolesUpdated"`
+	Errors          []string  `json:"errors"`
 	StartedAt       time.Time `json:"startedAt"`
 	CompletedAt     time.Time `json:"completedAt"`
 }
@@ -36,7 +36,7 @@ func MigrateToADR001Schema() (*MigrationResult, error) {
 		return result, err
 	}
 
-	// Phase 2: Migrate Roles Collection 
+	// Phase 2: Migrate Roles Collection
 	err = migrateRolesSchema(result)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Role migration failed: %v", err))
@@ -59,7 +59,7 @@ func MigrateToADR001Schema() (*MigrationResult, error) {
 	}
 
 	result.CompletedAt = time.Now()
-	log.Printf("Migration completed: %d services updated, %d roles updated", 
+	log.Printf("Migration completed: %d services updated, %d roles updated",
 		result.ServicesUpdated, result.RolesUpdated)
 
 	return result, nil
@@ -71,7 +71,7 @@ func migrateServicesSchema(result *MigrationResult) error {
 
 	// Find all services that need migration (have permissions but no availablePermissions)
 	cursor, err := servicesCol.Find(ctx, bson.M{
-		"permissions": bson.M{"$exists": true, "$ne": nil},
+		"permissions":          bson.M{"$exists": true, "$ne": nil},
 		"availablePermissions": bson.M{"$exists": false},
 	})
 	if err != nil {
@@ -110,7 +110,7 @@ func migrateServicesSchema(result *MigrationResult) error {
 		)
 
 		if err != nil {
-			result.Errors = append(result.Errors, 
+			result.Errors = append(result.Errors,
 				fmt.Sprintf("Failed to update service %s: %v", service.Key, err))
 		} else {
 			result.ServicesUpdated++
@@ -126,7 +126,7 @@ func migrateRolesSchema(result *MigrationResult) error {
 	ctx := context.Background()
 
 	// Find all roles that need timestamps
-	cursor, err := rolesCol.Find(ctx, bson.M{
+	cursor, err := serviceRolesCol.Find(ctx, bson.M{
 		"createdAt": bson.M{"$exists": false},
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func migrateRolesSchema(result *MigrationResult) error {
 		}
 
 		// Add timestamps to existing role
-		_, err := rolesCol.UpdateOne(
+		_, err := serviceRolesCol.UpdateOne(
 			ctx,
 			bson.M{"_id": role.ID},
 			bson.M{
@@ -155,7 +155,7 @@ func migrateRolesSchema(result *MigrationResult) error {
 		)
 
 		if err != nil {
-			result.Errors = append(result.Errors, 
+			result.Errors = append(result.Errors,
 				fmt.Sprintf("Failed to update role %s: %v", role.Name, err))
 		} else {
 			result.RolesUpdated++
@@ -176,7 +176,7 @@ func ensureDefaultServices(result *MigrationResult) error {
 	}{
 		{
 			key:         "referal",
-			name:        "Referral System", 
+			name:        "Referral System",
 			description: "Referral program management service",
 			permissions: []PermissionDef{
 				{Name: "view", DisplayName: "View", Description: "Permission to view referral data"},
@@ -214,13 +214,13 @@ func ensureDefaultServices(result *MigrationResult) error {
 				defaultService.permissions,
 			)
 			if err != nil {
-				result.Errors = append(result.Errors, 
+				result.Errors = append(result.Errors,
 					fmt.Sprintf("Failed to create default service %s: %v", defaultService.key, err))
 			} else {
 				log.Printf("Created default service: %s", defaultService.key)
 			}
 		} else if err != nil {
-			result.Errors = append(result.Errors, 
+			result.Errors = append(result.Errors,
 				fmt.Sprintf("Error checking service %s: %v", defaultService.key, err))
 		} else {
 			log.Printf("Default service %s already exists", defaultService.key)
@@ -258,7 +258,7 @@ func ValidateMigration() error {
 	}
 
 	// Check that all roles have timestamps
-	count, err := rolesCol.CountDocuments(ctx, bson.M{
+	count, err := serviceRolesCol.CountDocuments(ctx, bson.M{
 		"createdAt": bson.M{"$exists": false},
 	})
 	if err != nil {
@@ -276,7 +276,7 @@ func ValidateMigration() error {
 // RollbackMigration provides a way to rollback the migration if needed
 func RollbackMigration() error {
 	ctx := context.Background()
-	
+
 	log.Println("Starting migration rollback...")
 
 	// Remove new fields from services (keeping legacy permissions)
@@ -296,7 +296,7 @@ func RollbackMigration() error {
 	}
 
 	// Remove timestamps from roles
-	_, err = rolesCol.UpdateMany(
+	_, err = serviceRolesCol.UpdateMany(
 		ctx,
 		bson.M{},
 		bson.M{

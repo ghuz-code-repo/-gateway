@@ -34,41 +34,41 @@ var (
 
 // DocumentType represents a document type configuration
 type DocumentType struct {
-	ID            string            `bson:"_id" json:"id"`
-	Name          string            `bson:"name" json:"name"`
-	Description   string            `bson:"description" json:"description"`
-	DocumentGroup string            `bson:"document_group" json:"document_group"`
-	Fields        []DocumentField   `bson:"fields" json:"fields"`
-	IsActive      bool              `bson:"is_active" json:"is_active"`
-	Order         int               `bson:"order" json:"order"`
-	CreatedAt     time.Time         `bson:"created_at" json:"created_at"`
-	UpdatedAt     time.Time         `bson:"updated_at" json:"updated_at"`
+	ID            string          `bson:"_id" json:"id"`
+	Name          string          `bson:"name" json:"name"`
+	Description   string          `bson:"description" json:"description"`
+	DocumentGroup string          `bson:"document_group" json:"document_group"`
+	Fields        []DocumentField `bson:"fields" json:"fields"`
+	IsActive      bool            `bson:"is_active" json:"is_active"`
+	Order         int             `bson:"order" json:"order"`
+	CreatedAt     time.Time       `bson:"created_at" json:"created_at"`
+	UpdatedAt     time.Time       `bson:"updated_at" json:"updated_at"`
 }
 
 // DocumentField represents a field in a document type
 type DocumentField struct {
-	ID           string                 `bson:"id" json:"id"`
-	Name         string                 `bson:"name,omitempty" json:"name,omitempty"`
-	Label        string                 `bson:"label" json:"label"`
-	Type         string                 `bson:"type" json:"type"` // text, number, date, select, textarea
-	Required     bool                   `bson:"required" json:"required"`
-	Options      []string               `bson:"options,omitempty" json:"options,omitempty"` // for select fields
-	Validation   map[string]interface{} `bson:"validation,omitempty" json:"validation,omitempty"`
-	Placeholder  string                 `bson:"placeholder,omitempty" json:"placeholder,omitempty"`
-	MaxLength    int                    `bson:"maxlength,omitempty" json:"maxlength,omitempty"`
-	Format       *FieldFormat           `bson:"format,omitempty" json:"format,omitempty"` // formatting configuration
+	ID          string                 `bson:"id" json:"id"`
+	Name        string                 `bson:"name,omitempty" json:"name,omitempty"`
+	Label       string                 `bson:"label" json:"label"`
+	Type        string                 `bson:"type" json:"type"` // text, number, date, select, textarea
+	Required    bool                   `bson:"required" json:"required"`
+	Options     []string               `bson:"options,omitempty" json:"options,omitempty"` // for select fields
+	Validation  map[string]interface{} `bson:"validation,omitempty" json:"validation,omitempty"`
+	Placeholder string                 `bson:"placeholder,omitempty" json:"placeholder,omitempty"`
+	MaxLength   int                    `bson:"maxlength,omitempty" json:"maxlength,omitempty"`
+	Format      *FieldFormat           `bson:"format,omitempty" json:"format,omitempty"` // formatting configuration
 }
 
 // FieldFormat represents formatting configuration for a field
 type FieldFormat struct {
-	Mask         string `bson:"mask,omitempty" json:"mask,omitempty"`                   // input mask like "9999 999999"
-	Pattern      string `bson:"pattern,omitempty" json:"pattern,omitempty"`             // regex pattern for validation
-	Transform    string `bson:"transform,omitempty" json:"transform,omitempty"`         // uppercase, lowercase, capitalize
-	Separator    string `bson:"separator,omitempty" json:"separator,omitempty"`         // separator character for grouping
-	GroupSize    int    `bson:"group_size,omitempty" json:"group_size,omitempty"`       // size of each group
-	Prefix       string `bson:"prefix,omitempty" json:"prefix,omitempty"`               // prefix text
-	Suffix       string `bson:"suffix,omitempty" json:"suffix,omitempty"`               // suffix text
-	DecimalPlaces int   `bson:"decimal_places,omitempty" json:"decimal_places,omitempty"` // for number fields
+	Mask          string `bson:"mask,omitempty" json:"mask,omitempty"`                     // input mask like "9999 999999"
+	Pattern       string `bson:"pattern,omitempty" json:"pattern,omitempty"`               // regex pattern for validation
+	Transform     string `bson:"transform,omitempty" json:"transform,omitempty"`           // uppercase, lowercase, capitalize
+	Separator     string `bson:"separator,omitempty" json:"separator,omitempty"`           // separator character for grouping
+	GroupSize     int    `bson:"group_size,omitempty" json:"group_size,omitempty"`         // size of each group
+	Prefix        string `bson:"prefix,omitempty" json:"prefix,omitempty"`                 // prefix text
+	Suffix        string `bson:"suffix,omitempty" json:"suffix,omitempty"`                 // suffix text
+	DecimalPlaces int    `bson:"decimal_places,omitempty" json:"decimal_places,omitempty"` // for number fields
 }
 
 // DocumentAttachment represents an attached file to a document
@@ -84,75 +84,75 @@ type DocumentAttachment struct {
 
 // UserDocument represents a user document with dynamic fields
 type UserDocument struct {
-	ID             primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
-	DocumentType   string                      `bson:"document_type" json:"document_type"`
-	Title          string                       `bson:"title" json:"title"`
-	Fields         map[string]interface{}       `bson:"fields" json:"fields"`
-	Attachments    []DocumentAttachment         `bson:"attachments" json:"attachments"`
-	AllowedServices []string                    `bson:"allowed_services" json:"allowed_services"` // Services where this document can be used
-	Status         string                       `bson:"status" json:"status"` // draft, completed, archived
-	CreatedAt      time.Time                    `bson:"created_at" json:"created_at"`
-	UpdatedAt      time.Time                    `bson:"updated_at" json:"updated_at"`
+	ID              primitive.ObjectID     `bson:"_id,omitempty" json:"id"`
+	DocumentType    string                 `bson:"document_type" json:"document_type"`
+	Title           string                 `bson:"title" json:"title"`
+	Fields          map[string]interface{} `bson:"fields" json:"fields"`
+	Attachments     []DocumentAttachment   `bson:"attachments" json:"attachments"`
+	AllowedServices []string               `bson:"allowed_services" json:"allowed_services"` // Services where this document can be used
+	Status          string                 `bson:"status" json:"status"`                     // draft, completed, archived
+	CreatedAt       time.Time              `bson:"created_at" json:"created_at"`
+	UpdatedAt       time.Time              `bson:"updated_at" json:"updated_at"`
 }
 
 // Document represents a user document (legacy - will be replaced by UserDocument)
 type Document struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	FileName    string             `bson:"file_name" json:"file_name"`
-	OriginalName string            `bson:"original_name" json:"original_name"`
-	FilePath    string             `bson:"file_path" json:"file_path"`
-	ContentType string             `bson:"content_type" json:"content_type"`
-	Size        int64              `bson:"size" json:"size"`
-	UploadedAt  time.Time          `bson:"uploaded_at" json:"uploaded_at"`
+	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	FileName     string             `bson:"file_name" json:"file_name"`
+	OriginalName string             `bson:"original_name" json:"original_name"`
+	FilePath     string             `bson:"file_path" json:"file_path"`
+	ContentType  string             `bson:"content_type" json:"content_type"`
+	Size         int64              `bson:"size" json:"size"`
+	UploadedAt   time.Time          `bson:"uploaded_at" json:"uploaded_at"`
 }
 
 // CropCoords represents the crop coordinates for avatar
 type CropCoords struct {
 	X      float64 `bson:"x" json:"x"`           // X position relative to original image (0-1)
-	Y      float64 `bson:"y" json:"y"`           // Y position relative to original image (0-1)  
+	Y      float64 `bson:"y" json:"y"`           // Y position relative to original image (0-1)
 	Width  float64 `bson:"width" json:"width"`   // Width relative to original image (0-1)
 	Height float64 `bson:"height" json:"height"` // Height relative to original image (0-1)
 }
 
 // User struct represents a user in the system
 type User struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Username   string             `bson:"username" json:"username"`
-	Email      string             `bson:"email" json:"email"`
-	Password   string             `bson:"password" json:"-"`          // Never return password in JSON
-	Roles      []string           `bson:"roles" json:"roles"`         // Store role names
-	
+	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Username string             `bson:"username" json:"username"`
+	Email    string             `bson:"email" json:"email"`
+	Password string             `bson:"password" json:"-"`  // Never return password in JSON
+	Roles    []string           `bson:"roles" json:"roles"` // Store role names
+
 	// Separated name fields
-	LastName   string             `bson:"last_name,omitempty" json:"last_name,omitempty"`     // Фамилия
-	FirstName  string             `bson:"first_name,omitempty" json:"first_name,omitempty"`   // Имя
-	MiddleName string             `bson:"middle_name,omitempty" json:"middle_name,omitempty"` // Отчество
-	Suffix     string             `bson:"suffix,omitempty" json:"suffix,omitempty"`           // Суффикс (Jr., Sr., III и т.д.)
-	
+	LastName   string `bson:"last_name,omitempty" json:"last_name,omitempty"`     // Фамилия
+	FirstName  string `bson:"first_name,omitempty" json:"first_name,omitempty"`   // Имя
+	MiddleName string `bson:"middle_name,omitempty" json:"middle_name,omitempty"` // Отчество
+	Suffix     string `bson:"suffix,omitempty" json:"suffix,omitempty"`           // Суффикс (Jr., Sr., III и т.д.)
+
 	// Legacy field for backward compatibility
-	FullName   string             `bson:"full_name,omitempty" json:"full_name,omitempty"`
-	
-	Phone      string             `bson:"phone,omitempty" json:"phone,omitempty"`
-	Position   string             `bson:"position,omitempty" json:"position,omitempty"`
-	Department string             `bson:"department,omitempty" json:"department,omitempty"`
-	AvatarPath string             `bson:"avatar_path,omitempty" json:"avatar_path,omitempty"`
-	OriginalAvatarPath string     `bson:"original_avatar_path,omitempty" json:"original_avatar_path,omitempty"`
+	FullName string `bson:"full_name,omitempty" json:"full_name,omitempty"`
+
+	Phone              string      `bson:"phone,omitempty" json:"phone,omitempty"`
+	Position           string      `bson:"position,omitempty" json:"position,omitempty"`
+	Department         string      `bson:"department,omitempty" json:"department,omitempty"`
+	AvatarPath         string      `bson:"avatar_path,omitempty" json:"avatar_path,omitempty"`
+	OriginalAvatarPath string      `bson:"original_avatar_path,omitempty" json:"original_avatar_path,omitempty"`
 	CropCoordinates    *CropCoords `bson:"crop_coordinates,omitempty" json:"crop_coordinates,omitempty"`
-	
+
 	// Passport and personal data
-	PassportNumber      string     `bson:"passport_number,omitempty" json:"passport_number,omitempty"`
-	PassportIssuedBy    string     `bson:"passport_issued_by,omitempty" json:"passport_issued_by,omitempty"`
-	PassportIssuedDate  *time.Time `bson:"passport_issued_date,omitempty" json:"passport_issued_date,omitempty"`
-	Address             string     `bson:"address,omitempty" json:"address,omitempty"`
-	BirthDate           *time.Time `bson:"birth_date,omitempty" json:"birth_date,omitempty"`
-	
-	Documents  []UserDocument     `bson:"documents,omitempty" json:"documents,omitempty"`      // New document system
-	LegacyDocs []Document         `bson:"legacy_docs,omitempty" json:"legacy_docs,omitempty"` // Legacy documents
-	IsBanned   bool               `bson:"is_banned,omitempty" json:"is_banned,omitempty"`     // User ban status
-	BannedAt   *time.Time         `bson:"banned_at,omitempty" json:"banned_at,omitempty"`     // When user was banned
-	BanReason  string             `bson:"ban_reason,omitempty" json:"ban_reason,omitempty"`   // Reason for ban
+	PassportNumber     string     `bson:"passport_number,omitempty" json:"passport_number,omitempty"`
+	PassportIssuedBy   string     `bson:"passport_issued_by,omitempty" json:"passport_issued_by,omitempty"`
+	PassportIssuedDate *time.Time `bson:"passport_issued_date,omitempty" json:"passport_issued_date,omitempty"`
+	Address            string     `bson:"address,omitempty" json:"address,omitempty"`
+	BirthDate          *time.Time `bson:"birth_date,omitempty" json:"birth_date,omitempty"`
+
+	Documents    []UserDocument          `bson:"documents,omitempty" json:"documents,omitempty"`         // New document system
+	LegacyDocs   []Document              `bson:"legacy_docs,omitempty" json:"legacy_docs,omitempty"`     // Legacy documents
+	IsBanned     bool                    `bson:"is_banned,omitempty" json:"is_banned,omitempty"`         // User ban status
+	BannedAt     *time.Time              `bson:"banned_at,omitempty" json:"banned_at,omitempty"`         // When user was banned
+	BanReason    string                  `bson:"ban_reason,omitempty" json:"ban_reason,omitempty"`       // Reason for ban
 	ServiceRoles []ServiceRoleAssignment `bson:"service_roles,omitempty" json:"service_roles,omitempty"` // Service-based roles
-	CreatedAt  time.Time          `bson:"created_at,omitempty" json:"created_at,omitempty"`
-	UpdatedAt  time.Time          `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
+	CreatedAt    time.Time               `bson:"created_at,omitempty" json:"created_at,omitempty"`
+	UpdatedAt    time.Time               `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
 }
 
 // ServiceRoleAssignment represents a role assignment for a specific service
@@ -164,7 +164,7 @@ type ServiceRoleAssignment struct {
 // GetFullName returns the complete full name with suffix
 func (u *User) GetFullName() string {
 	var parts []string
-	
+
 	if u.LastName != "" {
 		parts = append(parts, u.LastName)
 	}
@@ -177,11 +177,11 @@ func (u *User) GetFullName() string {
 	if u.Suffix != "" {
 		parts = append(parts, u.Suffix)
 	}
-	
+
 	if len(parts) > 0 {
 		return strings.Join(parts, " ")
 	}
-	
+
 	// Fallback to legacy field if new fields are empty
 	return u.FullName
 }
@@ -195,18 +195,18 @@ func (u *User) GetShortName() string {
 		}
 		return u.Username
 	}
-	
+
 	var parts []string
 	parts = append(parts, u.LastName)
-	
+
 	if u.FirstName != "" {
 		parts = append(parts, string([]rune(u.FirstName)[0])+".")
 	}
-	
+
 	if u.MiddleName != "" {
 		parts = append(parts, string([]rune(u.MiddleName)[0])+".")
 	}
-	
+
 	return strings.Join(parts, " ")
 }
 
@@ -220,13 +220,13 @@ func (u *User) GetDisplayName(isCard bool) string {
 
 // UserServiceRole represents a user's role assignment in a specific service
 type UserServiceRole struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	UserID    primitive.ObjectID `bson:"user_id" json:"user_id" validate:"required"`
-	ServiceKey string            `bson:"service_key" json:"service_key" validate:"required"`
-	RoleName   string            `bson:"role_name" json:"role_name" validate:"required"`
-	AssignedAt time.Time         `bson:"assigned_at" json:"assigned_at"`
+	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID     primitive.ObjectID `bson:"user_id" json:"user_id" validate:"required"`
+	ServiceKey string             `bson:"service_key" json:"service_key" validate:"required"`
+	RoleName   string             `bson:"role_name" json:"role_name" validate:"required"`
+	AssignedAt time.Time          `bson:"assigned_at" json:"assigned_at"`
 	AssignedBy primitive.ObjectID `bson:"assigned_by,omitempty" json:"assigned_by,omitempty"`
-	IsActive   bool              `bson:"is_active" json:"is_active"`
+	IsActive   bool               `bson:"is_active" json:"is_active"`
 }
 
 // UserWithServiceRoles represents a user with their roles in a specific service
@@ -319,9 +319,9 @@ func InitDB(uri, dbName string) error {
 	}
 	// Create compound index for roles (service, name) for uniqueness and fast lookup
 	// First, try to drop old name index if it exists
-	rolesCol.Indexes().DropOne(ctx, "name_1")
-	
-	_, err = rolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+	serviceRolesCol.Indexes().DropOne(ctx, "name_1")
+
+	_, err = serviceRolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{"service", 1},
 			{"name", 1},
@@ -338,7 +338,7 @@ func InitDB(uri, dbName string) error {
 	if err != nil {
 		log.Printf("Warning: Failed to create permission service index: %v", err)
 	}
-	
+
 	// Create unique index for services collection on key field
 	_, err = servicesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{"key", 1}},
@@ -431,14 +431,14 @@ func updateAdminPermissions(services []string) {
 
 	// Find admin role
 	var adminRole Role
-	err := rolesCol.FindOne(ctx, bson.M{"name": "admin"}).Decode(&adminRole)
+	err := serviceRolesCol.FindOne(ctx, bson.M{"name": "admin"}).Decode(&adminRole)
 	if err != nil {
 		log.Printf("Warning: Failed to find admin role: %v", err)
 		return
 	}
 
 	// Update admin role permissions to include all services
-	_, err = rolesCol.UpdateOne(
+	_, err = serviceRolesCol.UpdateOne(
 		ctx,
 		bson.M{"name": "admin"},
 		bson.M{"$set": bson.M{"permissions": services}},
@@ -459,7 +459,7 @@ func EnsureAdminExists() {
 
 	// Ensure admin role (system-wide role) exists
 	var adminRole Role
-	err := rolesCol.FindOne(ctx, bson.M{"service": "system", "name": "admin"}).Decode(&adminRole)
+	err := serviceRolesCol.FindOne(ctx, bson.M{"service": "system", "name": "admin"}).Decode(&adminRole)
 	if err == mongo.ErrNoDocuments {
 		// Create admin role
 		adminRole = Role{
@@ -485,7 +485,7 @@ func EnsureAdminExists() {
 			cursor.Close(ctx)
 		}
 
-		result, err := rolesCol.InsertOne(ctx, adminRole)
+		result, err := serviceRolesCol.InsertOne(ctx, adminRole)
 		if err != nil {
 			log.Printf("Warning: Failed to create admin role: %v", err)
 		} else {
@@ -507,7 +507,7 @@ func EnsureAdminExists() {
 				}
 
 				if len(permServices) > 0 {
-					_, err = rolesCol.UpdateOne(
+					_, err = serviceRolesCol.UpdateOne(
 						ctx,
 						bson.M{"service": "system", "name": "admin"},
 						bson.M{"$set": bson.M{
@@ -535,7 +535,7 @@ func EnsureAdminExists() {
 	// Only create default admin user if no system administrators exist
 	if systemAdminsCount == 0 {
 		log.Println("No system administrators found, creating default admin user")
-		
+
 		// Create default admin user with password "admin"
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
 		if err != nil {
@@ -567,7 +567,7 @@ func EnsureAdminExists() {
 // CreateDefaultDocumentTypes creates default document types
 func CreateDefaultDocumentTypes() error {
 	ctx := context.Background()
-	
+
 	documentTypes := []DocumentType{
 		{
 			ID:          "passport",
@@ -608,10 +608,10 @@ func CreateDefaultDocumentTypes() error {
 					Placeholder: "УМВД России по городу Москве",
 				},
 				{
-					Name:        "issue_date",
-					Label:       "Дата выдачи",
-					Type:        "date",
-					Required:    true,
+					Name:     "issue_date",
+					Label:    "Дата выдачи",
+					Type:     "date",
+					Required: true,
 				},
 				{
 					Name:        "birth_place",
@@ -639,10 +639,10 @@ func CreateDefaultDocumentTypes() error {
 					Placeholder: "ТД-001/2024",
 				},
 				{
-					Name:        "start_date",
-					Label:       "Дата начала работы",
-					Type:        "date",
-					Required:    true,
+					Name:     "start_date",
+					Label:    "Дата начала работы",
+					Type:     "date",
+					Required: true,
 				},
 				{
 					Name:        "position",
@@ -734,16 +734,16 @@ func CreateDefaultDocumentTypes() error {
 					Placeholder: "Городская поликлиника №1",
 				},
 				{
-					Name:        "issue_date",
-					Label:       "Дата выдачи",
-					Type:        "date",
-					Required:    true,
+					Name:     "issue_date",
+					Label:    "Дата выдачи",
+					Type:     "date",
+					Required: true,
 				},
 				{
-					Name:        "valid_until",
-					Label:       "Действительна до",
-					Type:        "date",
-					Required:    false,
+					Name:     "valid_until",
+					Label:    "Действительна до",
+					Type:     "date",
+					Required: false,
 				},
 				{
 					Name:        "doctor_name",
@@ -776,20 +776,20 @@ func CreateDefaultDocumentTypes() error {
 func ValidateUser(username, password string) (*User, bool) {
 	ctx := context.Background()
 	var user User
-	
+
 	// Input validation and sanitization
 	username = SanitizeString(username)
 	if username == "" {
 		log.Printf("Empty username after sanitization")
 		return nil, false
 	}
-	
+
 	// Basic validation to prevent injection attacks
 	if len(username) > 254 { // Max reasonable length for username or email
 		log.Printf("Username too long")
 		return nil, false
 	}
-	
+
 	// Try to find user by username or email
 	filter := bson.M{
 		"$or": []bson.M{
@@ -797,7 +797,7 @@ func ValidateUser(username, password string) (*User, bool) {
 			{"email": username}, // Allow login with email
 		},
 	}
-	
+
 	err := usersCol.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
 		log.Printf("User not found: %v", err)
@@ -1048,7 +1048,7 @@ func DeleteUser(id primitive.ObjectID) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %v", err)
 	}
-	
+
 	if result.DeletedCount == 0 {
 		return fmt.Errorf("user not found or already deleted")
 	}
@@ -1060,7 +1060,7 @@ func DeleteUser(id primitive.ObjectID) error {
 
 		go SendEmailNotificationNew(email, subject, body)
 	}
-	
+
 	log.Printf("User %s (ID: %s) successfully deleted with all related data", username, userIDHex)
 
 	return nil
@@ -1070,10 +1070,10 @@ func DeleteUser(id primitive.ObjectID) error {
 func deleteUserFiles(user *User) error {
 	userIDHex := user.ID.Hex()
 	deletedFilesCount := 0
-	
+
 	// 1. Delete avatar files
 	userDir := fmt.Sprintf("./data/%s", userIDHex)
-	
+
 	// Delete avatar file
 	avatarPath := filepath.Join(userDir, "avatar.jpg")
 	if err := os.Remove(avatarPath); err != nil && !os.IsNotExist(err) {
@@ -1082,7 +1082,7 @@ func deleteUserFiles(user *User) error {
 		deletedFilesCount++
 		log.Printf("Deleted avatar file: %s", avatarPath)
 	}
-	
+
 	// Delete original avatar files (multiple formats possible)
 	originalExts := []string{".jpg", ".jpeg", ".png", ".gif", ".webp"}
 	for _, ext := range originalExts {
@@ -1104,7 +1104,7 @@ func deleteUserFiles(user *User) error {
 				if !filepath.IsAbs(filePath) && !strings.HasPrefix(filePath, "./") {
 					filePath = "./" + filePath
 				}
-				
+
 				if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 					log.Printf("Warning: Failed to delete document attachment %s: %v", filePath, err)
 				} else if err == nil {
@@ -1122,7 +1122,7 @@ func deleteUserFiles(user *User) error {
 			if !filepath.IsAbs(filePath) && !strings.HasPrefix(filePath, "./") {
 				filePath = "./" + filePath
 			}
-			
+
 			if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 				log.Printf("Warning: Failed to delete legacy document %s: %v", filePath, err)
 			} else if err == nil {
@@ -1245,7 +1245,7 @@ func GetAllUsers() ([]User, error) {
 // GetUsersWithServiceRoles retrieves users who have roles in a specific service
 func GetUsersWithServiceRoles(serviceKey string) ([]User, error) {
 	ctx := context.Background()
-	
+
 	// Find users with service_roles array containing matching service_key
 	cursor, err := usersCol.Find(ctx, bson.M{
 		"service_roles.service_key": serviceKey,
@@ -1266,9 +1266,9 @@ func GetUsersWithServiceRoles(serviceKey string) ([]User, error) {
 // GetUsersWithServiceRolesNew retrieves users with their roles in a specific service (ADR-001)
 func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, error) {
 	ctx := context.Background()
-	
+
 	log.Printf("GetUsersWithServiceRolesNew: Looking for users in service: %s", serviceKey)
-	
+
 	// Get all user role assignments for this service
 	pipeline := []bson.M{
 		{"$match": bson.M{
@@ -1291,7 +1291,7 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 			"roles": 1,
 		}},
 	}
-	
+
 	log.Printf("GetUsersWithServiceRolesNew: Executing aggregation pipeline")
 	cursor, err := userServiceRolesCol.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -1310,17 +1310,17 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 			log.Printf("GetUsersWithServiceRolesNew: Error decoding result: %v", err)
 			continue
 		}
-		
-		log.Printf("GetUsersWithServiceRolesNew: Found user %s (%s) with roles: %v", 
+
+		log.Printf("GetUsersWithServiceRolesNew: Found user %s (%s) with roles: %v",
 			result.User.Username, result.User.Email, result.Roles)
-		
+
 		userWithRoles := UserWithServiceRoles{
 			User:         result.User,
 			ServiceRoles: result.Roles,
 		}
 		results = append(results, userWithRoles)
 	}
-	
+
 	log.Printf("GetUsersWithServiceRolesNew: Returning %d users for service %s", len(results), serviceKey)
 	return results, nil
 }
@@ -1702,7 +1702,7 @@ func AssignUserToServiceRole(userID primitive.ObjectID, serviceKey, roleName str
 			"_id": primitive.NewObjectID(),
 		},
 	}
-	
+
 	_, err = userServiceRolesCol.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	return err
 }
@@ -1710,7 +1710,7 @@ func AssignUserToServiceRole(userID primitive.ObjectID, serviceKey, roleName str
 // GetUserServiceRoleAssignments returns all service role assignments for a user
 func GetUserServiceRoleAssignments(userID primitive.ObjectID) ([]UserServiceRole, error) {
 	ctx := context.Background()
-	
+
 	cursor, err := userServiceRolesCol.Find(ctx, bson.M{
 		"user_id":   userID,
 		"is_active": true,
@@ -1728,7 +1728,7 @@ func GetUserServiceRoleAssignments(userID primitive.ObjectID) ([]UserServiceRole
 // GetUserAccessibleServices returns services where user has any role
 func GetUserAccessibleServices(userID primitive.ObjectID) ([]string, error) {
 	ctx := context.Background()
-	
+
 	// Use aggregation to get distinct service keys
 	pipeline := []bson.M{
 		{"$match": bson.M{
@@ -1739,7 +1739,7 @@ func GetUserAccessibleServices(userID primitive.ObjectID) ([]string, error) {
 			"_id": "$service_key",
 		}},
 	}
-	
+
 	cursor, err := userServiceRolesCol.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
@@ -1756,14 +1756,14 @@ func GetUserAccessibleServices(userID primitive.ObjectID) ([]string, error) {
 			services = append(services, serviceKey)
 		}
 	}
-	
+
 	return services, nil
 }
 
 // RemoveUserFromServiceRole removes a role from user in a service
 func RemoveUserFromServiceRole(userID primitive.ObjectID, serviceKey, roleName string) error {
 	ctx := context.Background()
-	
+
 	_, err := userServiceRolesCol.UpdateOne(
 		ctx,
 		bson.M{
@@ -1773,7 +1773,7 @@ func RemoveUserFromServiceRole(userID primitive.ObjectID, serviceKey, roleName s
 		},
 		bson.M{"$set": bson.M{"is_active": false}},
 	)
-	
+
 	return err
 }
 
@@ -1782,7 +1782,7 @@ func CreateUserServiceRole(userServiceRole UserServiceRole) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	log.Printf("CreateUserServiceRole: Checking for existing role - UserID: %s, ServiceKey: %s, RoleName: %s", 
+	log.Printf("CreateUserServiceRole: Checking for existing role - UserID: %s, ServiceKey: %s, RoleName: %s",
 		userServiceRole.UserID.Hex(), userServiceRole.ServiceKey, userServiceRole.RoleName)
 
 	// Сначала проверим, есть ли уже активная роль
@@ -1806,7 +1806,7 @@ func CreateUserServiceRole(userServiceRole UserServiceRole) error {
 	}
 
 	// Попробуем обновить существующую неактивную запись
-	updateResult, err := userServiceRolesCol.UpdateOne(ctx, 
+	updateResult, err := userServiceRolesCol.UpdateOne(ctx,
 		bson.M{
 			"user_id":     userServiceRole.UserID,
 			"service_key": userServiceRole.ServiceKey,
@@ -1840,7 +1840,7 @@ func CreateUserServiceRole(userServiceRole UserServiceRole) error {
 		log.Printf("CreateUserServiceRole: Error inserting new role: %v", err)
 		return err
 	}
-	
+
 	log.Printf("CreateUserServiceRole: Successfully created role assignment")
 	return nil
 }
@@ -1858,7 +1858,7 @@ func RemoveUserFromServiceRoles(userID primitive.ObjectID, serviceKey string) er
 			"service_key": serviceKey,
 		},
 	)
-	
+
 	return err
 }
 
@@ -1915,7 +1915,7 @@ func GetAllServicesWithRolesForTemplate() ([]ServiceWithRoles, error) {
 			log.Printf("Warning: Failed to get roles for service %s: %v", service.Key, err)
 			continue
 		}
-		
+
 		servicesWithRoles = append(servicesWithRoles, ServiceWithRoles{
 			Service: service,
 			Roles:   roles,
@@ -1954,7 +1954,7 @@ func RemoveAllUserServiceRoles(userID primitive.ObjectID) error {
 	_, err := userServiceRolesCol.DeleteMany(ctx, bson.M{
 		"user_id": userID,
 	})
-	
+
 	return err
 }
 
@@ -1964,7 +1964,7 @@ func UpdateUserProfile(userID primitive.ObjectID, email, lastName, firstName, mi
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	fmt.Printf("UpdateUserProfile: userID=%s, email=%s, lastName=%s, firstName=%s, middleName=%s, suffix=%s, phone=%s, position=%s, department=%s\n", 
+	fmt.Printf("UpdateUserProfile: userID=%s, email=%s, lastName=%s, firstName=%s, middleName=%s, suffix=%s, phone=%s, position=%s, department=%s\n",
 		userID.Hex(), email, lastName, firstName, middleName, suffix, phone, position, department)
 
 	update := bson.M{
@@ -1986,7 +1986,7 @@ func UpdateUserProfile(userID primitive.ObjectID, email, lastName, firstName, mi
 		fmt.Printf("UpdateUserProfile error: %v\n", err)
 		return err
 	}
-	
+
 	fmt.Printf("UpdateUserProfile result: matched=%d, modified=%d\n", result.MatchedCount, result.ModifiedCount)
 	return nil
 }
@@ -1996,7 +1996,7 @@ func UpdateUserProfileLegacy(userID primitive.ObjectID, email, fullName, phone, 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	fmt.Printf("UpdateUserProfileLegacy: userID=%s, email=%s, fullName=%s, phone=%s, position=%s, department=%s\n", 
+	fmt.Printf("UpdateUserProfileLegacy: userID=%s, email=%s, fullName=%s, phone=%s, position=%s, department=%s\n",
 		userID.Hex(), email, fullName, phone, position, department)
 
 	update := bson.M{
@@ -2015,7 +2015,7 @@ func UpdateUserProfileLegacy(userID primitive.ObjectID, email, fullName, phone, 
 		fmt.Printf("UpdateUserProfileLegacy error: %v\n", err)
 		return err
 	}
-	
+
 	fmt.Printf("UpdateUserProfileLegacy result: matched=%d, modified=%d\n", result.MatchedCount, result.ModifiedCount)
 	return nil
 }
@@ -2060,7 +2060,7 @@ func UpdateUserAvatarWithCrop(userID primitive.ObjectID, avatarPath, originalAva
 		fmt.Printf("UpdateUserAvatarWithCrop failed: %v\n", err)
 		return err
 	}
-	
+
 	fmt.Printf("UpdateUserAvatarWithCrop successful, matched: %d, modified: %d\n", result.MatchedCount, result.ModifiedCount)
 	return nil
 }
@@ -2091,11 +2091,11 @@ func UpdateUserEmail(userID primitive.ObjectID, email string) error {
 		log.Printf("UpdateUserEmail failed: %v", err)
 		return err
 	}
-	
+
 	if result.MatchedCount == 0 {
 		return fmt.Errorf("user not found")
 	}
-	
+
 	log.Printf("UpdateUserEmail successful for user %s, email set to %s", userID.Hex(), email)
 	return nil
 }
@@ -2147,8 +2147,6 @@ func AddUserDocument(userID primitive.ObjectID, doc Document) error {
 	_, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
 	return err
 }
-
-
 
 // RemoveUserDocument removes a document from user's document list
 func RemoveUserDocument(userID, docID primitive.ObjectID) error {
@@ -2262,7 +2260,7 @@ func AddDocumentAttachmentByIndex(userID primitive.ObjectID, docIndex int, attac
 			updateKey: attachment,
 		},
 		"$set": bson.M{
-			updatedAtKey:  time.Now(),
+			updatedAtKey: time.Now(),
 			"updated_at": time.Now(),
 		},
 	}
@@ -2289,7 +2287,7 @@ func RemoveDocumentAttachmentByIndex(userID primitive.ObjectID, docIndex int, at
 			pullKey: bson.M{"_id": attachmentID},
 		},
 		"$set": bson.M{
-			updatedAtKey:  time.Now(),
+			updatedAtKey: time.Now(),
 			"updated_at": time.Now(),
 		},
 	}
@@ -2309,13 +2307,13 @@ func UpdateUserDocumentFields(userID primitive.ObjectID, docIndex int, fields ma
 
 	// Create update operations for each field
 	setOps := bson.M{}
-	
+
 	// Update each field
 	for fieldName, fieldValue := range fields {
 		fieldKey := fmt.Sprintf("documents.%d.fields.%s", docIndex, fieldName)
 		setOps[fieldKey] = fieldValue
 	}
-	
+
 	// Also update the document's updated_at timestamp
 	updatedAtKey := fmt.Sprintf("documents.%d.updated_at", docIndex)
 	setOps[updatedAtKey] = time.Now()
@@ -2414,8 +2412,8 @@ func ValidatePasswordResetToken(token string) (*PasswordResetToken, error) {
 
 	var resetToken PasswordResetToken
 	err := getPasswordResetTokensCollection().FindOne(ctx, bson.M{
-		"token": token,
-		"used":  false,
+		"token":      token,
+		"used":       false,
 		"expires_at": bson.M{"$gt": time.Now()},
 	}).Decode(&resetToken)
 
@@ -2524,7 +2522,7 @@ func CleanupExpiredPasswordResetTokens() error {
 // MigrateUserNamesFromFullName migrates users who have FullName but empty separate name fields
 func MigrateUserNamesFromFullName() error {
 	ctx := context.Background()
-	
+
 	// Find users with FullName but without separate name fields
 	cursor, err := usersCol.Find(ctx, bson.M{
 		"full_name": bson.M{"$exists": true, "$ne": ""},
@@ -2581,7 +2579,7 @@ func MigrateUserNamesFromFullName() error {
 		}
 
 		usersUpdated++
-		log.Printf("Migrated name fields for user %s: %s -> %s %s %s", 
+		log.Printf("Migrated name fields for user %s: %s -> %s %s %s",
 			user.Username, user.FullName, lastName, firstName, middleName)
 	}
 
@@ -2616,9 +2614,9 @@ func InvalidateAllUserSessions(userID primitive.ObjectID, reason string) error {
 		return fmt.Errorf("failed to add blacklist entry: %v", err)
 	}
 
-	log.Printf("Security: Invalidated all sessions for user %s (ID: %s) - Reason: %s", 
+	log.Printf("Security: Invalidated all sessions for user %s (ID: %s) - Reason: %s",
 		user.Username, userID.Hex(), reason)
-	
+
 	return nil
 }
 
@@ -2626,7 +2624,7 @@ func InvalidateAllUserSessions(userID primitive.ObjectID, reason string) error {
 func IsTokenBlacklisted(tokenString string) bool {
 	// We'll implement a simple approach: if user has any blacklist entries
 	// created after their last login, consider all their tokens invalid
-	
+
 	// Parse token to extract user ID and issued time
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		jwtSecret := os.Getenv("JWT_SECRET")
@@ -2659,7 +2657,7 @@ func IsTokenBlacklisted(tokenString string) bool {
 	defer cancel()
 
 	tokenIssuedAt := time.Unix(claims.IssuedAt, 0)
-	
+
 	blacklistCol := getBlacklistedTokensCollection()
 	count, err := blacklistCol.CountDocuments(ctx, bson.M{
 		"user_id": userID,
@@ -2678,7 +2676,7 @@ func IsTokenBlacklisted(tokenString string) bool {
 
 	isBlacklisted := count > 0
 	if isBlacklisted {
-		log.Printf("Security: Token issued at %v is blacklisted (found %d active blacklist entries)", 
+		log.Printf("Security: Token issued at %v is blacklisted (found %d active blacklist entries)",
 			tokenIssuedAt, count)
 	}
 
@@ -2689,7 +2687,7 @@ func IsTokenBlacklisted(tokenString string) bool {
 func ResetUserPassword(userID primitive.ObjectID) (string, error) {
 	// Generate a new random password
 	tempPassword := generateRandomPassword(12)
-	
+
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -2719,12 +2717,12 @@ func ResetUserPassword(userID primitive.ObjectID) (string, error) {
 func generateRandomPassword(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
 	password := make([]byte, length)
-	
+
 	for i := range password {
 		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
 		password[i] = charset[num.Int64()]
 	}
-	
+
 	return string(password)
 }
 
@@ -2741,7 +2739,7 @@ func HashPassword(password string) (string, error) {
 func BanUser(userID primitive.ObjectID, reason string) error {
 	ctx := context.Background()
 	now := time.Now()
-	
+
 	_, err := usersCol.UpdateOne(
 		ctx,
 		bson.M{"_id": userID},
@@ -2766,7 +2764,7 @@ func BanUser(userID primitive.ObjectID, reason string) error {
 // UnbanUser removes ban from user
 func UnbanUser(userID primitive.ObjectID) error {
 	ctx := context.Background()
-	
+
 	_, err := usersCol.UpdateOne(
 		ctx,
 		bson.M{"_id": userID},
@@ -2816,15 +2814,15 @@ func ExportUsersToExcel(users []interface{}) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create sheet: %v", err)
 	}
-	
+
 	file.SetActiveSheet(index)
 
 	// Headers
 	headers := []string{
-		"Username", "Фамилия", "Имя", "Отчество", "Частица", 
+		"Username", "Фамилия", "Имя", "Отчество", "Частица",
 		"Email", "Телефон", "Роли в сервисах",
 	}
-	
+
 	for i, header := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		file.SetCellValue(sheetName, cell, header)
@@ -2883,7 +2881,7 @@ func GenerateUsersImportTemplate() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create sheet: %v", err)
 	}
-	
+
 	file.SetActiveSheet(index)
 
 	// Headers
@@ -2891,7 +2889,7 @@ func GenerateUsersImportTemplate() (string, error) {
 		"username", "last_name", "first_name", "middle_name", "suffix",
 		"email", "phone", "position", "department", "password",
 	}
-	
+
 	for i, header := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		file.SetCellValue(sheetName, cell, header)
@@ -2902,7 +2900,7 @@ func GenerateUsersImportTemplate() (string, error) {
 		"Заполните данные пользователей начиная со строки 2",
 		"username - обязательно, уникальное имя пользователя",
 		"last_name - обязательно, фамилия пользователя",
-		"first_name - обязательно, имя пользователя", 
+		"first_name - обязательно, имя пользователя",
 		"middle_name - отчество (необязательно)",
 		"suffix - частица (Jr., Sr., III и т.д.)",
 		"email - обязательно, уникальный email адрес",
@@ -2960,29 +2958,29 @@ func GenerateUsersImportTemplate() (string, error) {
 // UpdateUserComplete updates all user fields including roles
 func UpdateUserComplete(user User) error {
 	ctx := context.Background()
-	
+
 	filter := bson.M{"_id": user.ID}
 	update := bson.M{
 		"$set": bson.M{
-			"username":     user.Username,
-			"email":        user.Email,
-			"last_name":    user.LastName,
-			"first_name":   user.FirstName,
-			"middle_name":  user.MiddleName,
-			"suffix":       user.Suffix,
-			"phone":        user.Phone,
-			"position":     user.Position,
-			"department":   user.Department,
-			"roles":        user.Roles,
-			"updated_at":   user.UpdatedAt,
+			"username":    user.Username,
+			"email":       user.Email,
+			"last_name":   user.LastName,
+			"first_name":  user.FirstName,
+			"middle_name": user.MiddleName,
+			"suffix":      user.Suffix,
+			"phone":       user.Phone,
+			"position":    user.Position,
+			"department":  user.Department,
+			"roles":       user.Roles,
+			"updated_at":  user.UpdatedAt,
 		},
 	}
-	
+
 	// Only update password if it's not empty
 	if user.Password != "" {
 		update["$set"].(bson.M)["password"] = user.Password
 	}
-	
+
 	_, err := usersCol.UpdateOne(ctx, filter, update)
 	return err
 }
@@ -2990,18 +2988,18 @@ func UpdateUserComplete(user User) error {
 // DeactivateUserServiceRoles deactivates all service roles for a user
 func DeactivateUserServiceRoles(userID primitive.ObjectID) error {
 	ctx := context.Background()
-	
+
 	filter := bson.M{
 		"user_id":   userID,
 		"is_active": true,
 	}
-	
+
 	update := bson.M{
 		"$set": bson.M{
 			"is_active": false,
 		},
 	}
-	
+
 	_, err := userServiceRolesCol.UpdateMany(ctx, filter, update)
 	return err
 }
@@ -3009,19 +3007,19 @@ func DeactivateUserServiceRoles(userID primitive.ObjectID) error {
 // CreateUserFromStruct creates a user from a User struct
 func CreateUserFromStruct(user User) (primitive.ObjectID, error) {
 	ctx := context.Background()
-	
+
 	result, err := usersCol.InsertOne(ctx, user)
 	if err != nil {
 		return primitive.NilObjectID, err
 	}
-	
+
 	return result.InsertedID.(primitive.ObjectID), nil
 }
 
 // UpdateUserDocuments updates the documents field for a user
 func UpdateUserDocuments(userID primitive.ObjectID, documents []UserDocument) error {
 	ctx := context.Background()
-	
+
 	filter := bson.M{"_id": userID}
 	update := bson.M{
 		"$set": bson.M{
@@ -3029,19 +3027,19 @@ func UpdateUserDocuments(userID primitive.ObjectID, documents []UserDocument) er
 			"updated_at": time.Now(),
 		},
 	}
-	
+
 	_, err := usersCol.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update user documents: %v", err)
 	}
-	
+
 	return nil
 }
 
 // GetUserPermissionsForService returns all permissions for a user in a specific service
 func GetUserPermissionsForService(userID primitive.ObjectID, serviceKey string) ([]string, error) {
 	ctx := context.Background()
-	
+
 	// Get user's active roles in the service
 	pipeline := []bson.M{
 		{
@@ -3076,26 +3074,26 @@ func GetUserPermissionsForService(userID primitive.ObjectID, serviceKey string) 
 			},
 		},
 	}
-	
+
 	cursor, err := userServiceRolesCol.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("failed to aggregate user service roles: %v", err)
 	}
 	defer cursor.Close(ctx)
-	
+
 	permissionSet := make(map[string]bool)
-	
+
 	for cursor.Next(ctx) {
 		var result struct {
 			RoleDetails []struct {
 				Permissions []string `bson:"permissions"`
 			} `bson:"roleDetails"`
 		}
-		
+
 		if err := cursor.Decode(&result); err != nil {
 			continue
 		}
-		
+
 		// Collect all permissions from all roles
 		for _, role := range result.RoleDetails {
 			for _, permission := range role.Permissions {
@@ -3103,32 +3101,32 @@ func GetUserPermissionsForService(userID primitive.ObjectID, serviceKey string) 
 			}
 		}
 	}
-	
+
 	// Convert set to slice
 	permissions := make([]string, 0, len(permissionSet))
 	for perm := range permissionSet {
 		permissions = append(permissions, perm)
 	}
-	
+
 	return permissions, nil
 }
 
 // GetUserRolesForService returns all role names for a user in a specific service
 func GetUserRolesForService(userID primitive.ObjectID, serviceKey string) ([]string, error) {
 	ctx := context.Background()
-	
+
 	filter := bson.M{
 		"userId":     userID,
 		"serviceKey": serviceKey,
 		"isActive":   true,
 	}
-	
+
 	cursor, err := userServiceRolesCol.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user service roles: %v", err)
 	}
 	defer cursor.Close(ctx)
-	
+
 	var roles []string
 	for cursor.Next(ctx) {
 		var usr UserServiceRole
@@ -3137,25 +3135,25 @@ func GetUserRolesForService(userID primitive.ObjectID, serviceKey string) ([]str
 		}
 		roles = append(roles, usr.RoleName)
 	}
-	
+
 	return roles, nil
 }
 
 // GetUserDocuments returns all documents for a user
 func GetUserDocuments(userID string) ([]UserDocument, error) {
 	ctx := context.Background()
-	
+
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var user User
 	err = usersCol.FindOne(ctx, bson.M{"_id": objectID}).Decode(&user)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return user.Documents, nil
 }
 
@@ -3172,7 +3170,7 @@ func GetUsersByServiceRole(serviceKey string, roleName string) ([]*User, error) 
 		"role_name":   roleName,
 		"is_active":   true,
 	})
-	
+
 	if err != nil {
 		log.Printf("ERROR GetUsersByServiceRole: failed to query user_service_roles: %v", err)
 		return nil, fmt.Errorf("failed to query user_service_roles: %v", err)
@@ -3203,10 +3201,10 @@ func GetUsersByServiceRole(serviceKey string, roleName string) ([]*User, error) 
 	// Get all users by IDs
 	var users []*User
 	usersCursor, err := usersCol.Find(ctx, bson.M{
-		"_id": bson.M{"$in": userIDs},
+		"_id":        bson.M{"$in": userIDs},
 		"deleted_at": bson.M{"$exists": false},
 	})
-	
+
 	if err != nil {
 		log.Printf("ERROR GetUsersByServiceRole: failed to query users: %v", err)
 		return nil, fmt.Errorf("failed to query users: %v", err)
@@ -3235,7 +3233,7 @@ func GetUsersByServicePermission(serviceKey string, permissionName string) ([]*U
 		"service_key": serviceKey,
 		"permissions": permissionName,
 	})
-	
+
 	if err != nil {
 		log.Printf("ERROR GetUsersByServicePermission: failed to query roles: %v", err)
 		return nil, fmt.Errorf("failed to query roles: %v", err)
@@ -3270,7 +3268,7 @@ func GetUsersByServicePermission(serviceKey string, permissionName string) ([]*U
 		"role_name":   bson.M{"$in": roleNames},
 		"is_active":   true,
 	})
-	
+
 	if err != nil {
 		log.Printf("ERROR GetUsersByServicePermission: failed to query user_service_roles: %v", err)
 		return nil, fmt.Errorf("failed to query user_service_roles: %v", err)
@@ -3306,10 +3304,10 @@ func GetUsersByServicePermission(serviceKey string, permissionName string) ([]*U
 	// Get all users by IDs
 	var users []*User
 	usersCursor, err := usersCol.Find(ctx, bson.M{
-		"_id": bson.M{"$in": userIDs},
+		"_id":        bson.M{"$in": userIDs},
 		"deleted_at": bson.M{"$exists": false},
 	})
-	
+
 	if err != nil {
 		log.Printf("ERROR GetUsersByServicePermission: failed to query users: %v", err)
 		return nil, fmt.Errorf("failed to query users: %v", err)
@@ -3324,4 +3322,3 @@ func GetUsersByServicePermission(serviceKey string, permissionName string) ([]*U
 	log.Printf("DEBUG GetUsersByServicePermission: found %d users", len(users))
 	return users, nil
 }
-
