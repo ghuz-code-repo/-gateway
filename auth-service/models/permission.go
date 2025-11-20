@@ -263,7 +263,7 @@ func contains(slice []string, str string) bool {
 
 // GetRolesByName returns roles by name
 func GetRolesByName(name string) ([]Role, error) {
-	collection := client.Database("authdb").Collection("roles")
+	collection := client.Database("authdb").Collection("service_roles")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

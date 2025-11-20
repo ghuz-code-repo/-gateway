@@ -47,7 +47,7 @@ func CreateRole(serviceKey, name, description string, permissions []string) (*Ro
 
 	log.Printf("DEBUG CreateRole: Inserting role into database: %+v", role)
 
-	result, err := rolesCol.InsertOne(ctx, role)
+	result, err := serviceRolesCol.InsertOne(ctx, role)
 	if err != nil {
 		log.Printf("ERROR CreateRole: Database insert failed: %v", err)
 		return nil, err
@@ -62,7 +62,7 @@ func CreateRole(serviceKey, name, description string, permissions []string) (*Ro
 func GetAllRoles() ([]Role, error) {
 	ctx := context.Background()
 
-	cursor, err := rolesCol.Find(ctx, bson.M{})
+	cursor, err := serviceRolesCol.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func GetRoleByName(name string) (*Role, error) {
 	ctx := context.Background()
 
 	var role Role
-	err := rolesCol.FindOne(ctx, bson.M{"name": name}).Decode(&role)
+	err := serviceRolesCol.FindOne(ctx, bson.M{"name": name}).Decode(&role)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func GetSystemRoles() ([]Role, error) {
 		},
 	}
 
-	cursor, err := rolesCol.Find(ctx, filter)
+	cursor, err := serviceRolesCol.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func GetRoleByID(id primitive.ObjectID) (*Role, error) {
 	ctx := context.Background()
 
 	var role Role
-	err := rolesCol.FindOne(ctx, bson.M{"_id": id}).Decode(&role)
+	err := serviceRolesCol.FindOne(ctx, bson.M{"_id": id}).Decode(&role)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func UpdateRole(id primitive.ObjectID, serviceKey, name, description string, per
 		return fmt.Errorf("invalid permissions for service %s: %v", serviceKey, invalidPerms)
 	}
 
-	_, err := rolesCol.UpdateOne(
+	_, err := serviceRolesCol.UpdateOne(
 		ctx,
 		bson.M{"_id": id},
 		bson.M{
@@ -194,7 +194,8 @@ func UpdateRole(id primitive.ObjectID, serviceKey, name, description string, per
 func DeleteRole(id primitive.ObjectID) error {
 	ctx := context.Background()
 
-	_, err := rolesCol.DeleteOne(ctx, bson.M{"_id": id})
+	// Delete from service_roles collection (used by UI)
+	_, err := serviceRolesCol.DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
 
@@ -202,7 +203,7 @@ func DeleteRole(id primitive.ObjectID) error {
 func GetRolesWithPermission(permission string) ([]Role, error) {
 	ctx := context.Background()
 
-	cursor, err := rolesCol.Find(ctx, bson.M{"permissions": permission})
+	cursor, err := serviceRolesCol.Find(ctx, bson.M{"permissions": permission})
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +267,7 @@ func AddPermissionToRole(id primitive.ObjectID, permission string) error {
 		return fmt.Errorf("permission %s is not valid for service %s", permission, role.ServiceKey)
 	}
 
-	_, err = rolesCol.UpdateOne(
+	_, err = serviceRolesCol.UpdateOne(
 		ctx,
 		bson.M{"_id": id},
 		bson.M{
@@ -283,7 +284,7 @@ func AddPermissionToRole(id primitive.ObjectID, permission string) error {
 func RemovePermissionFromRole(id primitive.ObjectID, permission string) error {
 	ctx := context.Background()
 
-	_, err := rolesCol.UpdateOne(
+	_, err := serviceRolesCol.UpdateOne(
 		ctx,
 		bson.M{"_id": id},
 		bson.M{
