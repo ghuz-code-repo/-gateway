@@ -3229,10 +3229,15 @@ func GetUsersByServicePermission(serviceKey string, permissionName string) ([]*U
 
 	// Get all roles that have this permission
 	rolesCol := client.Database("authdb").Collection("service_roles")
-	cursor, err := rolesCol.Find(ctx, bson.M{
-		"service_key": serviceKey,
+
+	// Debug: Log the query
+	query := bson.M{
+		"service":     serviceKey,
 		"permissions": permissionName,
-	})
+	}
+	log.Printf("DEBUG GetUsersByServicePermission: query=%+v", query)
+
+	cursor, err := rolesCol.Find(ctx, query)
 
 	if err != nil {
 		log.Printf("ERROR GetUsersByServicePermission: failed to query roles: %v", err)
