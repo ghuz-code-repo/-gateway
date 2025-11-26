@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
 	"github.com/google/uuid"
 )
 
@@ -23,10 +24,10 @@ import (
 func (ns *NotificationService) waitForSendSlot() {
 	ns.sendMutex.Lock()
 	defer ns.sendMutex.Unlock()
-	
+
 	config := ns.getConfigFromDB()
 	delayBetweenMessages := time.Duration(config.DelayBetweenMessagesMS) * time.Millisecond
-	
+
 	// Проверяем прошло ли достаточно времени с последней отправки
 	if !ns.lastSendTime.IsZero() {
 		timeSinceLastSend := time.Since(ns.lastSendTime)
@@ -36,7 +37,7 @@ func (ns *NotificationService) waitForSendSlot() {
 			time.Sleep(waitTime)
 		}
 	}
-	
+
 	// Обновляем время последней отправки
 	ns.lastSendTime = time.Now()
 }
@@ -61,7 +62,7 @@ func (ns *NotificationService) processBatch(batchID string) {
 
 	// Get current config from database
 	config := ns.getConfigFromDB()
-	
+
 	// Process notifications with rate limiting
 	batchSize := config.BatchSize
 	delayBetweenBatches := time.Duration(config.DelayBetweenBatchesMS) * time.Millisecond
@@ -89,16 +90,16 @@ func (ns *NotificationService) processBatch(batchID string) {
 
 	// Final update of batch status
 	ns.updateBatchStats(batchID)
-	
+
 	// Mark batch as completed
 	ns.db.Model(&batch).Where("id = ?", batchID).Update("status", "completed")
-	
+
 	log.Printf("Batch %s processing completed", batchID)
 }
 
 // processNotification processes a single notification
 func (ns *NotificationService) processNotification(notification *Notification) {
-	log.Printf("Processing notification %d (type: %s, recipient: %s)", 
+	log.Printf("Processing notification %d (type: %s, recipient: %s)",
 		notification.ID, notification.Type, notification.Recipient)
 
 	// Update status to sending
@@ -109,13 +110,13 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 	var err error
 	config := ns.getConfigFromDB()
 	maxAttempts := config.MaxRetryAttempts
-	
+
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		notification.Attempts = attempt
-		
+
 		// Применяем глобальную задержку перед отправкой
 		ns.waitForSendSlot()
-		
+
 		switch notification.Type {
 		case NotificationTypeEmail:
 			err = ns.sendEmail(notification)
@@ -135,8 +136,8 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 			// Success
 			now := time.Now().Unix()
 			ns.db.Model(notification).Updates(Notification{
-				Status: StatusSent,
-				SentAt: &now,
+				Status:   StatusSent,
+				SentAt:   &now,
 				Attempts: attempt,
 			})
 			log.Printf("Notification %d sent successfully on attempt %d", notification.ID, attempt)
@@ -159,7 +160,7 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 		}
 
 		log.Printf("Attempt %d failed for notification %d: %v", attempt, notification.ID, err)
-		
+
 		// Wait before retry (exponential backoff)
 		if attempt < maxAttempts {
 			waitTime := time.Duration(attempt*attempt) * time.Second
@@ -195,7 +196,7 @@ func encodeQuotedPrintable(s string) string {
 // sendEmail sends an email notification
 func (ns *NotificationService) sendEmail(notification *Notification) error {
 	log.Printf("📧 Sending email to %s, subject: %s", notification.Recipient, notification.Subject)
-	
+
 	config := ns.getEmailConfig()
 
 	// Validate configuration
@@ -208,7 +209,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		log.Printf("❌ SMTP authentication required but credentials not provided")
 		return fmt.Errorf("SMTP authentication required but credentials not provided")
 	}
-	
+
 	log.Printf("🔧 Using SMTP: %s:%s, auth=%v, tls=%v", config.Host, config.Port, config.UseAuth, config.UseTLS)
 
 	// Prepare recipient and content
@@ -216,7 +217,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	actualRecipient := notification.Recipient
 	subject := notification.Subject
 	content := notification.Content
-	
+
 	// Apply debug mode if enabled
 	if config.DebugMode && config.DebugEmail != "" {
 		log.Printf("🐛 DEBUG MODE: Redirecting email from %s to %s", originalRecipient, config.DebugEmail)
@@ -227,11 +228,11 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 
 	// Build email message
 	var messageBody string
-	
+
 	if notification.AttachmentFilename != "" && len(notification.AttachmentContent) > 0 {
 		// Email with attachment - use MIME multipart
 		boundary := "----=_Part_" + fmt.Sprintf("%d", time.Now().Unix())
-		
+
 		headers := []string{
 			"From: " + config.From,
 			"To: " + actualRecipient,
@@ -240,7 +241,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 			"Content-Type: multipart/mixed; boundary=\"" + boundary + "\"",
 			"",
 		}
-		
+
 		// Text part
 		textPart := []string{
 			"--" + boundary,
@@ -250,7 +251,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 			content,
 			"",
 		}
-		
+
 		// Attachment part
 		attachmentEncoded := base64.StdEncoding.EncodeToString(notification.AttachmentContent)
 		attachmentPart := []string{
@@ -263,7 +264,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 			"",
 			"--" + boundary + "--",
 		}
-		
+
 		messageBody = strings.Join(headers, "\r\n") + "\r\n" + strings.Join(textPart, "\r\n") + "\r\n" + strings.Join(attachmentPart, "\r\n")
 		log.Printf("📎 Email with attachment: %s (%d bytes)", notification.AttachmentFilename, len(notification.AttachmentContent))
 	} else {
@@ -371,17 +372,17 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 // sendTelegram sends a Telegram notification
 func (ns *NotificationService) sendTelegram(notification *Notification, isSystemBot bool) error {
 	config := ns.getConfigFromDB()
-	
+
 	// Select appropriate bot token and recipient
 	var botToken string
 	var chatID string
-	
+
 	if isSystemBot {
 		botToken = config.TelegramSystemBotToken
 		if !config.TelegramSystemEnabled {
 			return fmt.Errorf("telegram system bot is not enabled")
 		}
-		
+
 		// For system bot, use Chat ID from config if available
 		// Otherwise fall back to the recipient (username)
 		if config.SystemTelegramChatID != "" {
@@ -399,30 +400,30 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		}
 		log.Printf("📱 Sending Telegram message to chat %s (regular bot)", chatID)
 	}
-	
+
 	if botToken == "" {
 		log.Printf("❌ Telegram bot token not configured")
 		return fmt.Errorf("telegram bot token not configured")
 	}
-	
+
 	// Prepare message text
 	messageText := notification.Content
 	if notification.Subject != "" {
 		messageText = fmt.Sprintf("*%s*\n\n%s", notification.Subject, notification.Content)
 	}
-	
+
 	// Prepare request payload
 	payload := map[string]interface{}{
 		"chat_id":    chatID,
 		"text":       messageText,
 		"parse_mode": "Markdown",
 	}
-	
+
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %v", err)
 	}
-	
+
 	// Send request to Telegram Bot API
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payloadBytes))
@@ -430,24 +431,24 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		return fmt.Errorf("telegram API request failed: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response: %v", err)
 	}
-	
+
 	// Check response
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("❌ Telegram API error (status %d): %s", resp.StatusCode, string(body))
 		return fmt.Errorf("telegram API error: %s", string(body))
 	}
-	
+
 	// Parse response to check if message was sent
 	var response map[string]interface{}
 	if err := json.Unmarshal(body, &response); err != nil {
 		return fmt.Errorf("failed to parse response: %v", err)
 	}
-	
+
 	if ok, exists := response["ok"].(bool); !exists || !ok {
 		description := "unknown error"
 		if desc, exists := response["description"].(string); exists {
@@ -455,7 +456,7 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		}
 		return fmt.Errorf("telegram API returned error: %s", description)
 	}
-	
+
 	log.Printf("✅ Telegram message successfully sent to %s (notification #%d)", notification.Recipient, notification.ID)
 	return nil
 }
@@ -606,17 +607,17 @@ func getTLSConfig(host string) *tls.Config {
 // isPermanentError determines if an error is permanent and shouldn't be retried
 func isPermanentError(err error) bool {
 	errStr := strings.ToLower(err.Error())
-	
+
 	// Common permanent SMTP errors (НЕ временные/rate-limit ошибки!)
 	permanentErrors := []string{
-		"no such user",                  // Пользователь не существует
-		"user unknown",                  // Неизвестный пользователь
-		"recipient address rejected",    // Адрес получателя отклонён
-		"invalid recipient",             // Недействительный получатель
-		"550",                          // SMTP 550 Requested action not taken: mailbox unavailable (permanent)
-		"551",                          // SMTP 551 User not local
-		"553",                          // SMTP 553 Requested action not taken: mailbox name not allowed
-		"554",                          // SMTP 554 Transaction failed (permanent)
+		"no such user",               // Пользователь не существует
+		"user unknown",               // Неизвестный пользователь
+		"recipient address rejected", // Адрес получателя отклонён
+		"invalid recipient",          // Недействительный получатель
+		"550",                        // SMTP 550 Requested action not taken: mailbox unavailable (permanent)
+		"551",                        // SMTP 551 User not local
+		"553",                        // SMTP 553 Requested action not taken: mailbox name not allowed
+		"554",                        // SMTP 554 Transaction failed (permanent)
 	}
 
 	for _, permErr := range permanentErrors {
@@ -631,22 +632,22 @@ func isPermanentError(err error) bool {
 // isRateLimitError checks if error is a rate limit error (Telegram 429 or SMTP rate limiting)
 func isRateLimitError(err error) bool {
 	errStr := strings.ToLower(err.Error())
-	
+
 	// Check for rate limit indicators (Telegram and SMTP)
 	rateLimitErrors := []string{
-		"429",                          // HTTP 429 Too Many Requests (Telegram)
-		"too many requests",            // Generic rate limit message
-		"rate limit",                   // Generic rate limit
-		"retry after",                  // Retry-After header indicator
-		"451",                          // SMTP 451 Requested action aborted: local error in processing
-		"452",                          // SMTP 452 Requested action not taken: insufficient system storage
-		"421",                          // SMTP 421 Service not available, closing transmission channel
-		"throttling",                   // Outlook/Exchange throttling
-		"exceeded sending limits",      // Outlook sending limit
-		"mailbox full",                 // Temporary mailbox full (может быть временной)
-		"try again later",              // Generic retry suggestion
-		"temporarily deferred",         // SMTP temporary deferral
-		"recipient rate limit",         // Recipient-specific rate limit
+		"429",                     // HTTP 429 Too Many Requests (Telegram)
+		"too many requests",       // Generic rate limit message
+		"rate limit",              // Generic rate limit
+		"retry after",             // Retry-After header indicator
+		"451",                     // SMTP 451 Requested action aborted: local error in processing
+		"452",                     // SMTP 452 Requested action not taken: insufficient system storage
+		"421",                     // SMTP 421 Service not available, closing transmission channel
+		"throttling",              // Outlook/Exchange throttling
+		"exceeded sending limits", // Outlook sending limit
+		"mailbox full",            // Temporary mailbox full (может быть временной)
+		"try again later",         // Generic retry suggestion
+		"temporarily deferred",    // SMTP temporary deferral
+		"recipient rate limit",    // Recipient-specific rate limit
 	}
 
 	for _, rateLimitErr := range rateLimitErrors {
@@ -694,7 +695,7 @@ func init() {
 	getCurrentTimestamp = func() int64 {
 		return time.Now().Unix()
 	}
-	
+
 	// Update generateBatchID to use proper UUID
 	generateBatchID = func() string {
 		return "batch_" + uuid.New().String()

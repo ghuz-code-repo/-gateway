@@ -18,7 +18,7 @@ import (
 func listServicesHandlerWithAccess(c *gin.Context) {
 	// Check if user is system admin
 	isSystemAdmin := c.GetBool("isSystemAdmin")
-	
+
 	if isSystemAdmin {
 		listServicesHandler(c)
 		return
@@ -30,12 +30,12 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 	userServices := []models.Service{} // Placeholder
 
 	c.HTML(http.StatusOK, "admin_services.html", gin.H{
-		"title":        "Управление сервисами",
-		"services":     userServices,
-		"username":     user.Username,
-		"full_name":    user.GetFullName(),
-		"short_name":   user.GetShortName(),
-		"user":         user,
+		"title":         "Управление сервисами",
+		"services":      userServices,
+		"username":      user.Username,
+		"full_name":     user.GetFullName(),
+		"short_name":    user.GetShortName(),
+		"user":          user,
 		"isSystemAdmin": isSystemAdmin,
 	})
 }
@@ -43,7 +43,7 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 // listServicesHandler displays all services including deleted ones (system admin only)
 func listServicesHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
-	
+
 	// System admins can see deleted services
 	services, err := models.GetAllServicesWithOptions(true) // Include deleted services
 	if err != nil {
@@ -54,12 +54,12 @@ func listServicesHandler(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "admin_services.html", gin.H{
-		"title":        "Управление сервисами",
-		"services":     services,
-		"username":     user.Username,
-		"full_name":    user.GetFullName(),
-		"short_name":   user.GetShortName(),
-		"user":         user,
+		"title":         "Управление сервисами",
+		"services":      services,
+		"username":      user.Username,
+		"full_name":     user.GetFullName(),
+		"short_name":    user.GetShortName(),
+		"user":          user,
 		"isSystemAdmin": true,
 	})
 }
@@ -67,7 +67,7 @@ func listServicesHandler(c *gin.Context) {
 // showServiceFormHandler shows the form to create a new service
 func showServiceFormHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
-	
+
 	c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
 		"title":      "Создать сервис",
 		"username":   user.Username,
@@ -99,15 +99,15 @@ func createServiceHandler(c *gin.Context) {
 
 	if key == "" || name == "" {
 		c.HTML(http.StatusBadRequest, "admin_service_form.html", gin.H{
-			"title":       "Создать сервис",
-			"error":       "Ключ и название сервиса обязательны",
-			"key_val":     key,
-			"name_val":    name,
-			"desc_val":    description,
-			"username":    user.Username,
-			"full_name":   user.GetFullName(),
-			"short_name":  user.GetShortName(),
-			"user":        user,
+			"title":      "Создать сервис",
+			"error":      "Ключ и название сервиса обязательны",
+			"key_val":    key,
+			"name_val":   name,
+			"desc_val":   description,
+			"username":   user.Username,
+			"full_name":  user.GetFullName(),
+			"short_name": user.GetShortName(),
+			"user":       user,
 		})
 		return
 	}
@@ -128,7 +128,7 @@ func createServiceHandler(c *gin.Context) {
 func getServiceHandlerWithAccess(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	serviceKey := c.Param("serviceKey")
-	
+
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
@@ -166,10 +166,10 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 
 	// Determine manage mode - true if user is service admin but not system admin
 	manageMode := !isSystemAdmin && hasServiceAdminRole(user, service.Key)
-	
+
 	// Check for import success message
 	importSuccess := c.Query("import_success")
-	
+
 	templateData := gin.H{
 		"title":         "Детали сервиса",
 		"service":       service,
@@ -183,12 +183,12 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		"manageMode":    manageMode,
 	}
 	log.Printf("DEBUG: Template data for service %s - serviceRoles count: %d", service.Key, len(serviceRoles))
-	
+
 	// Add import success message if present
 	if importSuccess != "" {
 		templateData["importSuccessMessage"] = importSuccess
 	}
-	
+
 	c.HTML(http.StatusOK, "admin_service_form.html", templateData)
 }
 
@@ -196,7 +196,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 func updateServiceHandlerWithAccess(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	serviceKey := c.Param("serviceKey")
-	
+
 	// Get service first to check access
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
@@ -218,31 +218,31 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 	description := c.PostForm("description")
 	newKey := c.PostForm("key")
 	confirmKeyChange := c.PostForm("confirmKeyChange")
-	
+
 	if name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Название сервиса обязательно"})
 		return
 	}
-	
+
 	if newKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Ключ сервиса обязателен"})
 		return
 	}
-	
+
 	// Check if key is being changed
 	keyChanged := newKey != service.Key
 	if keyChanged {
 		// Require confirmation for key changes
 		if confirmKeyChange != "true" {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Изменение ключа сервиса требует подтверждения. Это может повлиять на интеграции.",
-				"message": "Изменение ключа сервиса требует подтверждения. Это может повлиять на интеграции.",
+				"error":                 "Изменение ключа сервиса требует подтверждения. Это может повлиять на интеграции.",
+				"message":               "Изменение ключа сервиса требует подтверждения. Это может повлиять на интеграции.",
 				"requires_confirmation": true,
-				"key_change": true,
+				"key_change":            true,
 			})
 			return
 		}
-		
+
 		// Check if new key already exists
 		existingService, err := models.GetServiceByKey(newKey)
 		if err == nil && existingService.ID != service.ID {
@@ -250,7 +250,7 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	// Update service with new key and permissions
 	err = models.UpdateService(service.ID, newKey, name, description, service.AvailablePermissions)
 	if err != nil {
@@ -265,7 +265,7 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 // The service is marked as deleted but can be restored
 func deleteServiceHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
-	
+
 	// Verify service exists
 	_, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
@@ -293,7 +293,7 @@ func deleteServiceHandler(c *gin.Context) {
 // restoreServiceHandler restores a soft-deleted service (system admin only)
 func restoreServiceHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
-	
+
 	// Perform restore
 	err := models.RestoreService(serviceKey)
 	if err != nil {
@@ -315,7 +315,7 @@ func restoreServiceHandler(c *gin.Context) {
 // WARNING: This action cannot be undone!
 func hardDeleteServiceHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
-	
+
 	// Verify service exists (including deleted ones)
 	_, err := models.GetServiceByKeyWithOptions(serviceKey, true)
 	if err != nil {
@@ -346,33 +346,33 @@ func addServicePermissionHandler(c *gin.Context) {
 	permissionName := c.PostForm("name")
 	permissionDisplayName := c.PostForm("displayName")
 	permissionDescription := c.PostForm("description")
-	
+
 	if permissionName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя разрешения обязательно"})
 		return
 	}
-	
+
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
-	
+
 	// Create permission definition
 	permissionDef := models.PermissionDef{
 		Name:        permissionName,
 		DisplayName: permissionDisplayName,
 		Description: permissionDescription,
 	}
-	
+
 	// Add permission to service
 	err = models.AddPermissionToService(service.Key, permissionDef)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при добавлении разрешения: " + err.Error()})
 		return
 	}
-	
+
 	c.Redirect(http.StatusFound, "/services/"+service.Key)
 }
 
@@ -383,26 +383,26 @@ func updateServicePermissionHandler(c *gin.Context) {
 func deleteServicePermissionHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
 	permissionName := c.Param("permName")
-	
+
 	if permissionName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя разрешения обязательно"})
 		return
 	}
-	
+
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
-	
+
 	// Remove permission from service (soft delete)
 	err = models.RemovePermissionFromService(service.Key, permissionName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении разрешения: " + err.Error()})
 		return
 	}
-	
+
 	c.Redirect(http.StatusFound, "/services/"+service.Key)
 }
 
@@ -410,14 +410,14 @@ func createServiceRoleHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
 	roleName := c.PostForm("role_name")
 	roleDescription := c.PostForm("role_description")
-	
+
 	log.Printf("DEBUG createServiceRoleHandler: serviceKey=%s, roleName=%s, roleDescription=%s", serviceKey, roleName, roleDescription)
-	
+
 	if roleName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя роли обязательно"})
 		return
 	}
-	
+
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
@@ -425,16 +425,16 @@ func createServiceRoleHandler(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
-	
+
 	// Get permissions from form (checkboxes)
 	var permissions []string
 	c.Request.ParseForm()
 	log.Printf("DEBUG createServiceRoleHandler: PostForm data: %+v", c.Request.PostForm)
-	
+
 	// Get permissions from checkbox array (modern form uses name="permissions")
 	permissions = c.Request.Form["permissions"]
 	log.Printf("DEBUG createServiceRoleHandler: Permissions from form array: %v", permissions)
-	
+
 	// Fallback: check for old format with perm_ prefix (if any legacy forms exist)
 	if len(permissions) == 0 {
 		for key, values := range c.Request.PostForm {
@@ -445,9 +445,9 @@ func createServiceRoleHandler(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	log.Printf("DEBUG createServiceRoleHandler: Final permissions list: %v", permissions)
-	
+
 	// Create the role
 	log.Printf("DEBUG createServiceRoleHandler: Creating role with permissions: %v", permissions)
 	_, err = models.CreateRole(service.Key, roleName, roleDescription, permissions)
@@ -456,7 +456,7 @@ func createServiceRoleHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать роль: " + err.Error()})
 		return
 	}
-	
+
 	log.Printf("SUCCESS createServiceRoleHandler: Role created successfully")
 	// Redirect back to service page with roles tab active
 	c.Redirect(http.StatusFound, "/services/"+service.Key)
@@ -468,94 +468,94 @@ func getServiceRoleHandler(c *gin.Context) {
 
 func updateServiceRoleHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
-	roleName := c.Param("roleId")  // actually role name now
-	
+	roleName := c.Param("roleId") // actually role name now
+
 	log.Printf("updateServiceRoleHandler: serviceKey=%s, roleName=%s", serviceKey, roleName)
-	
+
 	if roleName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя роли обязательно"})
 		return
 	}
-	
+
 	if serviceKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Ключ сервиса обязателен"})
 		return
 	}
-	
+
 	// Get form data
 	newRoleName := c.PostForm("name")
 	roleDescription := c.PostForm("description")
-	
+
 	log.Printf("updateServiceRoleHandler: newRoleName=%s, roleDescription=%s", newRoleName, roleDescription)
-	
+
 	if newRoleName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Новое имя роли обязательно"})
 		return
 	}
-	
+
 	// Validate service exists
 	_, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
-	
+
 	// Find role by service and name
 	role, err := models.GetRoleByServiceAndName(serviceKey, roleName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
 		return
 	}
-	
+
 	// Get permissions from form (checkboxes)
 	permissions := c.PostFormArray("permissions")
-	
+
 	// Update the role
 	err = models.UpdateRole(role.ID, serviceKey, newRoleName, roleDescription, permissions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить роль: " + err.Error()})
 		return
 	}
-	
+
 	// Redirect back to service page with roles tab active
 	c.Redirect(http.StatusFound, "/services/"+serviceKey)
 }
 
 func deleteServiceRoleHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
-	roleName := c.Param("roleId")  // actually role name now
-	
+	roleName := c.Param("roleId") // actually role name now
+
 	if roleName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя роли обязательно"})
 		return
 	}
-	
+
 	if serviceKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Ключ сервиса обязателен"})
 		return
 	}
-	
+
 	// Validate service exists
 	_, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
-	
+
 	// Find role by service and name
 	role, err := models.GetRoleByServiceAndName(serviceKey, roleName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
 		return
 	}
-	
+
 	// Delete role
 	err = models.DeleteRole(role.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении роли: " + err.Error()})
 		return
 	}
-	
+
 	c.Redirect(http.StatusFound, "/services/"+serviceKey)
 }
 
@@ -565,29 +565,29 @@ func assignUserToServiceRoleHandler(c *gin.Context) {
 
 func getServiceUsersHandler(c *gin.Context) {
 	serviceID := c.Param("id")
-	
+
 	// Validate service exists
 	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID сервиса"})
 		return
 	}
-	
+
 	service, err := models.GetServiceByID(serviceObjectID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
-	
+
 	// Get users with roles in this service
 	users, err := models.GetUsersWithServiceRoles(service.Key)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения пользователей"})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"users": users,
+		"users":   users,
 		"service": service.Name,
 	})
 }
@@ -630,11 +630,11 @@ func addUserToServiceHandler(c *gin.Context) {
 		// If user not found and we have full name, create new user
 		if req.FullName != "" {
 			// Check if identifier is email format
-			isEmail := len(req.Identifier) > 0 && req.Identifier[0] != '@' && 
-			         len(req.Identifier) > 3 && 
-			         strings.Contains(req.Identifier, "@") && 
-			         strings.Contains(req.Identifier, ".")
-			
+			isEmail := len(req.Identifier) > 0 && req.Identifier[0] != '@' &&
+				len(req.Identifier) > 3 &&
+				strings.Contains(req.Identifier, "@") &&
+				strings.Contains(req.Identifier, ".")
+
 			var username, email string
 			if isEmail {
 				email = req.Identifier
@@ -643,14 +643,14 @@ func addUserToServiceHandler(c *gin.Context) {
 				username = req.Identifier
 				email = ""
 			}
-			
+
 			// Create new user with temporary password
 			userID, err := models.CreateUser(username, email, "temporary123", req.FullName, []string{})
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new user: " + err.Error()})
 				return
 			}
-			
+
 			// Get the created user
 			user, err = models.GetUserByObjectID(userID)
 			if err != nil {
@@ -816,14 +816,14 @@ func checkUserExistsHandler(c *gin.Context) {
 	hasServiceAccess := len(serviceRoles) > 0
 
 	c.JSON(http.StatusOK, gin.H{
-		"exists":          true,
+		"exists":           true,
 		"hasServiceAccess": hasServiceAccess,
 		"user": gin.H{
-			"id":        targetUser.ID.Hex(),
-			"username":  targetUser.Username,
-			"email":     targetUser.Email,
-			"fullName":  targetUser.GetFullName(),
-			"shortName": targetUser.GetShortName(),
+			"id":         targetUser.ID.Hex(),
+			"username":   targetUser.Username,
+			"email":      targetUser.Email,
+			"fullName":   targetUser.GetFullName(),
+			"shortName":  targetUser.GetShortName(),
 			"avatarPath": targetUser.AvatarPath,
 		},
 		"serviceRoles": serviceRoles,
@@ -833,14 +833,14 @@ func checkUserExistsHandler(c *gin.Context) {
 // syncServicePermissionsHandler syncs permissions from external service
 func syncServicePermissionsHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
-	
+
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
-	
+
 	// Get service URL from environment or config
 	// For now, assume services are reachable via docker network
 	serviceURL := getServiceURL(serviceKey)
@@ -848,7 +848,7 @@ func syncServicePermissionsHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Service URL not configured"})
 		return
 	}
-	
+
 	// Fetch permissions from service
 	permissions, err := fetchServicePermissions(serviceURL)
 	if err != nil {
@@ -857,7 +857,7 @@ func syncServicePermissionsHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Update service permissions
 	err = models.UpdateServicePermissions(service.Key, permissions)
 	if err != nil {
@@ -866,17 +866,22 @@ func syncServicePermissionsHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Permissions synced successfully",
-		"service_key": service.Key,
+		"message":            "Permissions synced successfully",
+		"service_key":        service.Key,
 		"synced_permissions": len(permissions),
-		"permissions": permissions,
+		"permissions":        permissions,
 	})
 }
 
 // getServiceURL returns the URL for a service based on service key
 func getServiceURL(serviceKey string) string {
+	// Special case for auth-service: use localhost since we're calling ourselves
+	if serviceKey == "auth" {
+		return "http://localhost:80"
+	}
+
 	// First, try to get URL from Service Discovery (highest priority)
 	instances, err := models.GetServiceInstancesByKey(serviceKey)
 	if err == nil && len(instances) > 0 {
@@ -893,19 +898,19 @@ func getServiceURL(serviceKey string) string {
 			return instances[0].InternalURL
 		}
 	}
-	
+
 	// Fallback to hardcoded URLs
 	serviceURLs := map[string]string{
 		"referal":        "http://referal:80",
-		"client-service": "http://client-service-service:80", 
+		"client-service": "http://client-service-service:80",
 		// Add more services as needed
 	}
-	
+
 	if url, exists := serviceURLs[serviceKey]; exists {
 		log.Printf("Using hardcoded URL for '%s': %s", serviceKey, url)
 		return url
 	}
-	
+
 	// Default pattern: http://service-key:80
 	defaultURL := fmt.Sprintf("http://%s:80", serviceKey)
 	log.Printf("Using default URL pattern for '%s': %s", serviceKey, defaultURL)
@@ -918,7 +923,7 @@ func fetchServicePermissions(serviceURL string) ([]models.PermissionDef, error) 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	
+
 	// Make request to service permissions endpoint
 	url := fmt.Sprintf("%s/api/sync/permissions", serviceURL)
 	resp, err := client.Get(url)
@@ -926,20 +931,20 @@ func fetchServicePermissions(serviceURL string) ([]models.PermissionDef, error) 
 		return nil, fmt.Errorf("failed to connect to service: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("service returned error %d: %s", resp.StatusCode, string(body))
 	}
-	
+
 	// Parse response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-	
+
 	var response struct {
-		Success     bool   `json:"success"`
+		Success     bool `json:"success"`
 		Permissions []struct {
 			Name        string `json:"name"`
 			DisplayName string `json:"displayName"`
@@ -948,15 +953,15 @@ func fetchServicePermissions(serviceURL string) ([]models.PermissionDef, error) 
 		} `json:"permissions"`
 		Error string `json:"error"`
 	}
-	
+
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
-	
+
 	if !response.Success {
 		return nil, fmt.Errorf("service error: %s", response.Error)
 	}
-	
+
 	// Convert to PermissionDef structs
 	var permissions []models.PermissionDef
 	for _, perm := range response.Permissions {
@@ -966,6 +971,38 @@ func fetchServicePermissions(serviceURL string) ([]models.PermissionDef, error) 
 			Description: perm.Description,
 		})
 	}
-	
+
 	return permissions, nil
+}
+
+// getAuthServicePermissionsHandler returns auth-service's own permissions
+// This endpoint allows auth-service to be synced like other services
+func getAuthServicePermissionsHandler(c *gin.Context) {
+	// Get auth service from database using raw BSON to preserve category field
+	ctx := c.Request.Context()
+	var result struct {
+		AvailablePermissions []struct {
+			Name        string `bson:"name" json:"name"`
+			DisplayName string `bson:"displayName" json:"displayName"`
+			Description string `bson:"description" json:"description"`
+			Category    string `bson:"category" json:"category"`
+		} `bson:"availablePermissions" json:"availablePermissions"`
+	}
+
+	collection := models.GetDatabase().Collection("services")
+	err := collection.FindOne(ctx, map[string]interface{}{"key": "auth"}).Decode(&result)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   "Auth service not found in database",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":     true,
+		"permissions": result.AvailablePermissions,
+		"service_key": "auth",
+		"note":        "Auth service permissions are managed internally",
+	})
 }
