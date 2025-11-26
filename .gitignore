@@ -10,3 +10,5 @@ mongo_data/*
 /notification-service/*
 .env
 mongo_data_old/*
+mongo_data_new/*
+REGISTER_AUTH_SERVICE.md
