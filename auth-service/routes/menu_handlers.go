@@ -30,8 +30,9 @@ func menuHandler(c *gin.Context) {
 	accessibleServices := []string{}
 
 	// Check if user is admin (has admin role in old system or system service)
-	isAdmin := hasAdminRole(user)
-	
+	// NEW: Check if user has full admin access (auth.* wildcard)
+	isAdmin := hasAnyAuthPermission(user, "auth.*")
+
 	if isAdmin {
 		fmt.Println("Пользователь является администратором. Добавление всех сервисов.")
 		// Admin users can access all services
@@ -51,7 +52,7 @@ func menuHandler(c *gin.Context) {
 		} else {
 			accessibleServices = userAccessibleServices
 		}
-		
+
 		// Also include services from old role system for backward compatibility
 		roles, err := models.GetAllRoles()
 		if err == nil {
@@ -78,52 +79,56 @@ func menuHandler(c *gin.Context) {
 		if serviceKey == "auth" {
 			continue
 		}
-		
+
 		// Check user's role in this service
-		hasServiceAdmin := hasServiceAdminRole(user, serviceKey)
+		hasServiceManager := hasServiceManagerRole(user, serviceKey)
+		hasExternalRole := hasExternalRoleForService(user, serviceKey)
 		hasAnyServiceRole := hasAnyRoleInService(user, serviceKey)
-		
+
 		serviceInfo := gin.H{
 			"id":          serviceKey,
 			"displayName": getServiceDisplayName(serviceKey),
 			"icon":        getIconForService(serviceKey),
 			"description": getServiceDescription(serviceKey),
 		}
-		
-		// Can manage service if: system admin OR service admin
-		canManageService := isAdmin || hasServiceAdmin
+
+		// Can manage service if: system admin OR service manager OR has external role for this service
+		canManageService := isAdmin || hasServiceManager || hasExternalRole
 		serviceInfo["canManage"] = canManageService
-		
-		// Show service card if: system admin OR has any role in service (including admin)
-		showServiceCard := isAdmin || hasAnyServiceRole
-		
+
+		// Debug logging for access control
+		fmt.Printf("[MENU DEBUG] Service=%s User=%s isAdmin=%v hasServiceManager=%v hasExternalRole=%v hasAnyRole=%v canManage=%v\n",
+			serviceKey, user.Username, isAdmin, hasServiceManager, hasExternalRole, hasAnyServiceRole, canManageService) // Show service card if: system admin OR has any role in service (including admin) OR has external role
+		showServiceCard := isAdmin || hasAnyServiceRole || hasExternalRole
+
 		if showServiceCard {
 			// Always get service info for health check (needed for all users)
 			service, err := models.GetServiceByKey(serviceKey)
 			if err == nil && service != nil {
 				serviceInfo["serviceKey"] = service.Key
-				fmt.Printf("Добавлен serviceKey для %s: %s (isSystemAdmin: %v, isServiceAdmin: %v, canManage: %v)\n", 
-					serviceKey, service.Key, isAdmin, hasServiceAdmin, canManageService)
+				fmt.Printf("Добавлен serviceKey для %s: %s (isSystemAdmin: %v, isServiceManager: %v, canManage: %v)\n",
+					serviceKey, service.Key, isAdmin, hasServiceManager, canManageService)
 			} else {
 				fmt.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
 			}
-			
+
 			serviceInfos = append(serviceInfos, serviceInfo)
 		}
 	}
-	
+
 	// Check if user has permission to view system settings (must be system admin)
-	canViewSystemSettings := hasAdminRole(user)
+	// NEW: Check if user can view system settings
+	canViewSystemSettings := hasAuthPermission(user, "auth.settings.view")
 	fmt.Printf("User %s can view system settings: %v\n", user.Username, canViewSystemSettings)
 
 	c.HTML(http.StatusOK, "menu.html", gin.H{
 		"username":              user.Username,
 		"full_name":             user.GetFullName(),
 		"short_name":            user.GetShortName(),
-		"user":                  user, // Add full user object for header template
+		"user":                  user,               // Add full user object for header template
 		"services":              accessibleServices, // Keep for backward compatibility
 		"serviceInfos":          serviceInfos,       // New structure with display names
-		"isAdmin":               hasAdminRole(user),
+		"isAdmin":               hasAnyAuthPermission(user, "auth.*"),
 		"canViewSystemSettings": canViewSystemSettings,
 		"role":                  user.Roles,
 	})
@@ -188,13 +193,13 @@ func getIconForService(service string) string {
 func systemSettingsHandler(c *gin.Context) {
 	// Get user from middleware
 	user := c.MustGet("user").(*models.User)
-	
-	// Check if user has permission to view system settings (must be system admin)
-	if !hasAdminRole(user) {
+
+	// NEW: Check if user has permission to view system settings
+	if !hasAuthPermission(user, "auth.settings.view") {
 		c.Redirect(http.StatusFound, "/access-denied")
 		return
 	}
-	
+
 	// All admins (GOD, admin, system.admin) have full access to all settings
 	c.HTML(http.StatusOK, "settings.html", gin.H{
 		"username":               user.Username,

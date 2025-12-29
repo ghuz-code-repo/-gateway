@@ -1,9 +1,9 @@
 package main
 
 import (
+	"auth-service/migrations"
 	"auth-service/models"
 	"auth-service/routes"
-	"auth-service/migrations"
 	"auth-service/utils"
 	"encoding/json"
 	"fmt"
@@ -35,6 +35,9 @@ func setupTemplateFunc() template.FuncMap {
 			}
 			return a / b
 		},
+		"subtract": func(a, b int) int {
+			return a - b
+		},
 		"hasAdminRole": func(serviceRoles []models.UserServiceRole) bool {
 			for _, sr := range serviceRoles {
 				if sr.IsActive && sr.ServiceKey == "system" && sr.RoleName == "admin" {
@@ -49,26 +52,26 @@ func setupTemplateFunc() template.FuncMap {
 // checkAndCleanupAvatars проверяет существование файлов аватарок и очищает недействительные пути
 func checkAndCleanupAvatars() {
 	log.Println("Проверка файлов аватарок...")
-	
+
 	// Создаем папку для аватарок если её нет
 	avatarDir := "./data/avatars"
 	if err := os.MkdirAll(avatarDir, 0755); err != nil {
 		log.Printf("Ошибка создания папки аватарок: %v", err)
 		return
 	}
-	
+
 	// Получаем всех пользователей с аватарками
 	users, err := models.GetUsersWithAvatars()
 	if err != nil {
 		log.Printf("Ошибка получения пользователей с аватарками: %v", err)
 		return
 	}
-	
+
 	cleaned := 0
 	for _, user := range users {
 		if user.AvatarPath != "" {
 			var filePath string
-			
+
 			// Определяем правильный путь к файлу
 			if strings.HasPrefix(user.AvatarPath, "/avatar/") {
 				// Новый формат: /avatar/userID -> ./data/userID/avatar.jpg
@@ -78,9 +81,9 @@ func checkAndCleanupAvatars() {
 				// Старый формат: /data/userID/avatar.jpg -> ./data/userID/avatar.jpg
 				filePath = "." + user.AvatarPath
 			}
-			
+
 			log.Printf("Проверяем файл аватарки: %s для пользователя %s", filePath, user.Email)
-			
+
 			// Проверяем существование файла
 			if _, err := os.Stat(filePath); os.IsNotExist(err) {
 				log.Printf("Файл аватарки не найден: %s для пользователя %s", filePath, user.Email)
@@ -94,7 +97,7 @@ func checkAndCleanupAvatars() {
 			}
 		}
 	}
-	
+
 	if cleaned > 0 {
 		log.Printf("Очищено %d недействительных путей к аватаркам", cleaned)
 	} else {
@@ -156,7 +159,7 @@ func main() {
 		}
 		// Don't fail startup on migration errors, just log them
 	} else {
-		log.Printf("Migration completed successfully: %d services, %d roles updated", 
+		log.Printf("Migration completed successfully: %d services, %d roles updated",
 			migrationResult.ServicesUpdated, migrationResult.RolesUpdated)
 	}
 
@@ -198,7 +201,7 @@ func main() {
 		if allowedOrigin == "" {
 			allowedOrigin = "http://localhost" // Default for development
 		}
-		
+
 		origin := c.Request.Header.Get("Origin")
 		// Only set CORS headers if origin matches or in development
 		if origin == allowedOrigin || os.Getenv("ENVIRONMENT") != "production" {
@@ -207,18 +210,18 @@ func main() {
 			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 		}
-		
+
 		// Security headers
 		c.Writer.Header().Set("X-Frame-Options", "DENY")
 		c.Writer.Header().Set("X-Content-Type-Options", "nosniff")
 		c.Writer.Header().Set("X-XSS-Protection", "1; mode=block")
 		c.Writer.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
 		}
-		
+
 		c.Next()
 	})
 
@@ -238,19 +241,19 @@ func main() {
 	// Serve favicon
 	router.StaticFile("/vite.svg", "./static/img/vite.svg")
 	router.StaticFile("/favicon.ico", "./static/img/favicon.ico")
-	
+
 	// Setup avatar serving with no-cache headers BEFORE general /data route
 	router.GET("/avatar/:userID", func(c *gin.Context) {
 		userID := c.Param("userID")
 		avatarPath := filepath.Join(userID, "avatar.jpg")
-		
+
 		// Set no-cache headers to prevent browser caching
 		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 		c.Header("Pragma", "no-cache")
 		c.Header("Expires", "0")
 		c.Header("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
 		c.Header("ETag", fmt.Sprintf("\"%d\"", time.Now().Unix()))
-		
+
 		// Serve file with path traversal protection
 		if err := utils.SafeServeFile(c, "./data", avatarPath); err != nil {
 			log.Printf("Error serving avatar: %v", err)
@@ -258,15 +261,26 @@ func main() {
 			return
 		}
 	})
-	
+
 	// Serve other data files normally (documents, etc.)
 	router.Static("/data", "./data")
 
 	// Set up custom template functions
 	router.SetFuncMap(setupTemplateFunc())
 
-	// Load HTML templates after setting function map
-	router.LoadHTMLGlob("templates/*")
+	// Load HTML templates - load all .html files including subdirectories
+	// Note: LoadHTMLGlob doesn't support ** pattern in Go, so we collect files from each directory explicitly
+	rootTemplates, err := filepath.Glob("templates/*.html")
+	if err != nil {
+		log.Fatalf("Failed to glob root templates: %v", err)
+	}
+	roleManagementTemplates, err := filepath.Glob("templates/role_management/*.html")
+	if err != nil {
+		log.Fatalf("Failed to glob role_management templates: %v", err)
+	}
+	allTemplates := append(rootTemplates, roleManagementTemplates...)
+	log.Printf("Loading %d templates: %d root + %d role_management", len(allTemplates), len(rootTemplates), len(roleManagementTemplates))
+	router.LoadHTMLFiles(allTemplates...)
 
 	// Initialize nginx configuration with empty services config
 	// This ensures nginx can start even without any registered services

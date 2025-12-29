@@ -1,0 +1,117 @@
+package models
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"strings"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+// GetUserAuthPermissions returns all permissions user has in auth-service
+// This function aggregates permissions from all active roles the user has in auth-service
+func GetUserAuthPermissions(userID primitive.ObjectID) ([]string, error) {
+	// Get user's service roles in auth-service
+	userServiceRoles, err := GetUserServiceRolesByUserIDAndService(userID, "auth")
+	if err != nil {
+		log.Printf("DEBUG GetUserAuthPermissions: failed to get user service roles: %v", err)
+		return []string{}, nil
+	}
+
+	// Aggregate permissions from all active roles
+	permissionSet := make(map[string]bool)
+
+	for _, userRole := range userServiceRoles {
+		if !userRole.IsActive {
+			continue
+		}
+
+		// Get the role details
+		role, err := GetRoleByServiceAndName("auth", userRole.RoleName)
+		if err != nil {
+			log.Printf("DEBUG GetUserAuthPermissions: role not found: service=auth, name=%s: %v", userRole.RoleName, err)
+			continue
+		}
+
+		// Add all permissions from this role
+		for _, perm := range role.Permissions {
+			permissionSet[perm] = true
+		}
+
+		log.Printf("DEBUG GetUserAuthPermissions: user=%s has role=%s with %d permissions", userID.Hex(), userRole.RoleName, len(role.Permissions))
+	}
+
+	// Convert set to slice
+	permissions := make([]string, 0, len(permissionSet))
+	for perm := range permissionSet {
+		permissions = append(permissions, perm)
+	}
+
+	log.Printf("DEBUG GetUserAuthPermissions: user=%s has total %d unique permissions in auth-service", userID.Hex(), len(permissions))
+	return permissions, nil
+}
+
+// HasAuthPermission checks if user has specific permission in auth-service
+// Supports wildcard permissions (auth.*, auth.users.*)
+func HasAuthPermission(userID primitive.ObjectID, permission string) bool {
+	permissions, err := GetUserAuthPermissions(userID)
+	if err != nil {
+		log.Printf("ERROR HasAuthPermission: failed to get permissions: %v", err)
+		return false
+	}
+
+	// Check exact match or wildcard
+	for _, perm := range permissions {
+		// Exact match
+		if perm == permission {
+			return true
+		}
+
+		// Wildcard match: auth.* matches anything starting with auth.
+		if strings.HasSuffix(perm, ".*") {
+			prefix := strings.TrimSuffix(perm, "*") // e.g., "auth." from "auth.*"
+			if strings.HasPrefix(permission, prefix) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// HasAnyAuthPermission checks if user has at least one of the specified permissions
+func HasAnyAuthPermission(userID primitive.ObjectID, permissions ...string) bool {
+	for _, perm := range permissions {
+		if HasAuthPermission(userID, perm) {
+			return true
+		}
+	}
+	return false
+}
+
+// GetUserServiceRolesByUserIDAndService returns all service roles for a user in a specific service
+func GetUserServiceRolesByUserIDAndService(userID primitive.ObjectID, serviceKey string) ([]UserServiceRole, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"user_id":     userID,
+		"service_key": serviceKey,
+	}
+
+	cursor, err := userServiceRolesCol.Find(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user service roles: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var roles []UserServiceRole
+	if err = cursor.All(ctx, &roles); err != nil {
+		return nil, fmt.Errorf("failed to decode user service roles: %v", err)
+	}
+
+	return roles, nil
+}

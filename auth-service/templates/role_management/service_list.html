@@ -1,0 +1,221 @@
+{{ define "service_list.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление внешними ролями - Golden House</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/admin-service-form.css">
+</head>
+<body>
+    <div id="notifications-container" class="notifications-container"></div>
+    
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+    
+    <div class="admin-page-container">
+        <div class="header-spacer"></div>
+        <div class="admin-content">
+            <div class="container">
+                <div class="page-title-section">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                        <a href="/settings" class="back-link">
+                            <i class="fas fa-arrow-left"></i> Назад к настройкам
+                        </a>
+                    </div>
+                    <h1>Управление внешними ролями</h1>
+                    <p class="page-description">
+                        Выберите сервис для настройки прав доступа к нему. 
+                        Здесь вы определяете, кто может управлять сервисом и его пользователями.
+                    </p>
+                </div>
+
+                {{ if .error }}
+                <div class="flash-message error">
+                    <i class="fas fa-exclamation-circle"></i> {{ .error }}
+                </div>
+                {{ end }}
+
+                <!-- Бизнес-сервисы -->
+                {{ if .businessServices }}
+                <div class="content-section">
+                    <h3><i class="fas fa-briefcase"></i> Сервисы</h3>
+                    <div class="services-grid">
+                        {{ range .businessServices }}
+                        <div class="service-card" onclick="window.location.href='/settings/roles/{{.Key}}'">
+                            <div class="service-card-header">
+                                <div class="service-icon">
+                                    <i class="fas fa-cube"></i>
+                                </div>
+                                <div class="service-info">
+                                    <h4>{{.Name}}</h4>
+                                    <p class="service-description">{{.Description}}</p>
+                                </div>
+                            </div>
+                            <div class="service-card-footer">
+                                <span class="service-stat">
+                                    <i class="fas fa-user-tag"></i> Внешних ролей: <strong>{{.RoleCount}}</strong>
+                                </span>
+                                <span class="service-action">
+                                    Управлять <i class="fas fa-chevron-right"></i>
+                                </span>
+                            </div>
+                        </div>
+                        {{ end }}
+                    </div>
+                </div>
+                {{ else }}
+                <div class="content-section">
+                    <div class="empty-state">
+                        <i class="fas fa-inbox" style="font-size: 3rem; color: var(--text-color-secondary); margin-bottom: 1rem;"></i>
+                        <h3>Нет доступных сервисов</h3>
+                        <p>Внешние роли доступны только для бизнес-сервисов.</p>
+                    </div>
+                </div>
+                {{ end }}
+
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .back-link {
+            text-decoration: none;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .back-link:hover {
+            opacity: 0.8;
+        }
+        .page-description {
+            color: var(--text-color-secondary);
+            margin-top: 0.5rem;
+            max-width: 600px;
+        }
+        .content-section {
+            background: var(--card-background-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .content-section h3 {
+            margin: 0 0 1rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-color);
+        }
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1rem;
+        }
+        .service-card {
+            background: var(--background-color);
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid var(--border-color);
+        }
+        .service-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .service-card-header {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+        .service-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-color);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        .service-info h4 {
+            margin: 0 0 0.25rem 0;
+            color: var(--text-color);
+        }
+        .service-description {
+            margin: 0;
+            font-size: 0.875rem;
+            color: var(--text-color-secondary);
+            line-height: 1.4;
+        }
+        .service-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .service-stat {
+            font-size: 0.875rem;
+            color: var(--text-color-secondary);
+        }
+        .service-action {
+            font-size: 0.875rem;
+            color: var(--primary-color);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script>
+        particlesJS('particles-js', {
+            "particles": {
+                "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+                "color": { "value": "#c4a668" },
+                "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+                "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+                "size": { "value": 4, "random": true },
+                "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+                "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": { "onhover": { "enable": true, "mode": "bubble" }, "onclick": { "enable": true, "mode": "push" } },
+                "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+            },
+            "retina_detect": true
+        });
+    </script>
+</body>
+</html>
+{{ end }}

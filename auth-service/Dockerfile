@@ -28,7 +28,8 @@ WORKDIR /root/
 RUN mkdir -p /root/data
 
 COPY --from=builder /app/auth-service .
-COPY --from=builder /app/templates/ ./templates/
+COPY --from=builder /app/templates/*.html ./templates/
+COPY --from=builder /app/templates/role_management/ ./templates/role_management/
 COPY --from=builder /app/static/ ./static/
 COPY --from=builder /app/resources/ ./resources/
 

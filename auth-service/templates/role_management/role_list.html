@@ -1,0 +1,973 @@
+{{ define "role_list.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Внешние роли - {{.service.Name}}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/admin-service-form.css">
+    <link rel="stylesheet" href="/static/css/service-tabs.css">
+</head>
+<body>
+    <div id="notifications-container" class="notifications-container"></div>
+    
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+    
+    <div class="admin-page-container">
+        <div class="header-spacer"></div>
+        <div class="admin-content">
+            <div class="container">
+                <div class="page-title-section">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                        <a href="/settings/roles" class="back-link">
+                            <i class="fas fa-arrow-left"></i> Назад к списку сервисов
+                        </a>
+                    </div>
+                    <h1>Внешние роли - {{.service.Name}}</h1>
+                    <p class="page-description">
+                        Управление правами доступа к сервису <strong>{{.service.Key}}</strong>. 
+                        Эти роли определяют, кто может управлять сервисом и его пользователями.
+                    </p>
+                </div>
+
+                {{ if .error }}
+                <div class="flash-message error">
+                    <i class="fas fa-exclamation-circle"></i> {{ .error }}
+                </div>
+                {{ end }}
+
+                {{ if .success }}
+                <div class="flash-message success">
+                    <i class="fas fa-check-circle"></i> {{ .success }}
+                </div>
+                {{ end }}
+
+                <!-- Действия -->
+                <div class="add-role-section">
+                    <button type="button" class="add-button" onclick="openCreateRoleModal()">
+                        <i class="fas fa-plus"></i> Создать новую роль
+                    </button>
+                </div>
+
+                <!-- Поиск ролей -->
+                <div class="roles-search-section">
+                    <input type="text" id="roles-search-input" class="search-box" 
+                           placeholder="Поиск ролей..." onkeyup="filterRoles()">
+                </div>
+
+                <!-- Список ролей -->
+                <div class="roles-container" id="roles-container">
+                    {{ if .roles }}
+                        {{ range .roles }}
+                        <div class="role-item" data-search="{{ .Name }} {{ .Description }} {{ range .Permissions }}{{ . }} {{ end }}">
+                            <div class="role-details">
+                                <div class="role-info">
+                                    <div class="role-name">{{ .Name }}</div>
+                                    {{ if .Description }}
+                                    <div class="role-description">{{ .Description }}</div>
+                                    {{ end }}
+                                </div>
+                                <div class="role-permissions">
+                                    <span class="permission-count">
+                                        <i class="fas fa-key"></i> Разрешений: {{ len .Permissions }}
+                                    </span>
+                                    <span class="user-count">
+                                        <i class="fas fa-users"></i> Пользователей: {{ .UserCount }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="role-actions">
+                                <button type="button" class="btn small secondary" 
+                                        onclick="openEditRoleModal('{{ .ID.Hex }}', '{{ .Name }}', '{{ .Description }}', [{{ range $i, $p := .Permissions }}{{ if $i }},{{ end }}'{{ $p }}'{{ end }}])">
+                                    <i class="fas fa-edit"></i> Изменить
+                                </button>
+                                <button type="button" class="btn small danger" 
+                                        onclick="confirmDeleteRole('{{ .ID.Hex }}', '{{ .Name }}')">
+                                    <i class="fas fa-trash"></i> Удалить
+                                </button>
+                            </div>
+                        </div>
+                        {{ end }}
+                    {{ else }}
+                        <div class="no-roles-message">
+                            <i class="fas fa-inbox" style="font-size: 3rem; color: var(--text-color-secondary); margin-bottom: 1rem;"></i>
+                            <p><strong>Внешних ролей для этого сервиса ещё нет</strong></p>
+                            <p>Создайте первую роль, нажав кнопку "Создать новую роль"</p>
+                        </div>
+                    {{ end }}
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно создания роли -->
+    <div id="createRoleModal" class="service-modal">
+        <div class="service-modal-content modal-large">
+            <div class="service-modal-header">
+                <h3>Создание внешней роли для "{{.service.Name}}"</h3>
+                <span class="close" onclick="closeModal('createRoleModal')">&times;</span>
+            </div>
+            <div class="edit-role-modal-body">
+                <div class="edit-role-form-fields">
+                    <form id="createRoleForm">
+                        <div class="form-group">
+                            <label for="modal-role-name">Название роли *</label>
+                            <input type="text" id="modal-role-name" name="name" required 
+                                   pattern="[a-z0-9_\-]+" title="Только строчные буквы, цифры, дефисы и подчеркивания"
+                                   placeholder="например: service-manager">
+                        </div>
+                        <div class="form-group">
+                            <label for="modal-role-desc">Описание</label>
+                            <input type="text" id="modal-role-desc" name="description" 
+                                   placeholder="например: Менеджер сервиса">
+                        </div>
+                    </form>
+                </div>
+                <div class="edit-role-permissions">
+                    <label>Разрешения для управления сервисом</label>
+                    <div class="permissions-search">
+                        <input type="text" id="create-permissions-search" placeholder="Поиск разрешений..." 
+                               onkeyup="filterCreatePermissions()">
+                    </div>
+                    <div class="permissions-accordion" id="create-permissions-accordion">
+                        {{ range .permissionCategories }}
+                        <div class="accordion-section" data-category="{{ .Name }}">
+                            <div class="accordion-header" onclick="toggleAccordion(this)">
+                                <span class="accordion-icon"><i class="fas fa-chevron-right"></i></span>
+                                <span class="accordion-title">{{ .DisplayName }}</span>
+                                <span class="accordion-count">0 / {{ .Count }}</span>
+                                <label class="select-all-label" onclick="event.stopPropagation()">
+                                    <input type="checkbox" class="select-all-checkbox" 
+                                           onchange="toggleCategoryPermissions(this, '{{ .Name }}', 'create')">
+                                    Выбрать все
+                                </label>
+                            </div>
+                            <div class="accordion-content">
+                                {{ range .Permissions }}
+                                <div class="permission-item" data-permission="{{ .Name }}" data-category="{{ $.Name }}"
+                                     data-search="{{ .Name }} {{ .DisplayName }} {{ .Description }}"
+                                     onclick="togglePermission(this, 'create')">
+                                    <input type="checkbox" name="permissions" value="{{ .Name }}" 
+                                           form="createRoleForm" onclick="event.stopPropagation()">
+                                    <div class="permission-content">
+                                        <div class="permission-name">{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}</div>
+                                        {{ if .Description }}
+                                        <div class="permission-description">{{ .Description }}</div>
+                                        {{ end }}
+                                        <div class="permission-code">{{ .Name }}</div>
+                                    </div>
+                                </div>
+                                {{ end }}
+                            </div>
+                        </div>
+                        {{ end }}
+                    </div>
+                </div>
+            </div>
+            <div class="service-modal-actions">
+                <div class="selected-count">Выбрано разрешений: <strong id="create-selected-count">0</strong></div>
+                <button type="button" class="btn secondary" onclick="closeModal('createRoleModal')">Отмена</button>
+                <button type="button" class="btn primary" onclick="submitCreateRole()">Создать роль</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования роли -->
+    <div id="editRoleModal" class="service-modal">
+        <div class="service-modal-content modal-large">
+            <div class="service-modal-header">
+                <h3>Редактирование роли: <span id="edit-role-title"></span></h3>
+                <span class="close" onclick="closeModal('editRoleModal')">&times;</span>
+            </div>
+            <div class="edit-role-modal-body">
+                <div class="edit-role-form-fields">
+                    <form id="editRoleForm">
+                        <input type="hidden" id="edit-role-id" name="id">
+                        <div class="form-group">
+                            <label for="edit-modal-role-name">Название роли *</label>
+                            <input type="text" id="edit-modal-role-name" name="name" required 
+                                   pattern="[a-z0-9_\-]+" title="Только строчные буквы, цифры, дефисы и подчеркивания">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-modal-role-desc">Описание</label>
+                            <input type="text" id="edit-modal-role-desc" name="description">
+                        </div>
+                    </form>
+                </div>
+                <div class="edit-role-permissions">
+                    <label>Разрешения для управления сервисом</label>
+                    <div class="permissions-search">
+                        <input type="text" id="edit-permissions-search" placeholder="Поиск разрешений..." 
+                               onkeyup="filterEditPermissions()">
+                    </div>
+                    <div class="permissions-accordion" id="edit-permissions-accordion">
+                        {{ range .permissionCategories }}
+                        <div class="accordion-section" data-category="{{ .Name }}">
+                            <div class="accordion-header" onclick="toggleAccordion(this)">
+                                <span class="accordion-icon"><i class="fas fa-chevron-right"></i></span>
+                                <span class="accordion-title">{{ .DisplayName }}</span>
+                                <span class="accordion-count">0 / {{ .Count }}</span>
+                                <label class="select-all-label" onclick="event.stopPropagation()">
+                                    <input type="checkbox" class="select-all-checkbox" 
+                                           onchange="toggleCategoryPermissions(this, '{{ .Name }}', 'edit')">
+                                    Выбрать все
+                                </label>
+                            </div>
+                            <div class="accordion-content">
+                                {{ range .Permissions }}
+                                <div class="permission-item" data-permission="{{ .Name }}" data-category="{{ $.Name }}"
+                                     data-search="{{ .Name }} {{ .DisplayName }} {{ .Description }}"
+                                     onclick="togglePermission(this, 'edit')">
+                                    <input type="checkbox" name="permissions" value="{{ .Name }}" 
+                                           form="editRoleForm" onclick="event.stopPropagation()">
+                                    <div class="permission-content">
+                                        <div class="permission-name">{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}</div>
+                                        {{ if .Description }}
+                                        <div class="permission-description">{{ .Description }}</div>
+                                        {{ end }}
+                                        <div class="permission-code">{{ .Name }}</div>
+                                    </div>
+                                </div>
+                                {{ end }}
+                            </div>
+                        </div>
+                        {{ end }}
+                    </div>
+                </div>
+            </div>
+            <div class="service-modal-actions">
+                <div class="selected-count">Выбрано разрешений: <strong id="edit-selected-count">0</strong></div>
+                <button type="button" class="btn secondary" onclick="closeModal('editRoleModal')">Отмена</button>
+                <button type="button" class="btn primary" onclick="submitEditRole()">Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .back-link {
+            text-decoration: none;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .back-link:hover {
+            opacity: 0.8;
+        }
+        .page-description {
+            color: var(--text-color-secondary);
+            margin-top: 0.5rem;
+            max-width: 700px;
+        }
+        .add-role-section {
+            margin: 1.5rem 0;
+        }
+        .add-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background 0.2s, transform 0.2s;
+        }
+        .add-button:hover {
+            background: var(--primary-color-hover, #2563eb);
+            transform: translateY(-1px);
+        }
+        .roles-search-section {
+            margin-bottom: 1rem;
+        }
+        .search-box {
+            width: 100%;
+            max-width: 400px;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            background: var(--card-background-color);
+            color: var(--text-color);
+        }
+        .roles-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .role-item {
+            background: var(--card-background-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .role-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .role-details {
+            flex: 1;
+        }
+        .role-info {
+            margin-bottom: 0.5rem;
+        }
+        .role-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        .role-description {
+            color: var(--text-color-secondary);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+        .role-permissions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .permission-count, .user-count {
+            color: var(--text-color-secondary);
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .role-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.2s;
+        }
+        .btn.small {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.875rem;
+        }
+        .btn.primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        .btn.secondary {
+            background: var(--card-background-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+        .btn.danger {
+            background: #ef4444;
+            color: white;
+        }
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .no-roles-message {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-color-secondary);
+        }
+        
+        /* Modal styles */
+        .service-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+        .service-modal-content {
+            position: relative;
+            background: var(--card-background-color);
+            margin: 5% auto;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .service-modal-content.modal-large {
+            max-width: 800px;
+        }
+        .service-modal-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .service-modal-header h3 {
+            margin: 0;
+            color: var(--text-color);
+        }
+        .close {
+            font-size: 1.75rem;
+            cursor: pointer;
+            color: var(--text-color-secondary);
+            line-height: 1;
+        }
+        .close:hover {
+            color: var(--text-color);
+        }
+        .edit-role-modal-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .edit-role-form-fields {
+            width: 280px;
+            padding: 1.5rem;
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+        }
+        .edit-role-permissions {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .edit-role-permissions > label {
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-color);
+        }
+        .permissions-search {
+            margin-bottom: 1rem;
+        }
+        .permissions-search input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--background-color);
+            color: var(--text-color);
+        }
+        .service-modal-actions {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .selected-count {
+            margin-right: auto;
+            color: var(--text-color-secondary);
+            font-size: 0.9rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--background-color);
+            color: var(--text-color);
+            font-size: 0.95rem;
+        }
+        
+        /* Accordion styles */
+        .permissions-accordion {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .accordion-section {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+        }
+        .accordion-header {
+            padding: 0.75rem 1rem;
+            background: var(--background-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .accordion-header:hover {
+            background: var(--card-background-color);
+        }
+        .accordion-icon {
+            transition: transform 0.2s;
+            color: var(--text-color-secondary);
+        }
+        .accordion-section.open .accordion-icon {
+            transform: rotate(90deg);
+        }
+        .accordion-title {
+            font-weight: 600;
+            color: var(--text-color);
+            flex: 1;
+        }
+        .accordion-count {
+            font-size: 0.85rem;
+            color: var(--text-color-secondary);
+            background: var(--border-color);
+            padding: 0.2rem 0.6rem;
+            border-radius: 10px;
+        }
+        .select-all-label {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.85rem;
+            color: var(--text-color-secondary);
+            cursor: pointer;
+        }
+        .accordion-content {
+            display: none;
+            padding: 0.5rem;
+            background: var(--card-background-color);
+        }
+        .accordion-section.open .accordion-content {
+            display: block;
+        }
+        .permission-item {
+            padding: 0.6rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            transition: background 0.2s;
+        }
+        .permission-item:hover {
+            background: var(--background-color);
+        }
+        .permission-item.selected {
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .permission-content {
+            flex: 1;
+        }
+        .permission-item .permission-name {
+            font-weight: 500;
+            color: var(--text-color);
+            font-size: 0.95rem;
+        }
+        .permission-item .permission-description {
+            font-size: 0.8rem;
+            color: var(--text-color-secondary);
+            margin-top: 0.15rem;
+        }
+        .permission-item .permission-code {
+            font-size: 0.75rem;
+            color: var(--primary-color);
+            font-family: monospace;
+            margin-top: 0.25rem;
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script>
+        particlesJS('particles-js', {
+            "particles": {
+                "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+                "color": { "value": "#c4a668" },
+                "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+                "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+                "size": { "value": 4, "random": true },
+                "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+                "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": { "onhover": { "enable": true, "mode": "bubble" }, "onclick": { "enable": true, "mode": "push" } },
+                "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+            },
+            "retina_detect": true
+        });
+    </script>
+    
+    <script>
+        const serviceKey = '{{.service.Key}}';
+        
+        // Фильтрация ролей
+        function filterRoles() {
+            const searchText = document.getElementById('roles-search-input').value.toLowerCase();
+            const roleItems = document.querySelectorAll('.role-item');
+            
+            roleItems.forEach(item => {
+                const searchData = item.getAttribute('data-search').toLowerCase();
+                item.style.display = searchData.includes(searchText) ? 'flex' : 'none';
+            });
+        }
+        
+        // Accordion toggle
+        function toggleAccordion(header) {
+            const section = header.parentElement;
+            section.classList.toggle('open');
+        }
+        
+        // Toggle permission checkbox
+        function togglePermission(item, mode) {
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            item.classList.toggle('selected', checkbox.checked);
+            updateCategoryCount(item.dataset.category, mode);
+            updateSelectedCount(mode);
+        }
+        
+        // Toggle all permissions in category
+        function toggleCategoryPermissions(selectAllCheckbox, category, mode) {
+            const accordionId = mode === 'create' ? 'create-permissions-accordion' : 'edit-permissions-accordion';
+            const accordion = document.getElementById(accordionId);
+            const section = accordion.querySelector(`[data-category="${category}"]`);
+            const checkboxes = section.querySelectorAll('.permission-item input[type="checkbox"]');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+                cb.closest('.permission-item').classList.toggle('selected', selectAllCheckbox.checked);
+            });
+            
+            updateCategoryCount(category, mode);
+            updateSelectedCount(mode);
+        }
+        
+        // Update category count display
+        function updateCategoryCount(category, mode) {
+            const accordionId = mode === 'create' ? 'create-permissions-accordion' : 'edit-permissions-accordion';
+            const accordion = document.getElementById(accordionId);
+            const section = accordion.querySelector(`[data-category="${category}"]`);
+            const checkboxes = section.querySelectorAll('.permission-item input[type="checkbox"]');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const countSpan = section.querySelector('.accordion-count');
+            countSpan.textContent = `${checkedCount} / ${checkboxes.length}`;
+            
+            // Update select all checkbox
+            const selectAllCheckbox = section.querySelector('.select-all-checkbox');
+            selectAllCheckbox.checked = checkedCount === checkboxes.length && checkboxes.length > 0;
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+        }
+        
+        // Update total selected count
+        function updateSelectedCount(mode) {
+            const formId = mode === 'create' ? 'createRoleForm' : 'editRoleForm';
+            const countId = mode === 'create' ? 'create-selected-count' : 'edit-selected-count';
+            const form = document.getElementById(formId);
+            const checkboxes = form.querySelectorAll('input[name="permissions"]:checked');
+            document.getElementById(countId).textContent = checkboxes.length;
+        }
+        
+        // Filter permissions in create modal
+        function filterCreatePermissions() {
+            filterPermissionsInModal('create-permissions-search', 'create-permissions-accordion');
+        }
+        
+        // Filter permissions in edit modal
+        function filterEditPermissions() {
+            filterPermissionsInModal('edit-permissions-search', 'edit-permissions-accordion');
+        }
+        
+        function filterPermissionsInModal(searchInputId, accordionId) {
+            const searchText = document.getElementById(searchInputId).value.toLowerCase();
+            const accordion = document.getElementById(accordionId);
+            const items = accordion.querySelectorAll('.permission-item');
+            
+            items.forEach(item => {
+                const searchData = item.getAttribute('data-search').toLowerCase();
+                item.style.display = searchData.includes(searchText) ? 'flex' : 'none';
+            });
+            
+            // Show/hide categories based on visible items
+            accordion.querySelectorAll('.accordion-section').forEach(section => {
+                const hasVisible = Array.from(section.querySelectorAll('.permission-item')).some(item => 
+                    item.style.display !== 'none'
+                );
+                section.style.display = hasVisible ? 'block' : 'none';
+                if (searchText && hasVisible) {
+                    section.classList.add('open');
+                }
+            });
+        }
+        
+        // Open create role modal
+        function openCreateRoleModal() {
+            // Reset form
+            document.getElementById('createRoleForm').reset();
+            
+            // Reset all checkboxes
+            document.querySelectorAll('#create-permissions-accordion input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+                const item = cb.closest('.permission-item');
+                if (item) item.classList.remove('selected');
+            });
+            
+            // Reset counts
+            document.querySelectorAll('#create-permissions-accordion .accordion-section').forEach(section => {
+                const category = section.dataset.category;
+                updateCategoryCount(category, 'create');
+            });
+            updateSelectedCount('create');
+            
+            // Clear search
+            document.getElementById('create-permissions-search').value = '';
+            filterCreatePermissions();
+            
+            // Show modal
+            document.getElementById('createRoleModal').style.display = 'block';
+        }
+        
+        // Open edit role modal
+        function openEditRoleModal(roleId, roleName, roleDescription, rolePermissions) {
+            document.getElementById('edit-role-id').value = roleId;
+            document.getElementById('edit-modal-role-name').value = roleName;
+            document.getElementById('edit-modal-role-desc').value = roleDescription || '';
+            document.getElementById('edit-role-title').textContent = roleName;
+            
+            // Reset all checkboxes
+            document.querySelectorAll('#edit-permissions-accordion input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+                const item = cb.closest('.permission-item');
+                if (item) item.classList.remove('selected');
+            });
+            
+            // Check matching permissions
+            rolePermissions.forEach(perm => {
+                const item = document.querySelector(`#edit-permissions-accordion [data-permission="${perm}"]`);
+                if (item) {
+                    const checkbox = item.querySelector('input[type="checkbox"]');
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        item.classList.add('selected');
+                    }
+                }
+            });
+            
+            // Update counts
+            document.querySelectorAll('#edit-permissions-accordion .accordion-section').forEach(section => {
+                const category = section.dataset.category;
+                updateCategoryCount(category, 'edit');
+            });
+            updateSelectedCount('edit');
+            
+            // Clear search
+            document.getElementById('edit-permissions-search').value = '';
+            filterEditPermissions();
+            
+            // Show modal
+            document.getElementById('editRoleModal').style.display = 'block';
+        }
+        
+        // Close modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+        
+        // Close modal on outside click
+        window.onclick = function(event) {
+            if (event.target.classList.contains('service-modal')) {
+                event.target.style.display = 'none';
+            }
+        };
+        
+        // Close modal on Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.service-modal').forEach(modal => {
+                    modal.style.display = 'none';
+                });
+            }
+        });
+        
+        // Submit create role
+        async function submitCreateRole() {
+            const form = document.getElementById('createRoleForm');
+            const formData = new FormData(form);
+            
+            const name = formData.get('name');
+            const description = formData.get('description');
+            const permissions = formData.getAll('permissions');
+            
+            if (!name) {
+                showNotification('Укажите название роли', 'error');
+                return;
+            }
+            
+            if (permissions.length === 0) {
+                showNotification('Выберите хотя бы одно разрешение', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/settings/roles/${serviceKey}/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description,
+                        permissions: permissions
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message || 'Роль успешно создана', 'success');
+                    closeModal('createRoleModal');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showNotification(result.error || 'Ошибка при создании роли', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Ошибка при отправке запроса', 'error');
+            }
+        }
+        
+        // Submit edit role
+        async function submitEditRole() {
+            const form = document.getElementById('editRoleForm');
+            const formData = new FormData(form);
+            
+            const roleId = formData.get('id');
+            const name = formData.get('name');
+            const description = formData.get('description');
+            const permissions = formData.getAll('permissions');
+            
+            if (!name) {
+                showNotification('Укажите название роли', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/settings/roles/${serviceKey}/${roleId}/edit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description,
+                        permissions: permissions
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message || 'Роль успешно обновлена', 'success');
+                    closeModal('editRoleModal');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showNotification(result.error || 'Ошибка при обновлении роли', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Ошибка при отправке запроса', 'error');
+            }
+        }
+        
+        // Confirm delete role
+        async function confirmDeleteRole(roleId, roleName) {
+            if (!confirm(`Вы уверены, что хотите удалить роль "${roleName}"?\n\nЭто действие нельзя отменить.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/settings/roles/${serviceKey}/${roleId}/delete`, {
+                    method: 'POST',
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message || 'Роль успешно удалена', 'success');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showNotification(result.error || 'Ошибка при удалении роли', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Ошибка сети: ' + error.message, 'error');
+            }
+        }
+        
+        // Notification function (fallback if notifications.js not loaded)
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const container = document.getElementById('notifications-container');
+            if (!container) {
+                alert((type === 'error' ? 'Ошибка: ' : '') + message);
+                return;
+            }
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <i class="fas ${type === 'error' ? 'fa-exclamation-circle' : type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
+{{ end }}

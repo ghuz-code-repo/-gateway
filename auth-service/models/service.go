@@ -17,6 +17,7 @@ type PermissionDef struct {
 	Name        string    `bson:"name" json:"name"`                               // Permission identifier (e.g., "users.read")
 	DisplayName string    `bson:"displayName" json:"displayName"`                 // Human-readable name
 	Description string    `bson:"description" json:"description"`                 // Description of what this permission allows
+	External    bool      `bson:"external" json:"external"`                       // True if this permission can be assigned to external roles
 	DeletedAt   time.Time `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"` // Soft delete timestamp
 }
 
@@ -57,6 +58,98 @@ func CreateService(key, name, description string, availablePermissions []Permiss
 
 	service.ID = result.InsertedID.(primitive.ObjectID)
 	return service, nil
+}
+
+// RegisterExternalServicePermissions creates external permissions in auth-service
+// for managing this service from auth-service UI
+// These permissions have format: auth.<service-key>.<action>
+// Example: auth.referal.users.manage, auth.calculator.settings.view
+func RegisterExternalServicePermissions(serviceKey, serviceName string) error {
+	ctx := context.Background()
+
+	// Get auth-service
+	var authService Service
+	err := servicesCol.FindOne(ctx, bson.M{"key": "auth"}).Decode(&authService)
+	if err != nil {
+		return fmt.Errorf("auth service not found: %w", err)
+	}
+
+	// Build set of existing permission names
+	existingPerms := make(map[string]bool)
+	for _, perm := range authService.AvailablePermissions {
+		existingPerms[perm.Name] = true
+	}
+
+	// Standard external permission templates - GRANULAR permissions
+	// Each action has its own permission for fine-grained access control
+	templates := []struct {
+		suffix      string
+		displayName string
+		description string
+		category    string
+	}{
+		// Users Management
+		{"users.view", fmt.Sprintf("View %s users", serviceName), "View list of users in this service", "users"},
+		{"users.add", fmt.Sprintf("Add %s users", serviceName), "Add new users to this service", "users"},
+		{"users.edit", fmt.Sprintf("Edit %s users", serviceName), "Edit existing users in this service", "users"},
+		{"users.delete", fmt.Sprintf("Delete %s users", serviceName), "Delete users from this service", "users"},
+		{"users.assign_roles", fmt.Sprintf("Assign roles to %s users", serviceName), "Assign or remove roles from users in this service", "users"},
+
+		// Roles Management (External Roles)
+		{"roles.view", fmt.Sprintf("View %s external roles", serviceName), "View external roles that control this service from auth-service", "roles"},
+		{"roles.create", fmt.Sprintf("Create %s external roles", serviceName), "Create new external roles for controlling this service", "roles"},
+		{"roles.edit", fmt.Sprintf("Edit %s external roles", serviceName), "Edit existing external roles for this service", "roles"},
+		{"roles.delete", fmt.Sprintf("Delete %s external roles", serviceName), "Delete external roles for this service", "roles"},
+		{"roles.assign", fmt.Sprintf("Assign %s external roles", serviceName), "Assign external roles to users", "roles"},
+
+		// Settings Management
+		{"settings.view", fmt.Sprintf("View %s settings", serviceName), "View service settings and configuration", "settings"},
+		{"settings.edit", fmt.Sprintf("Edit %s settings", serviceName), "Modify service settings and configuration", "settings"},
+
+		// Logs (Read-only)
+		{"logs.view", fmt.Sprintf("View %s logs", serviceName), "View service logs and activity", "logs"},
+	}
+
+	// Build new permissions
+	newPermissions := []PermissionDef{}
+	for _, tmpl := range templates {
+		permName := fmt.Sprintf("auth.%s.%s", serviceKey, tmpl.suffix)
+
+		// Skip if already exists
+		if existingPerms[permName] {
+			continue
+		}
+
+		newPermissions = append(newPermissions, PermissionDef{
+			Name:        permName,
+			DisplayName: tmpl.displayName,
+			Description: tmpl.description,
+			External:    true, // External permissions can be assigned to external roles
+		})
+	}
+
+	// Add new permissions to auth-service
+	if len(newPermissions) > 0 {
+		_, err = servicesCol.UpdateOne(
+			ctx,
+			bson.M{"key": "auth"},
+			bson.M{
+				"$push": bson.M{
+					"availablePermissions": bson.M{"$each": newPermissions},
+				},
+				"$set": bson.M{
+					"updatedAt": time.Now(),
+				},
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("failed to add external permissions: %w", err)
+		}
+
+		log.Printf("✅ Added %d external permissions for service %s to auth-service", len(newPermissions), serviceKey)
+	}
+
+	return nil
 }
 
 // CreateServiceLegacy creates a service using legacy permission format (for migration purposes)
