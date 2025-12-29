@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"auth-service/models"
 	"auth-service/handlers"
+	"auth-service/models"
 	"fmt"
 	"log"
 	"net/http"
@@ -40,7 +40,7 @@ func listUsersHandler(c *gin.Context) {
 			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
 			serviceRoles = []models.UserServiceRole{} // Empty slice if error
 		}
-		
+
 		usersWithRoles = append(usersWithRoles, UserWithServiceRoles{
 			User:         user,
 			ServiceRoles: serviceRoles,
@@ -51,13 +51,13 @@ func listUsersHandler(c *gin.Context) {
 	importedCount := c.Query("imported")
 
 	c.HTML(http.StatusOK, "users_list.html", gin.H{
-		"title":           "Управление пользователями",
-		"usersWithRoles":  usersWithRoles,
-		"username":        user.Username,
-		"full_name":       user.GetFullName(),
-		"short_name":      user.GetShortName(),
-		"user":            user,
-		"imported":        importedCount,
+		"title":          "Управление пользователями",
+		"usersWithRoles": usersWithRoles,
+		"username":       user.Username,
+		"full_name":      user.GetFullName(),
+		"short_name":     user.GetShortName(),
+		"user":           user,
+		"imported":       importedCount,
 	})
 }
 
@@ -121,7 +121,7 @@ func createUserHandler(c *gin.Context) {
 	position := c.PostForm("position")
 	department := c.PostForm("department")
 	systemAdmin := c.PostForm("system_admin") // New system admin toggle
-	serviceRoles := c.PostFormArray("roles") // Format: "serviceKey-roleName" from template
+	serviceRoles := c.PostFormArray("roles")  // Format: "serviceKey-roleName" from template
 
 	// Validate required fields
 	if username == "" || email == "" || password == "" || lastName == "" || firstName == "" {
@@ -181,7 +181,7 @@ func createUserHandler(c *gin.Context) {
 		if len(parts) == 2 {
 			serviceKey := parts[0]
 			roleName := parts[1]
-			
+
 			userServiceRole := models.UserServiceRole{
 				UserID:     userID,
 				ServiceKey: serviceKey,
@@ -190,9 +190,9 @@ func createUserHandler(c *gin.Context) {
 				AssignedBy: user.ID,
 				IsActive:   true,
 			}
-			
+
 			if err := models.CreateUserServiceRole(userServiceRole); err != nil {
-				log.Printf("Warning: Failed to assign service role %s:%s to user %s: %v", 
+				log.Printf("Warning: Failed to assign service role %s:%s to user %s: %v",
 					serviceKey, roleName, userID.Hex(), err)
 			}
 		}
@@ -219,36 +219,36 @@ func createUserHandler(c *gin.Context) {
 	const maxRetries = 3
 	var emailSent bool
 	var lastError error
-	
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Printf("Email attempt %d/%d to %s", attempt, maxRetries, email)
-		
+
 		err := models.SendEmailNotificationNew(email, emailSubject, emailBody)
 		if err == nil {
 			log.Printf("Email successfully sent to %s on attempt %d", email, attempt)
 			emailSent = true
 			break
 		}
-		
+
 		lastError = err
 		log.Printf("Email attempt %d failed for %s: %v", attempt, email, err)
-		
+
 		// If this is not the last attempt, wait before retrying
 		if attempt < maxRetries {
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}
 	}
-	
+
 	// If email failed, send notification to admin
 	if !emailSent {
 		log.Printf("CRITICAL: All email attempts failed for new user %s: %v", email, lastError)
-		
+
 		// Try to notify admin
 		adminEmail := os.Getenv("ADMIN_EMAIL")
 		if adminEmail == "" {
 			adminEmail = "admin@gh.uz"
 		}
-		
+
 		fallbackSubject := "КРИТИЧНО: Не удалось отправить email новому пользователю"
 		fallbackBody := fmt.Sprintf(`ВНИМАНИЕ! Критическая ошибка при создании пользователя.
 
@@ -260,12 +260,12 @@ func createUserHandler(c *gin.Context) {
 Ошибка отправки: %v
 
 ТРЕБУЕТСЯ РУЧНАЯ ОТПРАВКА ДАННЫХ ПОЛЬЗОВАТЕЛЮ!`, email, username, password, lastError)
-		
+
 		adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
 		if adminErr != nil {
 			log.Printf("CRITICAL: Failed to send admin notification: %v", adminErr)
 		}
-		
+
 		// Return error - user creation should fail if email can't be sent
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -331,7 +331,7 @@ func updateUserHandler(c *gin.Context) {
 	position := c.PostForm("position")
 	department := c.PostForm("department")
 	systemAdmin := c.PostForm("system_admin") // New system admin toggle
-	serviceRoles := c.PostFormArray("roles") // Format: "serviceKey-roleName" from template
+	serviceRoles := c.PostFormArray("roles")  // Format: "serviceKey-roleName" from template
 
 	// DEBUG: Log received roles
 	log.Printf("DEBUG updateUserHandler: userID=%s, systemAdmin=%s, serviceRoles=%v", userID, systemAdmin, serviceRoles)
@@ -390,11 +390,11 @@ func updateUserHandler(c *gin.Context) {
 	// Check if avatar file exists and sync with database
 	userDir := fmt.Sprintf("./data/%s", objectID.Hex())
 	avatarPath := filepath.Join(userDir, "avatar.jpg")
-	
+
 	if _, err := os.Stat(avatarPath); err == nil {
 		// Avatar file exists, make sure database has the correct path using new endpoint
 		relativeAvatarPath := fmt.Sprintf("/avatar/%s", objectID.Hex())
-		
+
 		// Find original file to set the path too
 		extensions := []string{".jpg", ".jpeg", ".png", ".gif"}
 		relativeOriginalPath := ""
@@ -405,7 +405,7 @@ func updateUserHandler(c *gin.Context) {
 				break
 			}
 		}
-		
+
 		// Update avatar paths in database if needed
 		if updatedUser.AvatarPath != relativeAvatarPath || updatedUser.OriginalAvatarPath != relativeOriginalPath {
 			err = models.UpdateUserAvatar(objectID, relativeAvatarPath)
@@ -420,7 +420,7 @@ func updateUserHandler(c *gin.Context) {
 	// Update service roles
 	log.Printf("DEBUG: Starting service roles update for user %s", objectID.Hex())
 	log.Printf("DEBUG: Received %d service roles: %v", len(serviceRoles), serviceRoles)
-	
+
 	// First, deactivate all existing service roles for this user
 	err = models.DeactivateUserServiceRoles(objectID)
 	if err != nil {
@@ -449,11 +449,11 @@ func updateUserHandler(c *gin.Context) {
 				roleName = parts[1]
 			}
 		}
-		
+
 		if serviceKey != "" && roleName != "" {
-			
+
 			log.Printf("DEBUG: Assigning role %s:%s to user %s", serviceKey, roleName, objectID.Hex())
-			
+
 			userServiceRole := models.UserServiceRole{
 				UserID:     objectID,
 				ServiceKey: serviceKey,
@@ -462,9 +462,9 @@ func updateUserHandler(c *gin.Context) {
 				AssignedBy: currentUser.ID,
 				IsActive:   true,
 			}
-			
+
 			if err := models.CreateUserServiceRole(userServiceRole); err != nil {
-				log.Printf("ERROR: Failed to assign service role %s:%s to user %s: %v", 
+				log.Printf("ERROR: Failed to assign service role %s:%s to user %s: %v",
 					serviceKey, roleName, objectID.Hex(), err)
 			} else {
 				log.Printf("DEBUG: Successfully assigned role %s:%s to user %s", serviceKey, roleName, objectID.Hex())
@@ -485,9 +485,9 @@ func updateUserHandler(c *gin.Context) {
 		existingUser.Phone != updatedUser.Phone ||
 		existingUser.Department != updatedUser.Department ||
 		existingUser.Position != updatedUser.Position
-	
+
 	passwordChanged := password != ""
-	
+
 	// Send email notification if data or password changed
 	if dataChanged || passwordChanged {
 		emailSubject := "Ваш аккаунт обновлен в системе Golden House"
@@ -516,34 +516,34 @@ Email: %s`, updatedUser.Email)
 		const maxRetries = 3
 		var emailSent bool
 		var lastError error
-		
+
 		for attempt := 1; attempt <= maxRetries; attempt++ {
 			log.Printf("Email attempt %d/%d to %s for update", attempt, maxRetries, updatedUser.Email)
-			
+
 			err := models.SendEmailNotificationNew(updatedUser.Email, emailSubject, emailBody)
 			if err == nil {
 				log.Printf("Update email successfully sent to %s on attempt %d", updatedUser.Email, attempt)
 				emailSent = true
 				break
 			}
-			
+
 			lastError = err
 			log.Printf("Update email attempt %d failed for %s: %v", attempt, updatedUser.Email, err)
-			
+
 			if attempt < maxRetries {
 				time.Sleep(time.Duration(attempt) * time.Second)
 			}
 		}
-		
+
 		// If email failed, send notification to admin
 		if !emailSent {
 			log.Printf("CRITICAL: All update email attempts failed for user %s: %v", updatedUser.Email, lastError)
-			
+
 			adminEmail := os.Getenv("ADMIN_EMAIL")
 			if adminEmail == "" {
 				adminEmail = "admin@gh.uz"
 			}
-			
+
 			fallbackSubject := "КРИТИЧНО: Не удалось отправить email при обновлении пользователя"
 			fallbackBody := fmt.Sprintf(`ВНИМАНИЕ! Критическая ошибка при обновлении пользователя.
 
@@ -561,12 +561,12 @@ Email: %s`, updatedUser.Email)
 Ошибка отправки: %v
 
 ТРЕБУЕТСЯ РУЧНОЕ УВЕДОМЛЕНИЕ ПОЛЬЗОВАТЕЛЯ!`, lastError)
-			
+
 			adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
 			if adminErr != nil {
 				log.Printf("CRITICAL: Failed to send admin notification for update: %v", adminErr)
 			}
-			
+
 			// Return error - update should fail if email can't be sent and data/password changed
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
@@ -574,17 +574,17 @@ Email: %s`, updatedUser.Email)
 			})
 			return
 		}
-		
+
 		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "Пользователь успешно обновлен и уведомлен по email",
+			"success":  true,
+			"message":  "Пользователь успешно обновлен и уведомлен по email",
 			"redirect": "/users/" + objectID.Hex(),
 		})
 	} else {
 		// No significant changes, no email needed
 		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "Пользователь успешно обновлен",
+			"success":  true,
+			"message":  "Пользователь успешно обновлен",
 			"redirect": "/users/" + objectID.Hex(),
 		})
 	}
@@ -593,7 +593,7 @@ Email: %s`, updatedUser.Email)
 // deleteUserHandler deletes a user
 func deleteUserHandler(c *gin.Context) {
 	userID := c.Param("id")
-	
+
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		// Check if this is an AJAX request
@@ -647,7 +647,7 @@ func importUsersHandler(c *gin.Context) {
 func updateUserEmailPageHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	username := c.Query("username")
-	
+
 	c.HTML(http.StatusOK, "update-user-email.html", gin.H{
 		"title":        "Обновление Email Пользователя",
 		"username":     user.Username,
@@ -662,7 +662,7 @@ func updateUserEmailPageHandler(c *gin.Context) {
 func updateUserEmailHandler(c *gin.Context) {
 	username := c.PostForm("username")
 	email := c.PostForm("email")
-	
+
 	if username == "" || email == "" {
 		c.HTML(http.StatusBadRequest, "update-user-email.html", gin.H{
 			"error":        "Имя пользователя и email обязательны для заполнения",
@@ -671,7 +671,7 @@ func updateUserEmailHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Find user by username
 	targetUser, err := models.GetUserByEmailOrUsername(username)
 	if err != nil || targetUser == nil {
@@ -682,7 +682,7 @@ func updateUserEmailHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Update user email
 	err = models.UpdateUserEmail(targetUser.ID, email)
 	if err != nil {
@@ -694,7 +694,7 @@ func updateUserEmailHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.HTML(http.StatusOK, "update-user-email.html", gin.H{
 		"success":      "Email пользователя успешно обновлен",
 		"username_val": username,
@@ -725,7 +725,7 @@ func usersManagementHandler(c *gin.Context) {
 			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
 			serviceRoles = []models.UserServiceRole{} // Empty slice if error
 		}
-		
+
 		usersWithRoles = append(usersWithRoles, UserWithServiceRoles{
 			User:         user,
 			ServiceRoles: serviceRoles,
@@ -739,9 +739,9 @@ func usersManagementHandler(c *gin.Context) {
 		"usersWithRoles": usersWithRoles,
 		"user":           user,
 		// Add data needed for header
-		"username":       user.Username,
-		"full_name":      user.GetFullName(),
-		"short_name":     user.GetShortName(),
+		"username":   user.Username,
+		"full_name":  user.GetFullName(),
+		"short_name": user.GetShortName(),
 	})
 }
 
@@ -774,7 +774,7 @@ func sendPasswordResetHandler(c *gin.Context) {
 
 	// Generate reset link
 	resetLink := fmt.Sprintf("http://%s/reset-password?token=%s", c.Request.Host, token.Token)
-	
+
 	// Send email using existing template system
 	emailSubject, emailBody := models.GetPasswordResetEmail(user.GetFullName(), resetLink)
 	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
@@ -801,7 +801,7 @@ func banUserHandler(c *gin.Context) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Неверные данные запроса"})
 		return
@@ -871,27 +871,18 @@ func serviceTemplateHandler(c *gin.Context) {
 // serviceImportLogsHandler retrieves import logs for a specific service
 func serviceImportLogsHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
-	
+
 	// Get current user and verify service admin permissions
-	currentUser := c.MustGet("user").(*models.User)
-	
-	// Verify user has admin rights for this service
-	hasServiceAccess := false
-	// Check if user has admin role
-	for _, role := range currentUser.Roles {
-		if role == "admin" || role == "system.admin" {
-			hasServiceAccess = true
-			break
-		}
-	}
-	
-	if !hasServiceAccess {
+	_ = c.MustGet("user").(*models.User)
+
+	// NEW: Verify user has permission to view users
+	if !requireAuthPermission(c, "auth.users.view") {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Access denied: insufficient permissions for this service",
+			"error": "Access denied: insufficient permissions to view service logs",
 		})
 		return
 	}
-	
+
 	// Get import logs for service
 	logs, err := models.GetServiceImportLogs(serviceKey, 10) // Last 10 logs
 	if err != nil {
@@ -901,7 +892,7 @@ func serviceImportLogsHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"logs": logs,
 	})
@@ -917,27 +908,77 @@ func showImportLogDetailsHandler(c *gin.Context) {
 	handlers.ShowImportLogDetails(c)
 }
 
-
-
-// showEnhancedUserFormHandler shows the enhanced user creation/edit form
+// showEnhancedUserFormHandler shows the enhanced user creation/edit form with tabbed interface
 func showEnhancedUserFormHandler(c *gin.Context) {
 	// Get current logged in user for header
 	currentUser := c.MustGet("user").(*models.User)
-	
+
 	userID := c.Param("id")
 	log.Printf("DEBUG: showEnhancedUserFormHandler called with userID: %s", userID)
-	
-	// For system admin - we'll use a simple toggle instead of multiple roles
-	// So we don't need to load all roles anymore
-	var allRoles []models.Role // Empty slice - not using multiple system roles
-	
+
+	// Check if current user is a system admin (has god-like permissions)
+	isGodUser := false
+	for _, role := range currentUser.Roles {
+		if role == "admin" || role == "system.admin" || role == "GOD" {
+			isGodUser = true
+			break
+		}
+	}
+
+	// Basic permission checks for user management
+	canViewBasicInfo := isGodUser || hasAuthPermission(currentUser, "auth.users.view") || hasAuthPermission(currentUser, "auth.users.edit")
+	canEditBasicInfo := isGodUser || hasAuthPermission(currentUser, "auth.users.edit")
+	canViewDocuments := isGodUser || hasAuthPermission(currentUser, "auth.users.view") || hasAuthPermission(currentUser, "auth.documents.view")
+	canManageDocuments := isGodUser || hasAuthPermission(currentUser, "auth.documents.manage")
+	canViewRoles := isGodUser || hasAuthPermission(currentUser, "auth.users.view") || hasAuthPermission(currentUser, "auth.users.assign_roles")
+	canManageRoles := isGodUser || hasAuthPermission(currentUser, "auth.users.assign_roles")
+	canManageSystemAdmin := isGodUser // Only god can manage system admin status
+
+	// Get all services for external roles
 	allServices, err := models.GetAllServicesWithRolesForTemplate()
 	if err != nil {
 		log.Printf("Warning: Failed to get services: %v", err)
 		allServices = []models.ServiceWithRoles{}
 	}
 	log.Printf("DEBUG: Got %d services", len(allServices))
-	
+
+	// Separate auth-service roles from external services
+	var authServiceRoles []models.Role
+	var externalServices []models.ServiceWithRoles
+	for _, svc := range allServices {
+		if svc.Key == "auth-service" {
+			authServiceRoles = svc.Roles
+		} else {
+			externalServices = append(externalServices, svc)
+		}
+	}
+
+	// Build per-service permission map for external roles
+	servicePermissions := make(map[string]map[string]bool)
+	for _, svc := range externalServices {
+		perms := make(map[string]bool)
+		// Check if user can view/manage roles for this specific service
+		canViewServiceRoles := isGodUser ||
+			hasAuthPermission(currentUser, fmt.Sprintf("auth.%s.roles.view", svc.Key)) ||
+			hasAuthPermission(currentUser, fmt.Sprintf("auth.%s.roles.manage", svc.Key))
+		canManageServiceRoles := isGodUser ||
+			hasAuthPermission(currentUser, fmt.Sprintf("auth.%s.roles.manage", svc.Key)) ||
+			hasAuthPermission(currentUser, fmt.Sprintf("auth.%s.roles.assign", svc.Key))
+
+		// If user has global assign_roles permission, they can manage all services
+		if hasAuthPermission(currentUser, "auth.users.assign_roles") {
+			canViewServiceRoles = true
+			canManageServiceRoles = true
+		}
+
+		perms["CanView"] = canViewServiceRoles
+		perms["CanManage"] = canManageServiceRoles
+		servicePermissions[svc.Key] = perms
+	}
+
+	// For system admin - we'll use a simple toggle instead of multiple roles
+	var allRoles []models.Role // Empty slice - not using multiple system roles
+
 	if userID != "" {
 		// Edit mode
 		log.Printf("DEBUG: Edit mode for user ID: %s", userID)
@@ -974,7 +1015,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 			log.Printf("DEBUG: User has old roles but no new service roles, attempting to show old roles for migration")
 			// Convert old roles to display format for migration assistance
 			oldRolesInfo := make([]models.UserServiceRole, 0)
-			
+
 			// Get all roles to find service mappings
 			allRoles, err := models.GetAllRoles()
 			if err == nil {
@@ -982,15 +1023,15 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 					if userRoleName == "admin" || userRoleName == "system.admin" {
 						continue // Skip system admin role
 					}
-					
+
 					// Find this role in the roles collection
 					for _, role := range allRoles {
 						if role.Name == userRoleName && role.ServiceKey != "" {
 							oldRoleInfo := models.UserServiceRole{
-								UserID:      user.ID,
-								ServiceKey:  role.ServiceKey,
-								RoleName:    role.Name,
-								IsActive:    true,
+								UserID:     user.ID,
+								ServiceKey: role.ServiceKey,
+								RoleName:   role.Name,
+								IsActive:   true,
 								// Add a marker to show this is from old system
 							}
 							oldRolesInfo = append(oldRolesInfo, oldRoleInfo)
@@ -999,7 +1040,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 					}
 				}
 			}
-			
+
 			// Use old roles info if available
 			if len(oldRolesInfo) > 0 {
 				userServiceRoles = oldRolesInfo
@@ -1017,23 +1058,44 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 		}
 		log.Printf("DEBUG: User is system admin: %t", isSystemAdmin)
 
+		// Count documents and roles for badges
+		documentCount := len(user.Documents)
+		roleCount := len(userServiceRoles)
+
 		templateData := gin.H{
-			"title":            "Редактирование пользователя",
-			"editingUser":      &user, // Renamed to avoid conflict with header's user
-			"allRoles":         allRoles,
-			"allServices":      allServices,
-			"userRoles":        userServiceRoles,
-			"isSystemAdmin":    isSystemAdmin,
-			// Current user data for header (same as in menu.html)
-			"username":         currentUser.Username,
-			"full_name":        currentUser.GetFullName(),
-			"short_name":       currentUser.GetShortName(),
-			"user":             currentUser, // For header template
+			"title":         "Редактирование пользователя",
+			"editingUser":   &user,
+			"allRoles":      allRoles,
+			"allServices":   allServices,
+			"services":      allServices,
+			"userRoles":     userServiceRoles,
+			"isSystemAdmin": isSystemAdmin,
+			"timestamp":     time.Now().Unix(),
+			// Permission flags for tabbed UI
+			"canViewBasicInfo":     canViewBasicInfo,
+			"canEditBasicInfo":     canEditBasicInfo,
+			"canViewDocuments":     canViewDocuments,
+			"canManageDocuments":   canManageDocuments,
+			"canViewRoles":         canViewRoles,
+			"canManageRoles":       canManageRoles,
+			"canManageSystemAdmin": canManageSystemAdmin,
+			// Service-specific data
+			"authServiceRoles":   authServiceRoles,
+			"externalServices":   externalServices,
+			"servicePermissions": servicePermissions,
+			// Counts for badges
+			"documentCount": documentCount,
+			"roleCount":     roleCount,
+			// Current user data for header
+			"username":   currentUser.Username,
+			"full_name":  currentUser.GetFullName(),
+			"short_name": currentUser.GetShortName(),
+			"user":       currentUser,
 		}
-		log.Printf("DEBUG: Rendering user_form.html with template data")
+		log.Printf("DEBUG: Rendering user_edit_tabbed.html with template data")
 		log.Printf("DEBUG: currentUser.Username = %s", currentUser.Username)
 		log.Printf("DEBUG: currentUser.GetShortName() = %s", currentUser.GetShortName())
-		c.HTML(http.StatusOK, "user_form.html", templateData)
+		c.HTML(http.StatusOK, "user_edit_tabbed.html", templateData)
 	} else {
 		// Create mode
 		log.Printf("DEBUG: Create mode")
@@ -1041,18 +1103,33 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 			"title":         "Создание нового пользователя",
 			"allRoles":      allRoles,
 			"allServices":   allServices,
-			"userRoles":     []models.UserServiceRole{}, // Empty roles for new user
-			"isSystemAdmin": false, // Default for new users
-			// Current user data for header (same as in menu.html)
-			"username":      currentUser.Username,
-			"full_name":     currentUser.GetFullName(),
-			"short_name":    currentUser.GetShortName(),
-			"user":          currentUser, // For header template
+			"userRoles":     []models.UserServiceRole{},
+			"isSystemAdmin": false,
+			// Permission flags for tabbed UI
+			"canViewBasicInfo":     canViewBasicInfo,
+			"canEditBasicInfo":     canEditBasicInfo,
+			"canViewDocuments":     canViewDocuments,
+			"canManageDocuments":   canManageDocuments,
+			"canViewRoles":         canViewRoles,
+			"canManageRoles":       canManageRoles,
+			"canManageSystemAdmin": canManageSystemAdmin,
+			// Service-specific data
+			"authServiceRoles":   authServiceRoles,
+			"externalServices":   externalServices,
+			"servicePermissions": servicePermissions,
+			// Counts for badges
+			"documentCount": 0,
+			"roleCount":     0,
+			// Current user data for header
+			"username":   currentUser.Username,
+			"full_name":  currentUser.GetFullName(),
+			"short_name": currentUser.GetShortName(),
+			"user":       currentUser,
 		}
-		log.Printf("DEBUG: Rendering user_form.html for new user")
+		log.Printf("DEBUG: Rendering user_edit_tabbed.html for new user")
 		log.Printf("DEBUG: CREATE MODE - currentUser.Username = %s", currentUser.Username)
 		log.Printf("DEBUG: CREATE MODE - currentUser.GetShortName() = %s", currentUser.GetShortName())
-		c.HTML(http.StatusOK, "user_form.html", templateData)
+		c.HTML(http.StatusOK, "user_edit_tabbed.html", templateData)
 	}
 }
 
@@ -1060,16 +1137,16 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 func debugUserRolesHandler(c *gin.Context) {
 	userID := c.Param("id")
 	log.Printf("DEBUG: debugUserRolesHandler called with userID: %s", userID)
-	
+
 	var allRoles []models.Role
-	
+
 	allServices, err := models.GetAllServicesWithRolesForTemplate()
 	if err != nil {
 		log.Printf("Warning: Failed to get services: %v", err)
 		allServices = []models.ServiceWithRoles{}
 	}
 	log.Printf("DEBUG: Got %d services", len(allServices))
-	
+
 	if userID != "" && userID != "new" {
 		// Edit mode
 		log.Printf("DEBUG: Debug mode for user ID: %s", userID)
@@ -1108,12 +1185,12 @@ func debugUserRolesHandler(c *gin.Context) {
 		}
 
 		templateData := gin.H{
-			"title":            "Debug: Роли пользователя",
-			"user":             &user,
-			"allRoles":         allRoles,
-			"allServices":      allServices,
-			"userRoles":        userServiceRoles,
-			"isSystemAdmin":    isSystemAdmin,
+			"title":         "Debug: Роли пользователя",
+			"user":          &user,
+			"allRoles":      allRoles,
+			"allServices":   allServices,
+			"userRoles":     userServiceRoles,
+			"isSystemAdmin": isSystemAdmin,
 		}
 		log.Printf("DEBUG: Rendering debug_user_roles.html with template data")
 		c.HTML(http.StatusOK, "debug_user_roles.html", templateData)
@@ -1125,7 +1202,7 @@ func debugUserRolesHandler(c *gin.Context) {
 			"allRoles":      allRoles,
 			"allServices":   allServices,
 			"userRoles":     []models.UserServiceRole{}, // Empty roles for new user
-			"isSystemAdmin": false, // Default for new users
+			"isSystemAdmin": false,                      // Default for new users
 		}
 		log.Printf("DEBUG: Rendering user_form.html for new user")
 		c.HTML(http.StatusOK, "user_form.html", templateData)
@@ -1155,7 +1232,7 @@ func usersManagementTestHandler(c *gin.Context) {
 			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
 			serviceRoles = []models.UserServiceRole{} // Empty slice if error
 		}
-		
+
 		usersWithRoles = append(usersWithRoles, UserWithServiceRoles{
 			User:         user,
 			ServiceRoles: serviceRoles,
@@ -1208,9 +1285,9 @@ func getUserDocumentsByIDHandler(c *gin.Context) {
 func getUserDocumentAttachmentsByIDHandler(c *gin.Context) {
 	userID := c.Param("id")
 	documentID := c.Param("docId")
-	
+
 	log.Printf("Getting attachments for document %s of user: %s", documentID, userID)
-	
+
 	// Get user data to get documents
 	user, err := models.GetUserByID(userID)
 	if err != nil {
@@ -1257,7 +1334,7 @@ func getUserDocumentAttachmentsByIDHandler(c *gin.Context) {
 // createUserDocumentHandlerAdmin creates a new document for a user (admin use)
 func createUserDocumentHandlerAdmin(c *gin.Context) {
 	userID := c.Param("id")
-	
+
 	log.Printf("Admin creating document for user: %s", userID)
 
 	var req struct {
@@ -1277,7 +1354,7 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Тип документа обязателен"})
 		return
 	}
-	
+
 	if req.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Название документа обязательно"})
 		return
@@ -1305,7 +1382,7 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 		Status:          "draft",
 		Attachments:     []models.DocumentAttachment{},
 	}
-	
+
 	// Add document to user
 	if err := models.AddUserDocumentNew(userObjectID, newDoc); err != nil {
 		log.Printf("Error adding document: %v", err)
@@ -1315,9 +1392,9 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 
 	log.Printf("Document created successfully by admin for user %s: %s", userID, req.Title)
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Документ успешно создан",
+		"message":       "Документ успешно создан",
 		"document_type": req.DocumentType,
-		"title": req.Title,
+		"title":         req.Title,
 	})
 }
 
@@ -1325,32 +1402,32 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 func getUserDocumentHandlerAdmin(c *gin.Context) {
 	userID := c.Param("id")
 	docID := c.Param("docId")
-	
+
 	log.Printf("Admin getting document %s for user %s", docID, userID)
 
-	// Get user 
+	// Get user
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
-	
+
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
-	
+
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
-	
+
 	document := user.Documents[docIndex]
-	
+
 	log.Printf("Document %s retrieved successfully for user %s", docID, userID)
 	c.JSON(http.StatusOK, gin.H{
 		"document_type": document.DocumentType,
@@ -1367,7 +1444,7 @@ func getUserDocumentHandlerAdmin(c *gin.Context) {
 func updateUserDocumentHandlerAdmin(c *gin.Context) {
 	userID := c.Param("id")
 	docID := c.Param("docId")
-	
+
 	log.Printf("Admin updating document %s for user %s", docID, userID)
 
 	var req struct {
@@ -1391,7 +1468,7 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 		return
 	}
 
-	// Get user 
+	// Get user
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
@@ -1405,7 +1482,7 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
-	
+
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
@@ -1426,7 +1503,7 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 		user.Documents[docIndex].Status = req.Status
 	}
 	user.Documents[docIndex].UpdatedAt = time.Now()
-	
+
 	if err := models.UpdateUserDocuments(userObjectID, user.Documents); err != nil {
 		log.Printf("Error updating document: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении документа"})
@@ -1435,9 +1512,9 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 
 	log.Printf("Document %s updated successfully by admin for user %s", docID, userID)
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Документ успешно обновлен",
+		"message":       "Документ успешно обновлен",
 		"document_type": req.DocumentType,
-		"title": req.Title,
+		"title":         req.Title,
 	})
 }
 
@@ -1445,33 +1522,33 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 func deleteUserDocumentHandlerAdmin(c *gin.Context) {
 	userID := c.Param("id")
 	docID := c.Param("docId")
-	
+
 	log.Printf("Admin deleting document %s for user %s", docID, userID)
-	
-	// Get user 
+
+	// Get user
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
-	
+
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
-	
+
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
-	
+
 	// Remove document from user
 	user.Documents = append(user.Documents[:docIndex], user.Documents[docIndex+1:]...)
-	
+
 	// Convert userID string to ObjectID
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
@@ -1479,14 +1556,14 @@ func deleteUserDocumentHandlerAdmin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
-	
+
 	// Update user in database
 	if err := models.UpdateUserDocuments(userObjectID, user.Documents); err != nil {
 		log.Printf("Error updating user documents: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении документа"})
 		return
 	}
-	
+
 	log.Printf("Document %s deleted successfully for user %s", docID, userID)
 	c.JSON(http.StatusOK, gin.H{"message": "Документ успешно удален"})
 }
@@ -1495,7 +1572,7 @@ func deleteUserDocumentHandlerAdmin(c *gin.Context) {
 func addDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	userID := c.Param("id")
 	docID := c.Param("docId")
-	
+
 	log.Printf("Admin adding attachment to document %s for user %s", docID, userID)
 
 	// Parse multipart form
@@ -1515,21 +1592,21 @@ func addDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// Get user 
+	// Get user
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
-	
+
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
-	
+
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
@@ -1566,9 +1643,9 @@ func addDocumentAttachmentHandlerAdmin(c *gin.Context) {
 
 	log.Printf("Attachment %s added successfully to document %s for user %s", header.Filename, docID, userID)
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Файл успешно добавлен",
+		"message":  "Файл успешно добавлен",
 		"filename": header.Filename,
-		"size": header.Size,
+		"size":     header.Size,
 	})
 }
 
@@ -1577,24 +1654,24 @@ func removeDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	userID := c.Param("id")
 	docID := c.Param("docId")
 	attachmentID := c.Param("attachmentId")
-	
+
 	log.Printf("Admin removing attachment %s from document %s for user %s", attachmentID, docID, userID)
 
-	// Get user 
+	// Get user
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
-	
+
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
-	
+
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
@@ -1652,24 +1729,24 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	}
 	docID := c.Param("docId")
 	attachmentID := c.Param("attachmentId")
-	
+
 	log.Printf("Admin downloading attachment %s from document %s for user %s", attachmentID, docID, userID)
 
-	// Get user 
+	// Get user
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
-	
+
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
-	
+
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
@@ -1687,7 +1764,7 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	// Find attachment
 	var attachment *models.DocumentAttachment
 	doc := user.Documents[docIndex]
-	
+
 	for i := range doc.Attachments {
 		if doc.Attachments[i].ID == attachmentObjectID {
 			attachment = &doc.Attachments[i]
@@ -1702,7 +1779,7 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	}
 
 	// DEBUG: Log attachment details for download
-	log.Printf("Found attachment: ID=%s, FileName=%s, OriginalName=%s, FilePath=%s", 
+	log.Printf("Found attachment: ID=%s, FileName=%s, OriginalName=%s, FilePath=%s",
 		attachment.ID.Hex(), attachment.FileName, attachment.OriginalName, attachment.FilePath)
 
 	// Check if FilePath is empty
@@ -1715,11 +1792,11 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	// Check if file exists with fallback paths
 	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
 		log.Printf("File not found: %s", attachment.FilePath)
-		
+
 		// Try alternative paths
 		workingDir, _ := os.Getwd()
 		log.Printf("Current working directory: %s", workingDir)
-		
+
 		// Try relative path
 		relativePath := filepath.Join("./", attachment.FilePath)
 		if _, err := os.Stat(relativePath); err == nil {
@@ -1754,24 +1831,24 @@ func previewDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	userID := c.Param("id")
 	docID := c.Param("docId")
 	attachmentID := c.Param("attachmentId")
-	
+
 	log.Printf("Admin previewing attachment %s from document %s for user %s", attachmentID, docID, userID)
 
-	// Get user 
+	// Get user
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
-	
+
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
-	
+
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
@@ -1802,10 +1879,10 @@ func previewDocumentAttachmentHandlerAdmin(c *gin.Context) {
 
 	log.Printf("Attachment %s preview info retrieved successfully for user %s", attachmentID, userID)
 	c.JSON(http.StatusOK, gin.H{
-		"id":         attachment.ID.Hex(),
-		"filename":   attachment.FileName,
-		"size":       attachment.Size,
-		"mime_type":  attachment.ContentType,
+		"id":          attachment.ID.Hex(),
+		"filename":    attachment.FileName,
+		"size":        attachment.Size,
+		"mime_type":   attachment.ContentType,
 		"uploaded_at": attachment.UploadedAt,
 		"preview_url": fmt.Sprintf("/api/users/%s/documents/%s/attachments/%s/download", userID, docID, attachmentID),
 	})

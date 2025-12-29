@@ -38,6 +38,10 @@ func SetupAllRoutes(router *gin.Engine) {
 		// Document attachments download (for service-to-service calls)
 		api.GET("/users/:userId/documents/:docId/attachments/:attachmentId/download", downloadDocumentAttachmentHandlerAdmin)
 
+		// Auth-service roles API (for external roles management)
+		api.GET("/auth/roles/:roleName", getAuthRoleByNameHandler)
+		api.GET("/auth/roles/:roleName/users", getAuthRoleUsersHandler)
+
 		// Service Registry API (Service Discovery)
 		registry := api.Group("/registry")
 		{
@@ -125,6 +129,11 @@ func SetupAdminRoutes(router *gin.Engine) {
 		users.DELETE("/:id/documents/:docId/attachments/:attachmentId", removeDocumentAttachmentHandlerAdmin)         // Remove attachment
 		users.GET("/:id/documents/:docId/attachments/:attachmentId/download", downloadDocumentAttachmentHandlerAdmin) // Download attachment
 		users.GET("/:id/documents/:docId/attachments/:attachmentId/preview", previewDocumentAttachmentHandlerAdmin)   // Preview attachment
+
+		// Role assignment API (for tabbed UI)
+		users.GET("/:id/roles/data", getUserRolesDataHandler)     // Get categorized roles data for user
+		users.POST("/:id/roles/assign", assignServiceRoleHandler) // Assign role to user
+		users.POST("/:id/roles/remove", removeServiceRoleHandler) // Remove role from user
 	}
 
 	// Admin utility routes
@@ -139,6 +148,9 @@ func SetupAdminRoutes(router *gin.Engine) {
 	router.GET("/notification-settings", adminAuthRequired(), getNotificationSettings)
 	router.POST("/notification-settings", adminAuthRequired(), updateNotificationSettings)
 	router.POST("/notification-settings/test", adminAuthRequired(), testNotificationSettings)
+
+	// Role Management UI - REMOVED: External roles are now managed via /services/:serviceKey (External Roles tab)
+	// The /settings/roles section was redundant with the External Roles tab on service details page
 
 	// Service management
 	// List all services (admin only)
@@ -164,6 +176,12 @@ func SetupAdminRoutes(router *gin.Engine) {
 	router.POST("/services/:serviceKey/roles/:roleId", serviceAdminAuthRequired(), updateServiceRoleHandler)
 	router.POST("/services/:serviceKey/roles/:roleId/delete", serviceAdminAuthRequired(), deleteServiceRoleHandler)
 	router.POST("/services/:serviceKey/assign-role", serviceAdminAuthRequired(), assignUserToServiceRoleHandler)
+
+	// External roles management (roles in auth-service that control access to external services)
+	router.POST("/services/:serviceKey/external-roles", serviceAdminAuthRequired(), createExternalRoleHandler)
+	router.GET("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), getExternalRoleHandler)
+	router.PUT("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), updateExternalRoleHandler)
+	router.DELETE("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), deleteExternalRoleHandler)
 
 	// User management for services
 	router.GET("/services/:serviceKey/users", serviceAdminAuthRequired(), getServiceUsersHandler)

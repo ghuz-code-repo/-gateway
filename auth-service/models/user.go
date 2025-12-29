@@ -119,8 +119,12 @@ type User struct {
 	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Username string             `bson:"username" json:"username"`
 	Email    string             `bson:"email" json:"email"`
-	Password string             `bson:"password" json:"-"`  // Never return password in JSON
-	Roles    []string           `bson:"roles" json:"roles"` // Store role names
+	Password string             `bson:"password" json:"-"` // Never return password in JSON
+
+	// DEPRECATED: Roles is legacy field, use ServiceRoles instead for service-specific role assignments.
+	// This field is kept for backward compatibility with old code and may be removed in future versions.
+	// For new code, use GetUserServiceRolesByUserID() to get user's roles in specific services.
+	Roles []string `bson:"roles" json:"roles"` // Store role names (DEPRECATED)
 
 	// Separated name fields
 	LastName   string `bson:"last_name,omitempty" json:"last_name,omitempty"`     // Фамилия
@@ -232,7 +236,8 @@ type UserServiceRole struct {
 // UserWithServiceRoles represents a user with their roles in a specific service
 type UserWithServiceRoles struct {
 	User
-	ServiceRoles []string `json:"service_roles"`
+	ServiceRoles  []string `json:"service_roles"`
+	ExternalRoles []string `json:"external_roles"`
 }
 
 // Claims struct for JWT
@@ -1301,6 +1306,14 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 	defer cursor.Close(ctx)
 
 	var results []UserWithServiceRoles
+
+	// Get external roles for this service to filter user's auth roles
+	externalRolesForService, _ := GetExternalRolesForService(serviceKey)
+	externalRoleNames := make(map[string]bool)
+	for _, extRole := range externalRolesForService {
+		externalRoleNames[extRole.Name] = true
+	}
+
 	for cursor.Next(ctx) {
 		var result struct {
 			User  User     `bson:"user"`
@@ -1314,10 +1327,42 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 		log.Printf("GetUsersWithServiceRolesNew: Found user %s (%s) with roles: %v",
 			result.User.Username, result.User.Email, result.Roles)
 
+		// For auth service, filter out external roles (roles that control access to other services)
+		// We only want to show system roles (GOD, service-manager, user-manager, viewer, support)
+		filteredRoles := result.Roles
+		if serviceKey == "auth" {
+			filteredRoles = []string{}
+			for _, roleName := range result.Roles {
+				if IsSystemAuthRole(roleName) {
+					filteredRoles = append(filteredRoles, roleName)
+				}
+			}
+			// Skip users who only have external roles (no system roles) for auth service
+			if len(filteredRoles) == 0 {
+				log.Printf("GetUsersWithServiceRolesNew: Skipping user %s - only has external roles in auth service", result.User.Username)
+				continue
+			}
+		}
+
 		userWithRoles := UserWithServiceRoles{
 			User:         result.User,
-			ServiceRoles: result.Roles,
+			ServiceRoles: filteredRoles,
 		}
+
+		// Get user's external roles (roles in auth service that grant access to this service)
+		if len(externalRoleNames) > 0 {
+			authRoleAssignments, err := GetUserServiceRoleAssignments(result.User.ID)
+			if err == nil && authRoleAssignments != nil {
+				for _, assignment := range authRoleAssignments {
+					if assignment.ServiceKey == "auth" && assignment.IsActive {
+						if externalRoleNames[assignment.RoleName] {
+							userWithRoles.ExternalRoles = append(userWithRoles.ExternalRoles, assignment.RoleName)
+						}
+					}
+				}
+			}
+		}
+
 		results = append(results, userWithRoles)
 	}
 
@@ -3001,6 +3046,27 @@ func DeactivateUserServiceRoles(userID primitive.ObjectID) error {
 	}
 
 	_, err := userServiceRolesCol.UpdateMany(ctx, filter, update)
+	return err
+}
+
+// DeactivateUserServiceRole deactivates a specific service role for a user
+func DeactivateUserServiceRole(userID primitive.ObjectID, serviceKey, roleName string) error {
+	ctx := context.Background()
+
+	filter := bson.M{
+		"user_id":     userID,
+		"service_key": serviceKey,
+		"role_name":   roleName,
+		"is_active":   true,
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"is_active": false,
+		},
+	}
+
+	_, err := userServiceRolesCol.UpdateOne(ctx, filter, update)
 	return err
 }
 

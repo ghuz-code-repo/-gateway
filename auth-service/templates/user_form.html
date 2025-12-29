@@ -13,6 +13,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <script src="/static/js/user-form.js"></script>
+    <style>
+        body {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity .05s ease-in-out;
+        }
+    </style>
 </head>
 <body>
     <script>
@@ -716,6 +723,10 @@
                 console.log('cropModal:', cropModal);
                 console.log('AvatarCrop class:', typeof AvatarCrop);
             }
+            
+            // Make body visible after all CSS is loaded
+            document.body.style.visibility = 'visible';
+            document.body.style.opacity = '1';
         });
     </script>
 </body>

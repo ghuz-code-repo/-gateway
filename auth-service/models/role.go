@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -14,7 +15,8 @@ import (
 type Role struct {
 	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	ServiceKey  string             `bson:"service" json:"service" validate:"required"`     // Foreign key to services.key
-	Name        string             `bson:"name" json:"name" validate:"required"`           // Role name
+	Name        string             `bson:"name" json:"name" validate:"required"`           // Role code (identifier)
+	DisplayName string             `bson:"display_name" json:"display_name"`               // Human-readable role name
 	Description string             `bson:"description" json:"description"`                 // Role description
 	Permissions []string           `bson:"permissions" json:"permissions"`                 // Array of permission names (free-form)
 	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`                     // Creation timestamp
@@ -23,10 +25,10 @@ type Role struct {
 }
 
 // CreateRole creates a new role for a specific service
-func CreateRole(serviceKey, name, description string, permissions []string) (*Role, error) {
+func CreateRole(serviceKey, name, displayName, description string, permissions []string) (*Role, error) {
 	ctx := context.Background()
 
-	log.Printf("DEBUG CreateRole: serviceKey=%s, name=%s, permissions=%v", serviceKey, name, permissions)
+	log.Printf("DEBUG CreateRole: serviceKey=%s, name=%s, displayName=%s, permissions=%v", serviceKey, name, displayName, permissions)
 
 	// Validate that permissions are valid for the service
 	if valid, invalidPerms := ValidateRolePermissions(serviceKey, permissions); !valid {
@@ -39,6 +41,7 @@ func CreateRole(serviceKey, name, description string, permissions []string) (*Ro
 	role := &Role{
 		ServiceKey:  serviceKey,
 		Name:        name,
+		DisplayName: displayName,
 		Description: description,
 		Permissions: permissions,
 		CreatedAt:   time.Now(),
@@ -165,7 +168,7 @@ func GetRoleByID(id primitive.ObjectID) (*Role, error) {
 }
 
 // UpdateRole updates an existing role
-func UpdateRole(id primitive.ObjectID, serviceKey, name, description string, permissions []string) error {
+func UpdateRole(id primitive.ObjectID, serviceKey, name, displayName, description string, permissions []string) error {
 	ctx := context.Background()
 
 	// Validate that permissions are valid for the service
@@ -178,11 +181,12 @@ func UpdateRole(id primitive.ObjectID, serviceKey, name, description string, per
 		bson.M{"_id": id},
 		bson.M{
 			"$set": bson.M{
-				"service":     serviceKey,
-				"name":        name,
-				"description": description,
-				"permissions": permissions,
-				"updatedAt":   time.Now(),
+				"service":      serviceKey,
+				"name":         name,
+				"display_name": displayName,
+				"description":  description,
+				"permissions":  permissions,
+				"updatedAt":    time.Now(),
 			},
 		},
 	)
@@ -221,7 +225,13 @@ func GetRolesWithPermission(permission string) ([]Role, error) {
 func GetRolesByService(serviceKey string) ([]Role, error) {
 	ctx := context.Background()
 
-	cursor, err := serviceRolesCol.Find(ctx, bson.M{"service": serviceKey})
+	// Search by both "service_key" (new format) and "service" (legacy format)
+	cursor, err := serviceRolesCol.Find(ctx, bson.M{
+		"$or": []bson.M{
+			{"service_key": serviceKey},
+			{"service": serviceKey},
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -235,15 +245,90 @@ func GetRolesByService(serviceKey string) ([]Role, error) {
 	return roles, nil
 }
 
+// GetInternalRolesByService returns only internal roles for a service
+// For auth service, this excludes external roles (roles with permissions like auth.<otherService>.*)
+func GetInternalRolesByService(serviceKey string) ([]Role, error) {
+	allRoles, err := GetRolesByService(serviceKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// For non-auth services, return all roles
+	if serviceKey != "auth" {
+		return allRoles, nil
+	}
+
+	// For auth service, filter out external roles
+	// External roles have permissions like auth.referal.*, auth.client-service.*, etc.
+	var internalRoles []Role
+	for _, role := range allRoles {
+		if !isExternalRole(role) {
+			internalRoles = append(internalRoles, role)
+		}
+	}
+
+	return internalRoles, nil
+}
+
+// SystemAuthRoles is a map of system (internal) roles for auth service
+var SystemAuthRoles = map[string]bool{
+	"GOD": true, "god": true, "admin": true, "Admin": true, "ADMIN": true,
+	"service-manager": true, "user-manager": true, "viewer": true, "support": true,
+}
+
+// IsSystemAuthRole checks if a role name is a system auth role (not an external role)
+func IsSystemAuthRole(roleName string) bool {
+	return SystemAuthRoles[roleName]
+}
+
+// isExternalRole checks if a role is an external role (controls access to another service)
+// External roles have permissions that start with auth.<serviceKey>. where serviceKey is NOT auth-related
+func isExternalRole(role Role) bool {
+	// System roles are not external
+	if SystemAuthRoles[role.Name] {
+		return false
+	}
+
+	// Check if all permissions are for external service management
+	// External permissions look like: auth.referal.*, auth.client-service.*, etc.
+	externalPrefixes := []string{
+		"auth.referal.", "auth.client-service.", "auth.calculator.",
+		"auth.notification-service.", "auth.monitoring-service.",
+	}
+
+	hasExternalPerms := false
+	hasInternalPerms := false
+
+	for _, perm := range role.Permissions {
+		isExternal := false
+		for _, prefix := range externalPrefixes {
+			if strings.HasPrefix(perm, prefix) {
+				isExternal = true
+				break
+			}
+		}
+		if isExternal {
+			hasExternalPerms = true
+		} else {
+			hasInternalPerms = true
+		}
+	}
+
+	// Role is external if it has only external permissions (no internal auth.* permissions)
+	return hasExternalPerms && !hasInternalPerms
+}
+
 // GetRoleByServiceAndName retrieves a role by service key and name
 func GetRoleByServiceAndName(serviceKey, name string) (*Role, error) {
 	ctx := context.Background()
 
 	var role Role
-	// Use service_roles collection (used by UI) instead of roles
+	// Use service_roles collection, search by both "service_key" (new) and "service" (legacy)
 	err := serviceRolesCol.FindOne(ctx, bson.M{
-		"service": serviceKey,
-		"name":    name,
+		"$or": []bson.M{
+			{"service_key": serviceKey, "name": name},
+			{"service": serviceKey, "name": name},
+		},
 	}).Decode(&role)
 	if err != nil {
 		return nil, err
@@ -364,5 +449,97 @@ func DeleteServiceRole(id primitive.ObjectID) error {
 
 	log.Printf("INFO: Successfully deleted service role %s ('%s' in '%s')",
 		id.Hex(), role.Name, role.ServiceKey)
+	return nil
+}
+
+// CreateServiceRole creates a new service role
+func CreateServiceRole(role *ServiceRole) error {
+	ctx := context.Background()
+
+	// Check if role with same name already exists in the service
+	var existing ServiceRole
+	err := serviceRolesCol.FindOne(ctx, bson.M{
+		"service_key": role.ServiceKey,
+		"name":        role.Name,
+	}).Decode(&existing)
+	if err == nil {
+		return fmt.Errorf("role '%s' already exists in service '%s'", role.Name, role.ServiceKey)
+	}
+
+	if role.ID.IsZero() {
+		role.ID = primitive.NewObjectID()
+	}
+	if role.CreatedAt.IsZero() {
+		role.CreatedAt = time.Now()
+	}
+	role.UpdatedAt = time.Now()
+
+	_, err = serviceRolesCol.InsertOne(ctx, role)
+	if err != nil {
+		return fmt.Errorf("failed to create service role: %w", err)
+	}
+
+	return nil
+}
+
+// GetServiceRoleByName retrieves a service role by service key and role name
+func GetServiceRoleByName(serviceKey, roleName string) (*ServiceRole, error) {
+	ctx := context.Background()
+
+	var role ServiceRole
+	// Search by both "service_key" (new format) and "service" (legacy format)
+	err := serviceRolesCol.FindOne(ctx, bson.M{
+		"$or": []bson.M{
+			{"service_key": serviceKey, "name": roleName},
+			{"service": serviceKey, "name": roleName},
+		},
+	}).Decode(&role)
+	if err != nil {
+		return nil, err
+	}
+
+	return &role, nil
+}
+
+// UpdateServiceRole updates an existing service role
+func UpdateServiceRole(role *ServiceRole) error {
+	ctx := context.Background()
+
+	role.UpdatedAt = time.Now()
+
+	_, err := serviceRolesCol.UpdateOne(
+		ctx,
+		bson.M{"_id": role.ID},
+		bson.M{
+			"$set": bson.M{
+				"name":         role.Name,
+				"display_name": role.DisplayName,
+				"description":  role.Description,
+				"permissions":  role.Permissions,
+				"updated_at":   role.UpdatedAt,
+			},
+		},
+	)
+
+	return err
+}
+
+// RemoveRoleFromAllUsers removes a specific role from all users
+func RemoveRoleFromAllUsers(serviceKey, roleName string) error {
+	ctx := context.Background()
+
+	result, err := userServiceRolesCol.DeleteMany(
+		ctx,
+		bson.M{
+			"service_key": serviceKey,
+			"role_name":   roleName,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to remove role assignments: %w", err)
+	}
+
+	log.Printf("INFO: Removed role '%s' from %d users in service '%s'",
+		roleName, result.DeletedCount, serviceKey)
 	return nil
 }
