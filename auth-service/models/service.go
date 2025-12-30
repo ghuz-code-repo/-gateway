@@ -17,8 +17,23 @@ type PermissionDef struct {
 	Name        string    `bson:"name" json:"name"`                               // Permission identifier (e.g., "users.read")
 	DisplayName string    `bson:"displayName" json:"displayName"`                 // Human-readable name
 	Description string    `bson:"description" json:"description"`                 // Description of what this permission allows
+	Category    string    `bson:"category,omitempty" json:"category,omitempty"`   // Category for grouping (e.g., "users", "orders")
 	External    bool      `bson:"external" json:"external"`                       // True if this permission can be assigned to external roles
 	DeletedAt   time.Time `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"` // Soft delete timestamp
+}
+
+// GetCategory returns the category of a permission, derived from name if not set
+func (p PermissionDef) GetCategory() string {
+	if p.Category != "" {
+		return p.Category
+	}
+	// Derive category from permission name (first part before dot)
+	// e.g., "users.view" -> "users"
+	parts := strings.Split(p.Name, ".")
+	if len(parts) >= 1 {
+		return parts[0]
+	}
+	return "other"
 }
 
 // Service represents a service with its master permission list
@@ -35,6 +50,58 @@ type Service struct {
 
 	// Legacy field for backward compatibility - will be removed after migration
 	Permissions []string `bson:"permissions,omitempty" json:"permissions,omitempty"`
+}
+
+// GetPermissionsByCategory returns permissions grouped by category (only non-deleted, non-external)
+func (s *Service) GetPermissionsByCategory() []PermissionCategory {
+	categoryMap := make(map[string][]PermissionDef)
+	categoryOrder := []string{}
+
+	for _, perm := range s.AvailablePermissions {
+		// Skip deleted and external permissions
+		if !perm.DeletedAt.IsZero() || perm.External {
+			continue
+		}
+
+		category := s.getCategoryForPermission(perm)
+		if _, exists := categoryMap[category]; !exists {
+			categoryOrder = append(categoryOrder, category)
+		}
+		categoryMap[category] = append(categoryMap[category], perm)
+	}
+
+	// Build result maintaining order of first appearance
+	result := make([]PermissionCategory, 0, len(categoryMap))
+	for _, catName := range categoryOrder {
+		perms := categoryMap[catName]
+		result = append(result, PermissionCategory{
+			Name:        catName,
+			DisplayName: strings.Title(catName),
+			Permissions: perms,
+		})
+	}
+
+	return result
+}
+
+// getCategoryForPermission extracts category from permission name
+// If permission starts with service key (e.g., "referal.users.view"), use second part
+// Otherwise use first part (e.g., "users.view" -> "users")
+func (s *Service) getCategoryForPermission(perm PermissionDef) string {
+	if perm.Category != "" {
+		return perm.Category
+	}
+
+	parts := strings.Split(perm.Name, ".")
+	if len(parts) >= 3 && parts[0] == s.Key {
+		// Format: "referal.users.view" -> category is "users"
+		return parts[1]
+	}
+	if len(parts) >= 2 {
+		// Format: "users.view" -> category is "users"
+		return parts[0]
+	}
+	return "other"
 }
 
 // CreateService creates a new service with the new schema
@@ -93,14 +160,14 @@ func RegisterExternalServicePermissions(serviceKey, serviceName string) error {
 		{"users.add", fmt.Sprintf("Add %s users", serviceName), "Add new users to this service", "users"},
 		{"users.edit", fmt.Sprintf("Edit %s users", serviceName), "Edit existing users in this service", "users"},
 		{"users.delete", fmt.Sprintf("Delete %s users", serviceName), "Delete users from this service", "users"},
-		{"users.assign_roles", fmt.Sprintf("Assign roles to %s users", serviceName), "Assign or remove roles from users in this service", "users"},
 
-		// Roles Management (External Roles)
+		// Roles Management
 		{"roles.view", fmt.Sprintf("View %s external roles", serviceName), "View external roles that control this service from auth-service", "roles"},
 		{"roles.create", fmt.Sprintf("Create %s external roles", serviceName), "Create new external roles for controlling this service", "roles"},
 		{"roles.edit", fmt.Sprintf("Edit %s external roles", serviceName), "Edit existing external roles for this service", "roles"},
 		{"roles.delete", fmt.Sprintf("Delete %s external roles", serviceName), "Delete external roles for this service", "roles"},
 		{"roles.assign", fmt.Sprintf("Assign %s external roles", serviceName), "Assign external roles to users", "roles"},
+		{"service_roles.assign", fmt.Sprintf("Assign %s internal roles", serviceName), "Assign internal roles to users within this service", "roles"},
 
 		// Settings Management
 		{"settings.view", fmt.Sprintf("View %s settings", serviceName), "View service settings and configuration", "settings"},

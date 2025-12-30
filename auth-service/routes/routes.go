@@ -73,7 +73,9 @@ func SetupAuthRoutes(router *gin.Engine) {
 	router.POST("/login", RateLimitMiddleware(), loginHandler) // Rate limiting for login
 	router.GET("/logout", logoutHandler)
 	router.GET("/verify", verifyHandler)
-	router.GET("/verify-admin", verifyAdminHandler) // Admin-only verification
+	router.GET("/verify-admin", verifyAdminHandler)            // Admin-only verification
+	router.GET("/verify-logs-access", verifyLogsAccessHandler) // Logs access verification with filter
+
 	router.GET("/access-denied", accessDeniedHandler)
 
 	// Password recovery routes

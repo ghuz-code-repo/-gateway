@@ -592,6 +592,18 @@ Email: %s`, updatedUser.Email)
 
 // deleteUserHandler deletes a user
 func deleteUserHandler(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+
+	// Check permission to delete users
+	if !hasAuthPermission(user, "auth.users.delete") && !hasAuthPermission(user, "auth.*") {
+		if c.GetHeader("Content-Type") == "application/json" || c.GetHeader("Accept") == "application/json" {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "У вас нет прав для удаления пользователей"})
+		} else {
+			c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "У вас нет прав для удаления пользователей"})
+		}
+		return
+	}
+
 	userID := c.Param("id")
 
 	objectID, err := primitive.ObjectIDFromHex(userID)
@@ -734,10 +746,29 @@ func usersManagementHandler(c *gin.Context) {
 
 	user := c.MustGet("user").(*models.User)
 
+	// Debug log permissions
+	userPerms, _ := models.GetUserAuthPermissions(user.ID)
+	log.Printf("DEBUG usersManagementHandler: user=%s has permissions: %v", user.Username, userPerms)
+
+	// Check user permissions for UI visibility
+	canDeleteUsers := hasAuthPermission(user, "auth.users.delete") || hasAuthPermission(user, "auth.*")
+	canBanUsers := hasAuthPermission(user, "auth.users.ban") || hasAuthPermission(user, "auth.*")
+	canResetPassword := hasAuthPermission(user, "auth.users.reset_password") || hasAuthPermission(user, "auth.*")
+	canEditUsers := hasAuthPermission(user, "auth.users.edit") || hasAuthPermission(user, "auth.*")
+	canCreateUsers := hasAuthPermission(user, "auth.users.create") || hasAuthPermission(user, "auth.*")
+
+	log.Printf("DEBUG usersManagementHandler: canDelete=%v canBan=%v canReset=%v canEdit=%v canCreate=%v",
+		canDeleteUsers, canBanUsers, canResetPassword, canEditUsers, canCreateUsers)
+
 	c.HTML(http.StatusOK, "users_management.html", gin.H{
-		"title":          "Управление пользователями",
-		"usersWithRoles": usersWithRoles,
-		"user":           user,
+		"title":            "Управление пользователями",
+		"usersWithRoles":   usersWithRoles,
+		"user":             user,
+		"canDeleteUsers":   canDeleteUsers,
+		"canBanUsers":      canBanUsers,
+		"canResetPassword": canResetPassword,
+		"canEditUsers":     canEditUsers,
+		"canCreateUsers":   canCreateUsers,
 		// Add data needed for header
 		"username":   user.Username,
 		"full_name":  user.GetFullName(),
@@ -791,6 +822,13 @@ func sendPasswordResetHandler(c *gin.Context) {
 
 // banUserHandler bans a user
 func banUserHandler(c *gin.Context) {
+	// Check permission
+	user := c.MustGet("user").(*models.User)
+	if !hasAuthPermission(user, "auth.users.ban") && !hasAuthPermission(user, "auth.*") {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для блокировки пользователей"})
+		return
+	}
+
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
@@ -818,6 +856,13 @@ func banUserHandler(c *gin.Context) {
 
 // unbanUserHandler unbans a user
 func unbanUserHandler(c *gin.Context) {
+	// Check permission
+	user := c.MustGet("user").(*models.User)
+	if !hasAuthPermission(user, "auth.users.ban") && !hasAuthPermission(user, "auth.*") {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для разблокировки пользователей"})
+		return
+	}
+
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {

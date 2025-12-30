@@ -108,8 +108,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DOZZLE_LEVEL=info
-      # Показываем ВСЕ контейнеры (без фильтра по сети, чтобы видеть все БД)
-      # Dozzle будет доступен только через nginx с admin-авторизацией
+      # Forward proxy mode for per-service access control
+      - DOZZLE_AUTH_PROVIDER=forward-proxy
       - DOZZLE_NO_ANALYTICS=true
       - DOZZLE_BASE=/logs
       - TZ=Asia/Tashkent

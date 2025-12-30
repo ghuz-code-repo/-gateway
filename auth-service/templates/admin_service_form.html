@@ -86,6 +86,11 @@
                     <i class="fas fa-user"></i> Пользователи
                 </button></li>
                 {{ end }}
+                {{ if .canViewLogs }}
+                <li><button type="button" class="tab-btn" data-tab="logs">
+                    <i class="fas fa-file-alt"></i> Логи
+                </button></li>
+                {{ end }}
                 {{ else if .isSystemAdmin }}
                 <!-- Режим системного администратора - все вкладки -->
                 <li><button type="button" class="tab-btn" data-tab="settings">
@@ -104,6 +109,9 @@
                 {{ end }}
                 <li><button type="button" class="tab-btn" data-tab="users">
                     <i class="icon-user"></i> Пользователи
+                </button></li>
+                <li><button type="button" class="tab-btn" data-tab="logs">
+                    <i class="fas fa-file-alt"></i> Логи
                 </button></li>
                 {{ else }}
                 <!-- Режим внешней роли - только разрешенные вкладки -->
@@ -125,6 +133,11 @@
                 {{ if .canViewUsers }}
                 <li><button type="button" class="tab-btn{{ if and (not .canViewSettings) (not .canViewRoles) (not .canViewExternalRoles) }} active{{ end }}" data-tab="users">
                     <i class="fas fa-user"></i> Пользователи
+                </button></li>
+                {{ end }}
+                {{ if .canViewLogs }}
+                <li><button type="button" class="tab-btn{{ if and (not .canViewSettings) (not .canViewRoles) (not .canViewExternalRoles) (not .canViewUsers) }} active{{ end }}" data-tab="logs">
+                    <i class="fas fa-file-alt"></i> Логи
                 </button></li>
                 {{ end }}
                 {{ end }}
@@ -281,11 +294,7 @@
                     <div class="permissions-container" id="permissions-container">
                         {{ if .service.AvailablePermissions }}
                             <!-- Внутренние разрешения сервиса -->
-                            <div class="permissions-category">
-                                <h4 class="permissions-category-header">
-                                    <i class="fas fa-building"></i> Внутренние разрешения сервиса
-                                    <small>Разрешения для функций самого сервиса {{ .service.Name }}</small>
-                                </h4>
+                            <!--<div class="permissions-category"> -->
                                 <div class="permissions-category-content">
                                 {{ range .service.AvailablePermissions }}
                                     {{ if and (.DeletedAt.IsZero) (not .External) }}
@@ -302,7 +311,7 @@
                                         {{ if not $.manageMode }}
                                         <div class="permission-actions">
                                             <button type="button" class="btn small secondary" 
-                                                    onclick="openEditPermissionModal('{{ .Name }}', '{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}', '{{ .Description }}')">
+                                                    onclick="openEditPermissionModal('{{ .Name }}', '{{ .DisplayName }}', '{{ .Description }}')">
                                                 Изменить
                                             </button>
                                             <button type="button" class="btn small danger" 
@@ -315,45 +324,7 @@
                                     {{ end }}
                                 {{ end }}
                                 </div>
-                            </div>
-                            
-                            <!-- Внешние разрешения (для управления другими сервисами) -->
-                            <div class="permissions-category" style="margin-top: 30px;">
-                                <h4 class="permissions-category-header" style="color: var(--warning-color);">
-                                    <i class="fas fa-external-link-alt"></i> Внешние разрешения
-                                    <small>Разрешения для управления доступом к другим сервисам через auth</small>
-                                </h4>
-                                <div class="permissions-category-content">
-                                {{ range .service.AvailablePermissions }}
-                                    {{ if and (.DeletedAt.IsZero) .External }}
-                                    <div class="permission-item external-permission" data-search="{{ .Name }}{{ if .DisplayName }} {{ .DisplayName }}{{ end }}{{ if .Description }} {{ .Description }}{{ end }}" data-external="true">
-                                        <div class="permission-details">
-                                            <div class="permission-name">
-                                                <i class="fas fa-shield-alt" style="color: var(--warning-color); margin-right: 5px;"></i>
-                                                {{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}
-                                            </div>
-                                            {{ if .Description }}
-                                            <div class="permission-description">{{ .Description }}</div>
-                                            {{ end }}
-                                            <div class="permission-code">Код: {{ .Name }}</div>
-                                        </div>
-                                        {{ if not $.manageMode }}
-                                        <div class="permission-actions">
-                                            <button type="button" class="btn small secondary" 
-                                                    onclick="openEditPermissionModal('{{ .Name }}', '{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}', '{{ .Description }}')">
-                                                Изменить
-                                            </button>
-                                            <button type="button" class="btn small danger" 
-                                                    onclick="deletePermission('{{ $.service.Key }}', '{{ .Name }}')">
-                                                Удалить
-                                            </button>
-                                        </div>
-                                        {{ end }}
-                                    </div>
-                                    {{ end }}
-                                {{ end }}
-                                </div>
-                            </div>
+                            <!--</div>-->
                         {{ else if .service.Permissions }}
                             <div class="permission-item" style="background-color: #fff3cd; border-color: #ffeaa7;">
                                 <div class="permission-details">
@@ -558,6 +529,21 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+            {{ end }}
+            
+            <!-- Вкладка "Логи" -->
+            {{ if .canViewLogs }}
+            <div id="logs" class="tab-content">
+                <div class="logs-container">
+                        <iframe 
+                            id="logs-iframe"
+                            src="/services/{{ .service.Key }}/logs"
+                            class="logs-iframe"
+                            frameborder="0"
+                            allowfullscreen>
+                        </iframe>
                 </div>
             </div>
             {{ end }}
@@ -1968,6 +1954,17 @@
                     item.classList.add('permission-hidden');
                 }
             });
+            
+            // Скрываем категории без видимых элементов
+            const categories = document.querySelectorAll('#editRoleModal .permission-category-section');
+            categories.forEach(category => {
+                const visibleItems = category.querySelectorAll('.edit-permission-item:not(.permission-hidden)');
+                if (visibleItems.length === 0) {
+                    category.classList.add('permission-hidden');
+                } else {
+                    category.classList.remove('permission-hidden');
+                }
+            });
         }
         
         // Функция для переключения разрешения по клику на карточку в модальном окне создания
@@ -1999,6 +1996,17 @@
                     item.classList.remove('permission-hidden');
                 } else {
                     item.classList.add('permission-hidden');
+                }
+            });
+            
+            // Скрываем категории без видимых элементов
+            const categories = document.querySelectorAll('#createRoleModal .permission-category-section');
+            categories.forEach(category => {
+                const visibleItems = category.querySelectorAll('.create-permission-item:not(.permission-hidden)');
+                if (visibleItems.length === 0) {
+                    category.classList.add('permission-hidden');
+                } else {
+                    category.classList.remove('permission-hidden');
                 }
             });
         }
@@ -3037,14 +3045,21 @@
                 </div>
                 <div class="edit-role-permissions">
                     <label>Разрешения роли</label>
-                    {{ if .service.AvailablePermissions }}
+                    {{ if .permissionCategories }}
                         <div class="permissions-search">
                             <input type="text" id="create-permissions-search-input" placeholder="🔍 Поиск разрешений..." 
                                    onkeyup="filterCreatePermissions()">
                         </div>
                         <div class="permissions-list" id="create-permissions-list">
-                            {{ range .service.AvailablePermissions }}
-                                {{ if .DeletedAt.IsZero }}
+                            {{ range .permissionCategories }}
+                            <div class="permission-category-section" data-category="{{ .Name }}">
+                                <div class="permission-category-header">
+                                    <i class="fas fa-folder"></i>
+                                    <span class="category-name">{{ .DisplayName }}</span>
+                                    <span class="category-count">({{ len .Permissions }})</span>
+                                </div>
+                                <div class="permission-category-items">
+                                {{ range .Permissions }}
                                 <div class="edit-permission-item create-permission-item" data-permission="{{ .Name }}" 
                                      data-search="{{ .Name }}{{ if .DisplayName }} {{ .DisplayName }}{{ end }}{{ if .Description }} {{ .Description }}{{ end }}"
                                      onclick="toggleCreatePermission('{{ .Name }}')">
@@ -3061,6 +3076,8 @@
                                     </div>
                                 </div>
                                 {{ end }}
+                                </div>
+                            </div>
                             {{ end }}
                         </div>
                     {{ else }}
@@ -3177,14 +3194,21 @@
                 </div>
                 <div class="edit-role-permissions">
                     <label>Разрешения роли</label>
-                    {{ if .service.AvailablePermissions }}
+                    {{ if .permissionCategories }}
                         <div class="permissions-search">
                             <input type="text" id="permissions-search-input" placeholder="🔍 Поиск разрешений..." 
                                    onkeyup="filterPermissions()">
                         </div>
                         <div class="permissions-list" id="permissions-list">
-                            {{ range .service.AvailablePermissions }}
-                                {{ if .DeletedAt.IsZero }}
+                            {{ range .permissionCategories }}
+                            <div class="permission-category-section" data-category="{{ .Name }}">
+                                <div class="permission-category-header">
+                                    <i class="fas fa-folder"></i>
+                                    <span class="category-name">{{ .DisplayName }}</span>
+                                    <span class="category-count">({{ len .Permissions }})</span>
+                                </div>
+                                <div class="permission-category-items">
+                                {{ range .Permissions }}
                                 <div class="edit-permission-item" data-permission="{{ .Name }}" 
                                      data-search="{{ .Name }}{{ if .DisplayName }} {{ .DisplayName }}{{ end }}{{ if .Description }} {{ .Description }}{{ end }}"
                                      onclick="togglePermission('{{ .Name }}')">
@@ -3201,6 +3225,8 @@
                                     </div>
                                 </div>
                                 {{ end }}
+                                </div>
+                            </div>
                             {{ end }}
                         </div>
                     {{ else }}
@@ -3945,6 +3971,80 @@
         
         .btn.danger:hover {
             background: #c0392b;
+        }
+        
+        /* Logs Tab Styles */
+        .logs-container {
+            padding: 0;
+        }
+        
+        .logs-header {
+            margin-bottom: 20px;
+        }
+        
+        .logs-header h3 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+        
+        .logs-description {
+            color: var(--text-muted);
+            margin: 0;
+        }
+        
+        .logs-actions {
+            margin-bottom: 20px;
+        }
+        
+        .logs-iframe-container {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+        
+        /* Стили для вкладки логов внутри страницы сервиса */
+        #logs.tab-content {
+            display: none;
+            height: calc(100vh - 250px);
+            min-height: 500px;
+        }
+        
+        #logs.tab-content.active {
+            display: block;
+        }
+        
+        #logs .logs-container {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            background: transparent;
+        }
+        
+        #logs .logs-iframe {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            display: block;
+        }
+        
+        .logs-info {
+            margin-top: 15px;
+            color: var(--text-muted);
+        }
+        
+        .logs-info small {
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
     </style>
 </body>

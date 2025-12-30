@@ -213,12 +213,17 @@ server {
     }
     
     # ================================================================
-    # LOGS VIEWER (DOZZLE) - Admin Only
+    # LOGS VIEWER (DOZZLE) - Admin Only (all containers)
     # ================================================================
     
     location /logs {
-        # Admin-only access check
-        auth_request /verify-admin;
+        # Admin-only access check with forward-proxy headers
+        auth_request /verify-logs-auth;
+        auth_request_set $dozzle_user $upstream_http_remote_user;
+        auth_request_set $dozzle_email $upstream_http_remote_email;
+        auth_request_set $dozzle_name $upstream_http_remote_name;
+        auth_request_set $dozzle_filter $upstream_http_remote_filter;
+        
         error_page 401 = @error401;
         error_page 403 = @error403_logs;
         
@@ -232,6 +237,12 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
+        # Forward proxy headers for Dozzle
+        proxy_set_header Remote-User $dozzle_user;
+        proxy_set_header Remote-Email $dozzle_email;
+        proxy_set_header Remote-Name $dozzle_name;
+        proxy_set_header Remote-Filter $dozzle_filter;
+        
         # Important for WebSocket
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
@@ -244,6 +255,84 @@ server {
         # Security headers
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header X-Content-Type-Options "nosniff" always;
+    }
+    
+    # Verify logs access (admin sees all, others see filtered)
+    location = /verify-logs-auth {
+        internal;
+        proxy_pass http://auth-service:80/verify-logs-access;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # Service-specific logs viewer
+    location ~ ^/services/([^/]+)/logs(/.*)?$ {
+        set $service_key $1;
+        
+        # Check access with service filter
+        auth_request /verify-service-logs-auth;
+        auth_request_set $dozzle_user $upstream_http_remote_user;
+        auth_request_set $dozzle_email $upstream_http_remote_email;
+        auth_request_set $dozzle_name $upstream_http_remote_name;
+        auth_request_set $dozzle_filter $upstream_http_remote_filter;
+        
+        error_page 401 = @error401;
+        error_page 403 = @error403_service_logs;
+        
+        # Rewrite to Dozzle base path
+        rewrite ^/services/[^/]+/logs(/.*)?$ /logs$1 break;
+        
+        # Dozzle web UI with WebSocket support
+        proxy_pass http://gateway-dozzle:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Forward proxy headers for Dozzle
+        proxy_set_header Remote-User $dozzle_user;
+        proxy_set_header Remote-Email $dozzle_email;
+        proxy_set_header Remote-Name $dozzle_name;
+        proxy_set_header Remote-Filter $dozzle_filter;
+        
+        # Important for WebSocket
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_connect_timeout 75s;
+        
+        # Disable buffering for real-time logs
+        proxy_buffering off;
+        proxy_cache off;
+        
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+    
+    # Verify service-specific logs access
+    location = /verify-service-logs-auth {
+        internal;
+        proxy_pass http://auth-service:80/verify-logs-access?service=$service_key;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # Error handler for service logs - redirect to service page
+    location @error403_service_logs {
+        return 302 /services/$service_key;
     }
     
     # Special error handler for logs - redirect to menu

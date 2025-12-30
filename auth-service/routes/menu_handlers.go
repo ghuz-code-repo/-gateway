@@ -117,8 +117,10 @@ func menuHandler(c *gin.Context) {
 	}
 
 	// Check if user has permission to view system settings (must be system admin)
-	// NEW: Check if user can view system settings
-	canViewSystemSettings := hasAuthPermission(user, "auth.settings.view")
+	// NEW: Check if user can view system settings - any role in auth service allows access
+	canViewSystemSettings := hasAuthPermission(user, "auth.settings.view") ||
+		hasAuthPermission(user, "auth.dashboard.view") ||
+		hasAnyRoleInService(user, "auth")
 	fmt.Printf("User %s can view system settings: %v\n", user.Username, canViewSystemSettings)
 
 	c.HTML(http.StatusOK, "menu.html", gin.H{
@@ -194,23 +196,43 @@ func systemSettingsHandler(c *gin.Context) {
 	// Get user from middleware
 	user := c.MustGet("user").(*models.User)
 
-	// NEW: Check if user has permission to view system settings
-	if !hasAuthPermission(user, "auth.settings.view") {
+	// Check if user has any role in auth service or specific permissions
+	hasAccess := hasAuthPermission(user, "auth.settings.view") ||
+		hasAuthPermission(user, "auth.dashboard.view") ||
+		hasAnyRoleInService(user, "auth")
+
+	if !hasAccess {
 		c.Redirect(http.StatusFound, "/access-denied")
 		return
 	}
 
-	// All admins (GOD, admin, system.admin) have full access to all settings
+	// Determine what user can do based on their permissions
+	// User management - any users permission allows access to users page
+	canManageUsers := hasAnyAuthPermission(user, "auth.users.view", "auth.users.create", "auth.users.edit", "auth.*")
+
+	// Services management - requires edit/create permissions, not just view
+	// View permission only allows seeing auth service roles, not all services management
+	canManageServices := hasAnyAuthPermission(user, "auth.services.create", "auth.services.edit", "auth.services.delete", "auth.*")
+
+	// Auth service roles - view permission is enough to see auth service settings
+	canViewAuthRoles := hasAnyAuthPermission(user, "auth.roles.view", "auth.roles.create", "auth.roles.edit", "auth.*")
+
+	// Logs - view permission is enough
+	canViewLogs := hasAnyAuthPermission(user, "auth.logs.view", "auth.*")
+
+	// Notifications - requires manage permission
+	canManageNotifications := hasAnyAuthPermission(user, "auth.notifications.send", "auth.settings.edit", "auth.*")
+
 	c.HTML(http.StatusOK, "settings.html", gin.H{
 		"username":               user.Username,
 		"full_name":              user.GetFullName(),
 		"short_name":             user.GetShortName(),
 		"user":                   user,
-		"canManageUsers":         true,
-		"canManageServices":      true,
-		"canManageRoles":         true,
-		"canViewLogs":            true,
-		"canManageNotifications": true,
+		"canManageUsers":         canManageUsers,
+		"canManageServices":      canManageServices,
+		"canManageRoles":         canViewAuthRoles,
+		"canViewLogs":            canViewLogs,
+		"canManageNotifications": canManageNotifications,
 	})
 }
 
