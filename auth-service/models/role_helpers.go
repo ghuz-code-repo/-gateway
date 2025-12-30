@@ -426,6 +426,7 @@ func GetExternalRolesForService(serviceKey string) ([]Role, error) {
 
 // GetExternalPermissionsForService returns all external permissions defined for a service
 // grouped by category. These are permissions in auth-service with names like auth.<serviceKey>.*
+// that control access to service management tabs (Users, Roles, Settings, Logs).
 func GetExternalPermissionsForService(serviceKey string) ([]ExternalPermissionCategory, error) {
 	log.Printf("DEBUG: GetExternalPermissionsForService called for serviceKey: %s", serviceKey)
 
@@ -448,7 +449,7 @@ func GetExternalPermissionsForService(serviceKey string) ([]ExternalPermissionCa
 			continue
 		}
 
-		// Include permissions that control access to this service
+		// Include permissions that control access to this service settings
 		if perm.External && strings.HasPrefix(perm.Name, prefix) {
 			log.Printf("DEBUG: Found external permission: %s (external=%v)", perm.Name, perm.External)
 			permissions = append(permissions, perm)
@@ -457,18 +458,19 @@ func GetExternalPermissionsForService(serviceKey string) ([]ExternalPermissionCa
 
 	log.Printf("DEBUG: Total external permissions found: %d", len(permissions))
 
-	// Group permissions by category (extract from auth.referal.users.manage -> users)
+	// Group permissions by category (3rd part of permission name: auth.service.CATEGORY.action)
 	categoryMap := make(map[string][]PermissionDef)
 
 	for _, perm := range permissions {
-		// Extract category: auth.referal.users.manage -> users
 		parts := strings.Split(perm.Name, ".")
+		var category string
+		// auth.referal.users.manage -> users (3rd part)
 		if len(parts) >= 3 {
-			category := parts[2] // Third part is the category
-			categoryMap[category] = append(categoryMap[category], perm)
+			category = parts[2]
 		} else {
-			categoryMap["other"] = append(categoryMap["other"], perm)
+			category = "other"
 		}
+		categoryMap[category] = append(categoryMap[category], perm)
 	}
 
 	// Convert to slice of ExternalPermissionCategory

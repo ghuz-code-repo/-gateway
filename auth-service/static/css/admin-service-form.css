@@ -499,12 +499,16 @@ body {
     content: "👤";
 }
 
-/* Tab content - заполняет оставшееся место БЕЗ скролла */
+/* Tab content - ФИКСИРОВАННАЯ высота для всех вкладок */
 .tab-content {
-    flex: 1;
-    /* Занимает всё доступное пространство */
-    overflow-y: visible;
-    /* Убираем скролл с tab-content - он должен быть только на контейнерах */
+    flex: 0 0 auto;
+    /* Не растягивается и не сжимается */
+    height: calc(100vh - 280px);
+    /* Фиксированная высота для всех вкладок */
+    min-height: 400px;
+    /* Минимальная высота */
+    overflow-y: auto;
+    /* По умолчанию скролл - для вкладок без внутренних списков */
     overflow-x: hidden;
     /* Убираем горизонтальный скролл */
     background-color: var(--card-background-color);
@@ -514,16 +518,20 @@ body {
     display: none;
     /* По умолчанию скрыты */
     flex-direction: column;
-    /* height: calc(100% - 60px); */
-    /* Фиксированная высота с учетом навигации */
-    /* min-height: 540px; */
-    /* Минимальная высота контента */
 }
 
 .tab-content.active {
     display: flex;
     /* Используем flex вместо block */
     flex-direction: column;
+}
+
+/* Вкладки с внутренними списками - скролл внутри списков, не снаружи */
+.tab-content:has(.permissions-section),
+.tab-content:has(.roles-section),
+.tab-content:has(.users-section) {
+    overflow-y: hidden;
+    /* Скрываем внешний скролл - он внутри контейнеров */
 }
 
 /* ========== BUTTON STYLES ========== */
@@ -695,10 +703,16 @@ body {
 .permissions-section,
 .roles-section,
 .users-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    height: 0;
+    min-height: 200px;
     margin-top: 0;
     padding: 0;
     border: none;
     background-color: transparent;
+    overflow: hidden;
 }
 
 /* Стили для элементов списков */
@@ -708,7 +722,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 15px;
-    margin: 10px 0;
+    margin: 0;
     border: 2px solid var(--light-border-color);
     border-radius: 8px;
     background: var(--card-background-color);
@@ -1053,16 +1067,14 @@ body {
 
 /* ========== SINGLE PAGE SCROLLABLE CONTAINERS ========== */
 
-/* Прокручиваемые контейнеры для ролей и разрешений - ФИКСИРОВАННАЯ ВЫСОТА с внутренним скроллом */
+/* Прокручиваемые контейнеры для ролей и разрешений - ЗАПОЛНЯЮТ оставшееся место */
 .roles-container,
 .permissions-container {
-    flex: 1;
-    /* Занимают доступное место в контейнере */
-    height: 400px;
-    /* ФИКСИРОВАННАЯ высота */
-    max-height: 400px;
-    /* Максимальная высота */
-    min-height: 200px;
+    flex: 1 1 0;
+    /* flex-grow: 1, flex-shrink: 1, flex-basis: 0 - КРИТИЧНО для скролла */
+    height: 0;
+    /* КРИТИЧНО: height: 0 позволяет flex: 1 работать с overflow */
+    min-height: 150px;
     /* Минимальная высота для удобства */
     overflow-y: auto;
     /* СКРОЛЛ ТОЛЬКО ЗДЕСЬ */
@@ -1080,11 +1092,13 @@ body {
 .content-section {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    /* gap: 10px; */
-    overflow-x: hidden;
-    overflow-y: visible;
-    /* Убираем любой скролл отсюда */
+    flex: 1 1 0;
+    /* Заполняет доступное место */
+    height: 0;
+    /* КРИТИЧНО для работы flex с overflow */
+    min-height: 200px;
+    overflow: hidden;
+    /* Скрываем переполнение */
 }
 
 /* Секция поиска - единообразная для всех вкладок */
@@ -1336,7 +1350,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 15px;
-    margin: 10px 0;
+    margin: 0;
     border: 2px solid var(--light-border-color);
     border-radius: 8px;
     background: var(--card-background-color);
@@ -2073,12 +2087,11 @@ body {
 
 /* КРИТИЧЕСКИЙ ФИКС СКРОЛЛБАРА - МАКСИМАЛЬНЫЙ ПРИОРИТЕТ */
 .tabs-container {
-    overflow-y: visible !important;
-    overflow-x: hidden !important;
-    /* overflow: visible !important; */
-    height: auto !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    height: calc(100vh - 200px) !important;
     max-height: calc(100vh - 200px) !important;
-    /* Ограничиваем максимальную высоту */
 }
 
 /* КРИТИЧЕСКИЙ ФИКС - ПРИНУДИТЕЛЬНОЕ ПРИМЕНЕНИЕ ТЕМНОЙ ТЕМЫ */

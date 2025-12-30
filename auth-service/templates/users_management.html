@@ -48,12 +48,14 @@
                 
                 <!-- Action Buttons -->
                 <div class="action-buttons">
+                    {{ if .canCreateUsers }}
                     <a href="/users/new" class="btn primary">
                         <i class="fas fa-user-plus"></i> Добавить пользователя
                     </a>
                     <a href="/users/import" class="btn secondary">
                         <i class="fas fa-upload"></i> Импорт из Excel
                     </a>
+                    {{ end }}
                     <a href="/users/export" class="btn secondary">
                         <i class="fas fa-download"></i> Экспорт в Excel
                     </a>
@@ -133,15 +135,20 @@
                             <!-- Кнопки действий -->
                             <div class="user-actions">
                                 <!-- Основные действия в одной линии -->
+                                {{ if $.canEditUsers }}
                                 <button class="btn small primary" onclick="manageUserRoles('{{ .User.ID.Hex }}')">
                                     <i class="fas fa-edit"></i> Изменить
                                 </button>
+                                {{ end }}
+                                {{ if $.canResetPassword }}
                                 <button class="btn small secondary" onclick="resetUserPassword('{{ .User.ID.Hex }}')">
                                     <i class="fas fa-redo"></i> Восстановить пароль
                                 </button>
+                                {{ end }}
                                 
                                 <!-- Кнопки административных действий -->
                                 {{ if not (hasAdminRole .ServiceRoles) }}
+                                {{ if $.canBanUsers }}
                                 {{ if .User.IsBanned }}
                                 <button type="button" class="btn small success" onclick="unbanUser('{{ .User.ID.Hex }}')">
                                     <i class="fas fa-unlock"></i> Разблокировать
@@ -151,9 +158,12 @@
                                     <i class="fas fa-ban"></i> Заблокировать
                                 </button>
                                 {{ end }}
+                                {{ end }}
+                                {{ if $.canDeleteUsers }}
                                 <button type="button" class="btn small danger" onclick="deleteUser('{{ .User.ID.Hex }}')">
                                     <i class="fas fa-trash"></i> Удалить
                                 </button>
+                                {{ end }}
                                 {{ end }}
                             </div>
                         </div>

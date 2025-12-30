@@ -27,7 +27,8 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 		return
 	}
 
-	// For non-admin users, show only services they manage (service-manager role ONLY)
+	// For non-admin users, show only services they have access to
+	// This includes users with any active role in the service (not just service-manager)
 	allServices, err := models.GetAllServicesWithOptions(false) // Don't include deleted
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
@@ -36,25 +37,29 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 		return
 	}
 
-	// Filter services where user has service-manager role (NOT admin)
-	var managedServices []models.Service
+	// Filter services where user has ANY active role
+	var accessibleServices []models.Service
 	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
 	if err == nil {
+		// Build a set of service keys where user has active roles
+		serviceAccess := make(map[string]bool)
+		for _, role := range userServiceRoles {
+			if role.IsActive {
+				serviceAccess[role.ServiceKey] = true
+			}
+		}
+
+		// Filter services user has access to
 		for _, service := range allServices {
-			for _, role := range userServiceRoles {
-				if role.ServiceKey == service.Key &&
-					role.RoleName == "service-manager" &&
-					role.IsActive {
-					managedServices = append(managedServices, service)
-					break
-				}
+			if serviceAccess[service.Key] {
+				accessibleServices = append(accessibleServices, service)
 			}
 		}
 	}
 
 	c.HTML(http.StatusOK, "admin_services.html", gin.H{
 		"title":            "Управление сервисами",
-		"services":         managedServices,
+		"services":         accessibleServices,
 		"username":         user.Username,
 		"full_name":        user.GetFullName(),
 		"short_name":       user.GetShortName(),
@@ -270,28 +275,32 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 	// These permissions control what user can do when accessing service settings via external role
 	servicePermPrefix := fmt.Sprintf("auth.%s.", service.Key)
 
+	// For auth-service, external roles are not allowed (it's a system service)
+	isAuthService := service.Key == "auth"
+
 	// Check external roles permissions for the current user
 	// Can be granted via global auth.external_roles.* OR service-specific auth.<service>.roles.*
-	canViewExternalRoles := isSystemAdmin || isServiceManager ||
+	// But NOT for auth-service - it cannot have external roles
+	canViewExternalRoles := !isAuthService && (isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, "auth.external_roles.view") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.view") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
-	canCreateExternalRoles := isSystemAdmin || isServiceManager ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*"))
+	canCreateExternalRoles := !isAuthService && (isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, "auth.external_roles.create") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.create") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
-	canEditExternalRoles := isSystemAdmin || isServiceManager ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*"))
+	canEditExternalRoles := !isAuthService && (isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, "auth.external_roles.edit") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.edit") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
-	canDeleteExternalRoles := isSystemAdmin || isServiceManager ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*"))
+	canDeleteExternalRoles := !isAuthService && (isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, "auth.external_roles.delete") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.delete") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
-	canAssignExternalRoles := isSystemAdmin || isServiceManager ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*"))
+	canAssignExternalRoles := !isAuthService && (isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, "auth.external_roles.assign") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.assign") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*"))
 
 	// Internal roles management permissions
 	// Can be managed by system admins, service managers, OR users with auth.<service>.service_roles.* permissions
@@ -332,8 +341,8 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		models.HasAuthPermission(user.ID, servicePermPrefix+"users.*")
 	// canAssignRoles is true if user can assign either internal or external roles
 	canAssignRoles := canAssignInternalRoles || canAssignExternalRoles ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"users.assign_roles") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"users.*")
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.assign") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
 	canImportUsers := isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"users.import") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"users.*")
@@ -349,6 +358,11 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		models.HasAuthPermission(user.ID, servicePermPrefix+"settings.edit") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"settings.*")
 
+	// Logs permissions
+	canViewLogs := isSystemAdmin || isServiceManager ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"logs.view") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"logs.*")
+
 	// Check if user can manage internal roles (has access to service management)
 	// Now based on actual permissions
 	canManageInternalRoles := canCreateRoles || canEditRoles || canDeleteRoles
@@ -356,24 +370,28 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 	// Check for import success message
 	importSuccess := c.Query("import_success")
 
+	// Get permissions grouped by category for internal roles
+	permissionCategories := service.GetPermissionsByCategory()
+
 	templateData := gin.H{
-		"title":                   "Детали сервиса",
-		"service":                 service,
-		"serviceRoles":            serviceRoles,
-		"serviceUsers":            serviceUsers,
-		"externalRoles":           externalRoles,
-		"externalPermissions":     externalPermissions,
-		"roleDisplayNames":        roleDisplayNames,
-		"permissionDisplayNames":  permissionDisplayNames,
-		"username":                user.Username,
-		"full_name":               user.GetFullName(),
-		"short_name":              user.GetShortName(),
-		"user":                    user,
-		"isSystemAdmin":           isSystemAdmin,
-		"isServiceManager":        isServiceManager,
-		"manageMode":              manageMode,
-		"canViewExternalRoles":    canViewExternalRoles,
-		"canCreateExternalRoles":  canCreateExternalRoles,
+		"title":                  "Детали сервиса",
+		"service":                service,
+		"serviceRoles":           serviceRoles,
+		"serviceUsers":           serviceUsers,
+		"externalRoles":          externalRoles,
+		"externalPermissions":    externalPermissions,
+		"permissionCategories":   permissionCategories,
+		"roleDisplayNames":       roleDisplayNames,
+		"permissionDisplayNames": permissionDisplayNames,
+		"username":               user.Username,
+		"full_name":              user.GetFullName(),
+		"short_name":             user.GetShortName(),
+		"user":                   user,
+		"isSystemAdmin":          isSystemAdmin,
+		"isServiceManager":       isServiceManager,
+		"manageMode":             manageMode,
+		"canViewExternalRoles":   canViewExternalRoles,
+		"canCreateExternalRoles": canCreateExternalRoles,
 		"canEditExternalRoles":   canEditExternalRoles,
 		"canDeleteExternalRoles": canDeleteExternalRoles,
 		"canAssignExternalRoles": canAssignExternalRoles,
@@ -393,6 +411,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		"canExportUsers":  canExportUsers,
 		"canViewSettings": canViewSettings,
 		"canEditSettings": canEditSettings,
+		"canViewLogs":     canViewLogs,
 	}
 	log.Printf("DEBUG: Template data for service %s - serviceRoles count: %d, externalRoles count: %d", service.Key, len(serviceRoles), len(externalRoles))
 	log.Printf("DEBUG: Permissions check - isSystemAdmin: %v, isServiceManager: %v, hasExternalRoleAccess: %v", isSystemAdmin, isServiceManager, hasExternalRoleAccess)
@@ -595,7 +614,64 @@ func addServicePermissionHandler(c *gin.Context) {
 }
 
 func updateServicePermissionHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Service permission update not implemented yet"})
+	serviceKey := c.Param("serviceKey")
+	permissionName := c.Param("permName")
+
+	if permissionName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Имя разрешения обязательно"})
+		return
+	}
+
+	// Try to parse from form data first (from HTML form)
+	displayName := c.PostForm("displayName")
+	if displayName == "" {
+		displayName = c.PostForm("display_name") // fallback for legacy forms
+	}
+	description := c.PostForm("description")
+
+	// If form data is empty, try JSON
+	if displayName == "" && description == "" {
+		var input struct {
+			DisplayName string `json:"displayName"`
+			Description string `json:"description"`
+		}
+		if err := c.ShouldBindJSON(&input); err == nil {
+			displayName = input.DisplayName
+			description = input.Description
+		}
+	}
+
+	// Validate service exists
+	service, err := models.GetServiceByKey(serviceKey)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
+		return
+	}
+
+	// Find and update permission
+	found := false
+	for i, perm := range service.AvailablePermissions {
+		if perm.Name == permissionName {
+			service.AvailablePermissions[i].DisplayName = displayName
+			service.AvailablePermissions[i].Description = description
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Разрешение не найдено"})
+		return
+	}
+
+	// Save updated service
+	err = models.UpdateServicePermissions(service.Key, service.AvailablePermissions)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении разрешения: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Разрешение успешно обновлено"})
 }
 
 func deleteServicePermissionHandler(c *gin.Context) {
@@ -1297,6 +1373,12 @@ func getAuthServicePermissionsHandler(c *gin.Context) {
 func createExternalRoleHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	serviceKey := c.Param("serviceKey")
+
+	// Auth-service cannot have external roles (it's a system service)
+	if serviceKey == "auth" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Auth-service не может иметь внешние роли"})
+		return
+	}
 
 	// Check permission - need auth.external_roles.create or system admin
 	isSystemAdmin := c.GetBool("isSystemAdmin")

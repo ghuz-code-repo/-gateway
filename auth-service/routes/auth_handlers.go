@@ -12,17 +12,18 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // loginPageHandler serves the login page
 func loginPageHandler(c *gin.Context) {
 	message := c.Query("message")
 	var successMessage string
-	
+
 	if message == "password_reset_success" {
 		successMessage = "Пароль успешно изменен! Теперь вы можете войти с новым паролем."
 	}
-	
+
 	c.HTML(http.StatusOK, "login_clean.html", gin.H{
 		"redirect": c.Query("redirect"),
 		"success":  successMessage,
@@ -53,7 +54,7 @@ func loginHandler(c *gin.Context) {
 			banMessage += ". Причина: " + user.BanReason
 		}
 		banMessage += ". Обратитесь к администратору для разблокировки."
-		
+
 		// Record failed login attempt for banned users
 		RecordFailedLogin(c.ClientIP())
 		c.HTML(http.StatusForbidden, "login_clean.html", gin.H{
@@ -76,7 +77,7 @@ func loginHandler(c *gin.Context) {
 	// Set token in cookie with security flags
 	// Secure flag: true for production (requires HTTPS)
 	isProduction := os.Getenv("ENVIRONMENT") == "production"
-	c.SetSameSite(http.SameSiteLaxMode) // Protection against CSRF
+	c.SetSameSite(http.SameSiteLaxMode)                                   // Protection against CSRF
 	c.SetCookie("token", tokenString, 86400, "/", "", isProduction, true) // 24 hours, httpOnly, secure in production
 
 	// Reset rate limit on successful login
@@ -236,7 +237,7 @@ func verifyHandler(c *gin.Context) {
 
 	// Base64 encode the full name to preserve non-ASCII characters
 	fullName := user.GetFullName()
-	log.Printf("DEBUG verifyHandler: user.FullName='%s', user.LastName='%s', user.FirstName='%s', user.MiddleName='%s', calculated fullName='%s'", 
+	log.Printf("DEBUG verifyHandler: user.FullName='%s', user.LastName='%s', user.FirstName='%s', user.MiddleName='%s', calculated fullName='%s'",
 		user.FullName, user.LastName, user.FirstName, user.MiddleName, fullName)
 	encodedFullName := base64.StdEncoding.EncodeToString([]byte(fullName))
 	c.Header("X-User-Full-Name", encodedFullName)
@@ -276,7 +277,7 @@ func verifyHandler(c *gin.Context) {
 		c.Header("X-User-Passport-Number", headerValue)
 		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Number from document: '%s'", headerValue)
 	}
-	
+
 	if user.PassportIssuedBy != "" {
 		c.Header("X-User-Passport-Giver", user.PassportIssuedBy)
 		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Giver from user.PassportIssuedBy: '%s'", user.PassportIssuedBy)
@@ -285,7 +286,7 @@ func verifyHandler(c *gin.Context) {
 		c.Header("X-User-Passport-Giver", headerValue)
 		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Giver from document: '%s'", headerValue)
 	}
-	
+
 	if user.PassportIssuedDate != nil {
 		headerValue := user.PassportIssuedDate.Format("2006-01-02")
 		c.Header("X-User-Passport-Date", headerValue)
@@ -295,7 +296,7 @@ func verifyHandler(c *gin.Context) {
 		c.Header("X-User-Passport-Date", headerValue)
 		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Date from document: '%s'", headerValue)
 	}
-	
+
 	if user.Address != "" {
 		c.Header("X-User-Passport-Address", user.Address)
 		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Address from user.Address: '%s'", user.Address)
@@ -344,7 +345,7 @@ func verifyHandler(c *gin.Context) {
 		c.Header("X-User-Admin", "true")
 	}
 
-	log.Printf("DEBUG verifyHandler: FINAL HEADERS - X-User-Full-Name: '%s', X-User-Avatar: '%s', X-User-Email: '%s', X-User-Service-Roles: '%s', X-User-Service-Permissions: '%s'", 
+	log.Printf("DEBUG verifyHandler: FINAL HEADERS - X-User-Full-Name: '%s', X-User-Avatar: '%s', X-User-Email: '%s', X-User-Service-Roles: '%s', X-User-Service-Permissions: '%s'",
 		encodedFullName, user.AvatarPath, user.Email, strings.Join(serviceRoles, ","), strings.Join(servicePermissions, ","))
 
 	c.Status(http.StatusOK)
@@ -359,7 +360,7 @@ func forgotPasswordPageHandler(c *gin.Context) {
 func forgotPasswordHandler(c *gin.Context) {
 	identifier := c.PostForm("identifier")
 	log.Printf("DEBUG: Forgot password request for identifier: %s", identifier)
-	
+
 	if identifier == "" {
 		c.HTML(http.StatusBadRequest, "forgot-password.html", gin.H{
 			"error": "Email или имя пользователя обязательны",
@@ -385,8 +386,8 @@ func forgotPasswordHandler(c *gin.Context) {
 	if user.Email == "" {
 		log.Printf("User %s does not have an email address configured", user.Username)
 		c.HTML(http.StatusBadRequest, "forgot-password-result.html", gin.H{
-			"error": "У данной учетной записи не настроен email адрес. Обратитесь к администратору для настройки email или восстановления пароля.",
-			"support_email": os.Getenv("SUPPORT_EMAIL"),
+			"error":            "У данной учетной записи не настроен email адрес. Обратитесь к администратору для настройки email или восстановления пароля.",
+			"support_email":    os.Getenv("SUPPORT_EMAIL"),
 			"support_telegram": os.Getenv("SUPPORT_TELEGRAM"),
 		})
 		return
@@ -414,14 +415,14 @@ func forgotPasswordHandler(c *gin.Context) {
 	if baseURL == "" {
 		baseURL = "http://localhost" // Default for development
 	}
-	
+
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", baseURL, token.Token)
 	log.Printf("DEBUG: Reset link generated: %s", resetLink)
-	
+
 	// Send email with reset link using template
 	emailSubject, emailBody := models.GetPasswordResetEmail(user.FullName, resetLink)
 	log.Printf("DEBUG: Email template prepared, subject: %s", emailSubject)
-	
+
 	// Try to send email
 	log.Printf("DEBUG: Calling SendEmailNotificationNew for: %s", user.Email)
 	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
@@ -432,7 +433,7 @@ func forgotPasswordHandler(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	log.Printf("Password reset email sent successfully to %s", user.Email)
 
 	c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
@@ -443,10 +444,10 @@ func forgotPasswordHandler(c *gin.Context) {
 // resetPasswordPageHandler shows the reset password page
 func resetPasswordPageHandler(c *gin.Context) {
 	token := c.Query("token")
-	
+
 	if token == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error": "Токен восстановления не указан",
+			"error":     "Токен восстановления не указан",
 			"show_form": false,
 		})
 		return
@@ -456,14 +457,14 @@ func resetPasswordPageHandler(c *gin.Context) {
 	_, err := models.ValidatePasswordResetToken(token)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error": "Недействительный или истекший токен восстановления",
+			"error":     "Недействительный или истекший токен восстановления",
 			"show_form": false,
 		})
 		return
 	}
 
 	c.HTML(http.StatusOK, "reset-password.html", gin.H{
-		"token": token,
+		"token":     token,
 		"show_form": true,
 	})
 }
@@ -476,8 +477,8 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if token == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error": "Токен восстановления не указан",
-			"token": token,
+			"error":     "Токен восстановления не указан",
+			"token":     token,
 			"show_form": false,
 		})
 		return
@@ -487,7 +488,7 @@ func resetPasswordHandler(c *gin.Context) {
 	_, err := models.ValidatePasswordResetToken(token)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error": "Недействительный или истекший токен восстановления",
+			"error":     "Недействительный или истекший токен восстановления",
 			"show_form": false,
 		})
 		return
@@ -495,8 +496,8 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if newPassword == "" || confirmPassword == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error": "Все поля обязательны для заполнения",
-			"token": token,
+			"error":     "Все поля обязательны для заполнения",
+			"token":     token,
 			"show_form": true,
 		})
 		return
@@ -504,8 +505,8 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if newPassword != confirmPassword {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error": "Пароли не совпадают",
-			"token": token,
+			"error":     "Пароли не совпадают",
+			"token":     token,
 			"show_form": true,
 		})
 		return
@@ -513,8 +514,8 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if len(newPassword) < 6 {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error": "Пароль должен содержать не менее 6 символов",
-			"token": token,
+			"error":     "Пароль должен содержать не менее 6 символов",
+			"token":     token,
 			"show_form": true,
 		})
 		return
@@ -525,7 +526,7 @@ func resetPasswordHandler(c *gin.Context) {
 	if err != nil {
 		log.Printf("Error using password reset token: %v", err)
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error": "Не удалось сбросить пароль. Токен может быть недействительным или истекшим",
+			"error":     "Не удалось сбросить пароль. Токен может быть недействительным или истекшим",
 			"show_form": false,
 		})
 		return
@@ -538,53 +539,198 @@ func resetPasswordHandler(c *gin.Context) {
 // extractDocumentFields extracts fields from user documents by document type
 func extractDocumentFields(user *models.User, documentType string) map[string]interface{} {
 	result := make(map[string]interface{})
-	
+
 	log.Printf("DEBUG extractDocumentFields: Looking for documentType='%s', user has %d documents", documentType, len(user.Documents))
-	
+
 	var candidateDocuments []models.UserDocument
-	
+
 	// Collect all documents of the required type
 	for _, doc := range user.Documents {
 		log.Printf("DEBUG extractDocumentFields: Found document type='%s', allowed_services=%v", doc.DocumentType, doc.AllowedServices)
-		if doc.DocumentType == documentType || 
-		   strings.HasPrefix(doc.DocumentType, documentType + "_") {
+		if doc.DocumentType == documentType ||
+			strings.HasPrefix(doc.DocumentType, documentType+"_") {
 			candidateDocuments = append(candidateDocuments, doc)
 		}
 	}
-	
+
 	if len(candidateDocuments) == 0 {
 		log.Printf("DEBUG extractDocumentFields: No documents found for type '%s'", documentType)
 		return result
 	}
-	
+
 	// Sort documents by priority:
 	// 1. Documents with completed status
 	// 2. Most recently updated
 	sort.Slice(candidateDocuments, func(i, j int) bool {
 		docA, docB := candidateDocuments[i], candidateDocuments[j]
-		
+
 		// Completed documents have higher priority
 		if docA.Status != docB.Status {
-			if docA.Status == "completed" { return true }
-			if docB.Status == "completed" { return false }
+			if docA.Status == "completed" {
+				return true
+			}
+			if docB.Status == "completed" {
+				return false
+			}
 		}
-		
+
 		// More recent documents have higher priority
 		return docA.UpdatedAt.After(docB.UpdatedAt)
 	})
-	
+
 	// Take the document with highest priority
 	bestDoc := candidateDocuments[0]
-	
-	log.Printf("DEBUG extractDocumentFields: Selected best document: type=%s, status=%s, allowed_services=%v", 
-			   bestDoc.DocumentType, bestDoc.Status, bestDoc.AllowedServices)
-	
+
+	log.Printf("DEBUG extractDocumentFields: Selected best document: type=%s, status=%s, allowed_services=%v",
+		bestDoc.DocumentType, bestDoc.Status, bestDoc.AllowedServices)
+
 	// Extract fields from the best document
 	for key, value := range bestDoc.Fields {
 		result[strings.ToLower(key)] = value
 		log.Printf("DEBUG extractDocumentFields: Added field '%s'='%v'", strings.ToLower(key), value)
 	}
-	
+
 	log.Printf("DEBUG extractDocumentFields: Returning %d fields for type '%s': %v", len(result), documentType, result)
 	return result
+}
+
+// verifyLogsAccessHandler checks if user has permission to view logs for specific service
+// Returns headers for Dozzle forward-proxy authentication
+func verifyLogsAccessHandler(c *gin.Context) {
+	serviceKey := c.Query("service")
+
+	cookie, err := c.Cookie("token")
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// Parse and validate token
+	claims := &models.Claims{}
+	token, err := jwt.ParseWithClaims(cookie, claims, func(token *jwt.Token) (interface{}, error) {
+		jwtSecret := os.Getenv("JWT_SECRET")
+		if jwtSecret == "" {
+			jwtSecret = "default_jwt_secret_change_in_production"
+		}
+		return []byte(jwtSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// Get user info
+	user, err := models.GetUserByID(claims.UserID)
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	isAdmin := hasAdminRole(user)
+
+	// If serviceKey is specified, always apply filter (even for admins on service-specific page)
+	if serviceKey != "" {
+		// Check permission for non-admins
+		if !isAdmin {
+			// For auth service - need auth.logs.system.view
+			// For all other services - need auth.logs.view
+			var hasPermission bool
+			if serviceKey == "auth" {
+				hasPermission = models.HasAuthPermission(user.ID, "auth.logs.system.view")
+			} else {
+				hasPermission = models.HasAuthPermission(user.ID, "auth.logs.view")
+			}
+
+			if !hasPermission {
+				log.Printf("Access denied: user '%s' does not have logs permission for service '%s'", user.Username, serviceKey)
+				c.AbortWithStatus(http.StatusForbidden)
+				return
+			}
+		}
+
+		// Build container filter based on service
+		containerFilter := getContainerFilterForService(serviceKey)
+		log.Printf("[LOGS] Service-specific access: user=%s service=%s filter=%s", user.Username, serviceKey, containerFilter)
+
+		c.Header("Remote-User", user.Username)
+		c.Header("Remote-Email", user.Email)
+		c.Header("Remote-Name", user.GetFullName())
+		c.Header("Remote-Filter", containerFilter)
+		c.Status(http.StatusOK)
+		return
+	}
+
+	// No serviceKey - this is either /logs page or internal Dozzle request
+	// For admins, allow everything without filter
+	if isAdmin {
+		c.Header("Remote-User", user.Username)
+		c.Header("Remote-Email", user.Email)
+		c.Header("Remote-Name", user.GetFullName())
+		log.Printf("[LOGS] Admin access: user=%s (no filter)", user.Username)
+		c.Status(http.StatusOK)
+		return
+	}
+
+	// For non-admins, check if they have logs.view permission for ANY service
+	// and build a combined filter that will be applied to ALL requests
+	allowedServices := getAllowedLogsServices(user.ID)
+	if len(allowedServices) == 0 {
+		log.Printf("Access denied: user '%s' has no logs.view permissions for any service", user.Username)
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
+	// Build combined filter for all allowed services
+	var filters []string
+	for _, svc := range allowedServices {
+		filters = append(filters, getContainerFilterForService(svc))
+	}
+	combinedFilter := strings.Join(filters, ",")
+	log.Printf("[LOGS] Non-admin access: user=%s allowedServices=%v filter=%s", user.Username, allowedServices, combinedFilter)
+
+	c.Header("Remote-User", user.Username)
+	c.Header("Remote-Email", user.Email)
+	c.Header("Remote-Name", user.GetFullName())
+	c.Header("Remote-Filter", combinedFilter)
+	c.Status(http.StatusOK)
+}
+
+// getAllowedLogsServices returns list of services user has logs.view permission for
+func getAllowedLogsServices(userID primitive.ObjectID) []string {
+	// All external services (everything except auth)
+	externalServices := []string{"referal", "client-service", "notification", "monitoring"}
+	var allowed []string
+
+	// auth.logs.view gives access to ALL external services (not auth)
+	if models.HasAuthPermission(userID, "auth.logs.view") {
+		allowed = append(allowed, externalServices...)
+	}
+
+	// auth.logs.system.view gives access to auth-service logs specifically
+	if models.HasAuthPermission(userID, "auth.logs.system.view") {
+		allowed = append(allowed, "auth")
+	}
+
+	return allowed
+}
+
+// getContainerFilterForService returns container name filter for a service
+func getContainerFilterForService(serviceKey string) string {
+	// Map service keys to container name patterns
+	// Dozzle uses Docker label filters or name filters
+	containerPatterns := map[string]string{
+		"referal":        "name=referal*",
+		"client-service": "name=client*",
+		"notification":   "name=notification*",
+		"monitoring":     "name=monitoring*",
+		"auth":           "name=gateway-auth*,name=gateway-mongo*",
+	}
+
+	if pattern, ok := containerPatterns[serviceKey]; ok {
+		return pattern
+	}
+
+	// Default: filter by service key prefix
+	return fmt.Sprintf("name=%s*", serviceKey)
 }
