@@ -8,6 +8,13 @@
 # - Internal auth verification endpoint
 # ===================================================================
 
+# ================================================================
+# EXTERNAL SERVICE UPSTREAMS (not part of gateway service discovery)
+# ================================================================
+upstream apartment-finder {
+    server apartment-finder-app:5000;
+}
+
 # Redirect HTTP -> HTTPS
 server {
     listen 80;
@@ -514,6 +521,29 @@ server {
         internal;
     }
     
+    # ================================================================
+    # EXTERNAL SERVICES (outside gateway service discovery)
+    # ================================================================
+
+    # Apartment Finder — standalone analytics service
+    location /finder/ {
+        proxy_pass http://apartment-finder/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix /finder;
+    }
+
+    # Apartment Finder static files
+    location /finder/static/ {
+        proxy_pass http://apartment-finder/static/;
+        proxy_set_header Host $host;
+        proxy_cache_valid 200 1h;
+        add_header Cache-Control "public, max-age=3600" always;
+        expires 1h;
+    }
+
     # ================================================================
     # DYNAMIC SERVICE DISCOVERY (master file in dynamic/services.conf)
     # ================================================================

@@ -86,11 +86,6 @@
                     <i class="fas fa-user"></i> Пользователи
                 </button></li>
                 {{ end }}
-                {{ if .canViewLogs }}
-                <li><button type="button" class="tab-btn" data-tab="logs">
-                    <i class="fas fa-file-alt"></i> Логи
-                </button></li>
-                {{ end }}
                 {{ else if .isSystemAdmin }}
                 <!-- Режим системного администратора - все вкладки -->
                 <li><button type="button" class="tab-btn" data-tab="settings">
@@ -110,34 +105,21 @@
                 <li><button type="button" class="tab-btn" data-tab="users">
                     <i class="icon-user"></i> Пользователи
                 </button></li>
-                <li><button type="button" class="tab-btn" data-tab="logs">
-                    <i class="fas fa-file-alt"></i> Логи
-                </button></li>
                 {{ else }}
                 <!-- Режим внешней роли - только разрешенные вкладки -->
-                {{ if .canViewSettings }}
-                <li><button type="button" class="tab-btn active" data-tab="settings">
-                    <i class="fas fa-cog"></i> Основные настройки
-                </button></li>
-                {{ end }}
                 {{ if .canViewRoles }}
-                <li><button type="button" class="tab-btn{{ if not .canViewSettings }} active{{ end }}" data-tab="roles">
+                <li><button type="button" class="tab-btn active" data-tab="roles">
                     <i class="fas fa-users"></i> Роли
                 </button></li>
                 {{ end }}
                 {{ if .canViewExternalRoles }}
-                <li><button type="button" class="tab-btn{{ if and (not .canViewSettings) (not .canViewRoles) }} active{{ end }}" data-tab="external-roles">
+                <li><button type="button" class="tab-btn{{ if not .canViewRoles }} active{{ end }}" data-tab="external-roles">
                     <i class="fas fa-external-link-alt"></i> Внешние роли
                 </button></li>
                 {{ end }}
                 {{ if .canViewUsers }}
-                <li><button type="button" class="tab-btn{{ if and (not .canViewSettings) (not .canViewRoles) (not .canViewExternalRoles) }} active{{ end }}" data-tab="users">
+                <li><button type="button" class="tab-btn{{ if and (not .canViewRoles) (not .canViewExternalRoles) }} active{{ end }}" data-tab="users">
                     <i class="fas fa-user"></i> Пользователи
-                </button></li>
-                {{ end }}
-                {{ if .canViewLogs }}
-                <li><button type="button" class="tab-btn{{ if and (not .canViewSettings) (not .canViewRoles) (not .canViewExternalRoles) (not .canViewUsers) }} active{{ end }}" data-tab="logs">
-                    <i class="fas fa-file-alt"></i> Логи
                 </button></li>
                 {{ end }}
                 {{ end }}
@@ -215,18 +197,17 @@
                     <div class="roles-container" id="roles-container">
                         {{ if .serviceRoles }}
                             {{ range .serviceRoles }}
-                            <div class="role-item" data-search="{{ .Name }} {{ .DisplayName }} {{ .Description }} {{ range .Permissions }}{{ . }} {{ end }}">
+                            <div class="role-item" data-search="{{ .Name }} {{ .Description }} {{ range .Permissions }}{{ . }} {{ end }}">
                                 <div class="role-details">
                                     <div class="role-info">
-                                        <div class="role-name">{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}</div>
-                                        {{ if .DisplayName }}<div class="role-code">Код: {{ .Name }}</div>{{ end }}
-                                        {{ if .Description }}<div class="role-description">{{ .Description }}</div>{{ end }}
+                                        <div class="role-name">{{ .Name }}</div>
+                                        <div class="role-description">{{ .Description }}</div> 
                                     </div>
                                     <div class="role-permissions">
                                             Разрешения: 
                                             {{ if .Permissions }}
                                                 {{ range $index, $perm := .Permissions }}
-                                                    {{ if $index }}, {{ end }}{{ if index $.permissionDisplayNames $perm }}{{ index $.permissionDisplayNames $perm }}{{ else }}{{ $perm }}{{ end }}
+                                                    {{ if $index }}, {{ end }}{{ $perm }}
                                                 {{ end }}
                                             {{ else }}
                                                 нет
@@ -238,13 +219,13 @@
                                 <div class="role-actions">
                                     {{ if $.canEditRoles }}
                                     <button type="button" class="btn small secondary" 
-                                            onclick="openEditRoleModal('{{ .ID.Hex }}', '{{ .Name }}', '{{ .DisplayName }}', '{{ .Description }}', [{{ range $index, $perm := .Permissions }}{{ if $index }},{{ end }}'{{ $perm }}'{{ end }}])">
+                                            onclick="openEditRoleModal('{{ .ID.Hex }}', '{{ .Name }}', '{{ .Description }}', [{{ range $index, $perm := .Permissions }}{{ if $index }},{{ end }}'{{ $perm }}'{{ end }}])">
                                         Изменить
                                     </button>
                                     {{ end }}
                                     {{ if $.canDeleteRoles }}
                                     <button type="button" class="btn small danger" 
-                                            onclick="deleteRole('{{ $.service.Key }}', '{{ .Name }}', '{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}')">
+                                            onclick="deleteRole('{{ $.service.Key }}', '{{ .Name }}', '{{ .Name }}')">
                                         Удалить
                                     </button>
                                     {{ end }}
@@ -293,38 +274,34 @@
                     <!-- Прокручиваемый контейнер с разрешениями -->
                     <div class="permissions-container" id="permissions-container">
                         {{ if .service.AvailablePermissions }}
-                            <!-- Внутренние разрешения сервиса -->
-                            <!--<div class="permissions-category"> -->
-                                <div class="permissions-category-content">
-                                {{ range .service.AvailablePermissions }}
-                                    {{ if and (.DeletedAt.IsZero) (not .External) }}
-                                    <div class="permission-item" data-search="{{ .Name }}{{ if .DisplayName }} {{ .DisplayName }}{{ end }}{{ if .Description }} {{ .Description }}{{ end }}" data-external="false">
-                                        <div class="permission-details">
-                                            <div class="permission-name">
-                                                {{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}
-                                            </div>
-                                            {{ if .Description }}
-                                            <div class="permission-description">{{ .Description }}</div>
-                                            {{ end }}
-                                            <div class="permission-code">Код: {{ .Name }}</div>
+                            {{ range .service.AvailablePermissions }}
+                                {{ if .DeletedAt.IsZero }}
+                                <div class="permission-item" data-search="{{ .Name }}{{ if .DisplayName }} {{ .DisplayName }}{{ end }}{{ if .Description }} {{ .Description }}{{ end }}">
+                                    <div class="permission-details">
+                                        <div class="permission-name">
+                                            {{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}
                                         </div>
-                                        {{ if not $.manageMode }}
-                                        <div class="permission-actions">
-                                            <button type="button" class="btn small secondary" 
-                                                    onclick="openEditPermissionModal('{{ .Name }}', '{{ .DisplayName }}', '{{ .Description }}')">
-                                                Изменить
-                                            </button>
-                                            <button type="button" class="btn small danger" 
-                                                    onclick="deletePermission('{{ $.service.Key }}', '{{ .Name }}')">
-                                                Удалить
-                                            </button>
-                                        </div>
+                                        {{ if .Description }}
+                                        <div class="permission-description">{{ .Description }}</div>
                                         {{ end }}
+                                        <div class="permission-code">Код: {{ .Name }}</div>
+                                    </div>
+                                    {{ if not $.manageMode }}
+                                    <!-- Кнопки действий только для системного администратора -->
+                                    <div class="permission-actions">
+                                        <button type="button" class="btn small secondary" 
+                                                onclick="openEditPermissionModal('{{ .Name }}', '{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}', '{{ .Description }}')">
+                                            Изменить
+                                        </button>
+                                        <button type="button" class="btn small danger" 
+                                                onclick="deletePermission('{{ $.service.Key }}', '{{ .Name }}')">
+                                            Удалить
+                                        </button>
                                     </div>
                                     {{ end }}
-                                {{ end }}
                                 </div>
-                            <!--</div>-->
+                                {{ end }}
+                            {{ end }}
                         {{ else if .service.Permissions }}
                             <div class="permission-item" style="background-color: #fff3cd; border-color: #ffeaa7;">
                                 <div class="permission-details">
@@ -411,15 +388,15 @@
                                                 Роли: 
                                                 {{ if .ServiceRoles }}
                                                     {{ range $index, $role := .ServiceRoles }}
-                                                        {{ if $index }}, {{ end }}{{ if index $.roleDisplayNames $role }}{{ index $.roleDisplayNames $role }}{{ else }}{{ $role }}{{ end }}
+                                                        {{ if $index }}, {{ end }}{{ $role }}
                                                     {{ end }}
                                                 {{ else }}
                                                     нет ролей
                                                 {{ end }}
                                             </div>
                                         </div>
+                                        {{ if $.canAssignRoles }}
                                         <div class="user-actions">
-                                            {{ if $.canAssignRoles }}
                                             <button type="button" class="btn small secondary" 
                                                     data-user-id="{{ .ID.Hex }}" 
                                                     data-username="{{ .Username }}"
@@ -429,13 +406,8 @@
                                                     onclick="editUserRolesFromButton(this)">
                                                 <i class="fas fa-edit"></i> Управлять ролями
                                             </button>
-                                            {{ end }}
-                                            {{ if or $.isSystemAdmin $.isServiceManager $.canEditUsers }}
-                                            <button type="button" class="btn small secondary" onclick="resetUserPassword('{{ .ID.Hex }}')">
-                                                <i class="fas fa-redo"></i> Сбросить пароль
-                                            </button>
-                                            {{ end }}
                                         </div>
+                                        {{ end }}
                                     </div>
                                     {{ end }}
                                 {{ else }}
@@ -478,26 +450,14 @@
                                     {{ range $.externalRoles }}
                                     <div class="role-item external-role-item" 
                                          data-role-name="{{ .Name }}"
-                                         data-role-display-name="{{ .DisplayName }}"
                                          data-role-description="{{ .Description }}">
                                         <div class="role-header">
                                             <div class="role-info">
                                                 <div class="role-name">
                                                     <i class="fas fa-shield-alt"></i>
-                                                    {{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}
+                                                    {{ .Name }}
                                                 </div>
-                                                {{ if .DisplayName }}<div class="role-code">Код: {{ .Name }}</div>{{ end }}
-                                                {{ if .Description }}<div class="role-description">{{ .Description }}</div>{{ end }}
-                                                <div class="role-permissions">
-                                                    Разрешения: 
-                                                    {{ if .Permissions }}
-                                                        {{ range $index, $perm := .Permissions }}
-                                                            {{ if $index }}, {{ end }}{{ if index $.permissionDisplayNames $perm }}{{ index $.permissionDisplayNames $perm }}{{ else }}{{ $perm }}{{ end }}
-                                                        {{ end }}
-                                                    {{ else }}
-                                                        нет
-                                                    {{ end }}
-                                                </div>
+                                                <div class="role-description">{{ .Description }}</div>
                                             </div>
                                             <div class="role-actions">
                                                 {{ if $.canEditExternalRoles }}
@@ -529,21 +489,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-            {{ end }}
-            
-            <!-- Вкладка "Логи" -->
-            {{ if .canViewLogs }}
-            <div id="logs" class="tab-content">
-                <div class="logs-container">
-                        <iframe 
-                            id="logs-iframe"
-                            src="/services/{{ .service.Key }}/logs"
-                            class="logs-iframe"
-                            frameborder="0"
-                            allowfullscreen>
-                        </iframe>
                 </div>
             </div>
             {{ end }}
@@ -1280,34 +1225,6 @@
             console.log('All states reset');
         }
         
-        // Сбросить пароль пользователя
-        async function resetUserPassword(userId) {
-            if (!confirm('Отправить токен восстановления пароля на email пользователя?')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/users/${userId}/reset-password`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                    }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert('Токен восстановления пароля успешно отправлен: ' + data.message);
-                } else {
-                    alert('Ошибка при отправке токена: ' + (data.error || 'Неизвестная ошибка'));
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Ошибка при отправке токена восстановления: ' + error.message);
-            }
-        }
-
         // Отправить форму добавления пользователя
         async function submitAddUser() {
             const form = document.getElementById('addUserForm');
@@ -1880,8 +1797,8 @@
             });
         }
         
-        function openEditRoleModal(roleId, roleName, roleDisplayName, roleDescription, rolePermissions) {
-            console.log('openEditRoleModal called:', { roleId, roleName, roleDisplayName, roleDescription, rolePermissions });
+        function openEditRoleModal(roleId, roleName, roleDescription, rolePermissions) {
+            console.log('openEditRoleModal called:', { roleId, roleName, roleDescription, rolePermissions });
             
             // Устанавливаем действие формы для редактирования конкретной роли
             const form = document.getElementById('editRoleForm');
@@ -1889,15 +1806,14 @@
             
             // Заполняем поля формы
             document.getElementById('edit-role-name').value = roleName;
-            document.getElementById('edit-role-display-name').value = roleDisplayName || '';
             document.getElementById('edit-role-desc').value = roleDescription;
             
             // Заполняем название роли в заголовке
             const editRoleNameDisplay = document.getElementById('editRoleNameDisplay');
             console.log('editRoleNameDisplay element:', editRoleNameDisplay);
             if (editRoleNameDisplay) {
-                editRoleNameDisplay.textContent = roleDisplayName || roleName;
-                console.log('Set editRoleNameDisplay to:', roleDisplayName || roleName);
+                editRoleNameDisplay.textContent = roleName;
+                console.log('Set editRoleNameDisplay to:', roleName);
             } else {
                 console.error('editRoleNameDisplay element not found!');
             }
@@ -1954,17 +1870,6 @@
                     item.classList.add('permission-hidden');
                 }
             });
-            
-            // Скрываем категории без видимых элементов
-            const categories = document.querySelectorAll('#editRoleModal .permission-category-section');
-            categories.forEach(category => {
-                const visibleItems = category.querySelectorAll('.edit-permission-item:not(.permission-hidden)');
-                if (visibleItems.length === 0) {
-                    category.classList.add('permission-hidden');
-                } else {
-                    category.classList.remove('permission-hidden');
-                }
-            });
         }
         
         // Функция для переключения разрешения по клику на карточку в модальном окне создания
@@ -1996,17 +1901,6 @@
                     item.classList.remove('permission-hidden');
                 } else {
                     item.classList.add('permission-hidden');
-                }
-            });
-            
-            // Скрываем категории без видимых элементов
-            const categories = document.querySelectorAll('#createRoleModal .permission-category-section');
-            categories.forEach(category => {
-                const visibleItems = category.querySelectorAll('.create-permission-item:not(.permission-hidden)');
-                if (visibleItems.length === 0) {
-                    category.classList.add('permission-hidden');
-                } else {
-                    category.classList.remove('permission-hidden');
                 }
             });
         }
@@ -2126,17 +2020,6 @@
                     visibleCount++;
                 } else {
                     item.classList.add('permission-hidden');
-                }
-            });
-            
-            // Скрываем/показываем категории в зависимости от видимых элементов
-            const categories = document.querySelectorAll('#permissions-container .permissions-category');
-            categories.forEach(category => {
-                const visibleItems = category.querySelectorAll('.permission-item:not(.permission-hidden)');
-                if (visibleItems.length === 0 && filter.length > 0) {
-                    category.style.display = 'none';
-                } else {
-                    category.style.display = 'block';
                 }
             });
             
@@ -2528,7 +2411,7 @@
                 return;
             }
             
-            fetch(`/services/${serviceKey}/roles/${roleId}/delete`, {
+            fetch(`/services/${serviceKey}/roles/${roleName}/delete`, {
                 method: 'POST'
             })
             .then(response => {
@@ -2675,11 +2558,9 @@
             
             // Сбросить форму
             const nameInput = document.getElementById('external-role-name');
-            const displayNameInput = document.getElementById('external-role-display-name');
             const descInput = document.getElementById('external-role-desc');
             
             if (nameInput) nameInput.value = '';
-            if (displayNameInput) displayNameInput.value = '';
             if (descInput) descInput.value = '';
             
             // Снять все чекбоксы
@@ -2767,11 +2648,10 @@
         // Submit create external role
         async function submitCreateExternalRole() {
             const roleName = document.getElementById('external-role-name').value.trim();
-            const roleDisplayName = document.getElementById('external-role-display-name').value.trim();
             const roleDesc = document.getElementById('external-role-desc').value.trim();
             
             if (!roleName) {
-                showNotification('Ошибка', 'Введите код роли', 'error');
+                showNotification('Ошибка', 'Введите название роли', 'error');
                 return;
             }
             
@@ -2795,7 +2675,6 @@
                     },
                     body: JSON.stringify({
                         name: roleName,
-                        display_name: roleDisplayName,
                         description: roleDesc,
                         permissions: permissions
                     })
@@ -2824,8 +2703,7 @@
             
             // Получаем данные роли
             try {
-                const serviceKey = '{{ .service.Key }}';
-                const response = await fetch(`/services/${serviceKey}/external-roles/${roleName}`);
+                const response = await fetch(`/api/auth/roles/${roleName}`);
                 
                 if (!response.ok) {
                     showNotification('Ошибка', 'Не удалось загрузить данные роли', 'error');
@@ -2835,10 +2713,9 @@
                 const role = await response.json();
                 
                 // Заполняем форму
-                document.getElementById('editExternalRoleNameDisplay').textContent = role.display_name || roleName;
+                document.getElementById('editExternalRoleNameDisplay').textContent = roleName;
                 document.getElementById('edit-external-role-original-name').value = roleName;
                 document.getElementById('edit-external-role-name').value = role.name || roleName;
-                document.getElementById('edit-external-role-display-name').value = role.display_name || '';
                 document.getElementById('edit-external-role-desc').value = role.description || '';
                 
                 // Снимаем все чекбоксы
@@ -2877,11 +2754,10 @@
         async function submitEditExternalRole() {
             const originalName = document.getElementById('edit-external-role-original-name').value;
             const newName = document.getElementById('edit-external-role-name').value.trim();
-            const displayName = document.getElementById('edit-external-role-display-name').value.trim();
             const roleDesc = document.getElementById('edit-external-role-desc').value.trim();
             
             if (!newName) {
-                showNotification('Ошибка', 'Введите код роли', 'error');
+                showNotification('Ошибка', 'Введите название роли', 'error');
                 return;
             }
             
@@ -2899,7 +2775,6 @@
                     },
                     body: JSON.stringify({
                         name: newName,
-                        display_name: displayName,
                         description: roleDesc,
                         permissions: permissions
                     })
@@ -3024,17 +2899,10 @@
                 <div class="edit-role-form-fields">
                     <form method="post" action="/services/{{ .service.Key }}/roles" id="createRoleForm">
                         <div class="form-group">
-                            <label for="modal-role-name">Код роли *</label>
+                            <label for="modal-role-name">Название роли *</label>
                             <input type="text" id="modal-role-name" name="role_name" required 
                                    pattern="[a-z0-9_\-]+" title="Только строчные буквы, цифры, дефисы и подчеркивания"
                                    placeholder="например: editor">
-                            <small>Уникальный идентификатор роли (латиница, цифры, _, -)</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="modal-role-display-name">Название роли</label>
-                            <input type="text" id="modal-role-display-name" name="role_display_name" 
-                                   placeholder="например: Редактор">
-                            <small>Отображаемое название роли</small>
                         </div>
                         <div class="form-group">
                             <label for="modal-role-desc">Описание</label>
@@ -3045,21 +2913,14 @@
                 </div>
                 <div class="edit-role-permissions">
                     <label>Разрешения роли</label>
-                    {{ if .permissionCategories }}
+                    {{ if .service.AvailablePermissions }}
                         <div class="permissions-search">
                             <input type="text" id="create-permissions-search-input" placeholder="🔍 Поиск разрешений..." 
                                    onkeyup="filterCreatePermissions()">
                         </div>
                         <div class="permissions-list" id="create-permissions-list">
-                            {{ range .permissionCategories }}
-                            <div class="permission-category-section" data-category="{{ .Name }}">
-                                <div class="permission-category-header">
-                                    <i class="fas fa-folder"></i>
-                                    <span class="category-name">{{ .DisplayName }}</span>
-                                    <span class="category-count">({{ len .Permissions }})</span>
-                                </div>
-                                <div class="permission-category-items">
-                                {{ range .Permissions }}
+                            {{ range .service.AvailablePermissions }}
+                                {{ if .DeletedAt.IsZero }}
                                 <div class="edit-permission-item create-permission-item" data-permission="{{ .Name }}" 
                                      data-search="{{ .Name }}{{ if .DisplayName }} {{ .DisplayName }}{{ end }}{{ if .Description }} {{ .Description }}{{ end }}"
                                      onclick="toggleCreatePermission('{{ .Name }}')">
@@ -3076,8 +2937,6 @@
                                     </div>
                                 </div>
                                 {{ end }}
-                                </div>
-                            </div>
                             {{ end }}
                         </div>
                     {{ else }}
@@ -3173,17 +3032,10 @@
                     <form method="post" action="" id="editRoleForm">
                         <input type="hidden" name="_method" value="PUT">
                         <div class="form-group">
-                            <label for="edit-role-name">Код роли *</label>
+                            <label for="edit-role-name">Название роли *</label>
                             <input type="text" id="edit-role-name" name="name" required 
                                    pattern="[a-z0-9_\-]+" title="Только строчные буквы, цифры, дефисы и подчеркивания"
                                    placeholder="например: editor">
-                            <small>Уникальный идентификатор роли (латиница, цифры, _, -)</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-role-display-name">Название роли</label>
-                            <input type="text" id="edit-role-display-name" name="display_name" 
-                                   placeholder="например: Редактор">
-                            <small>Отображаемое название роли</small>
                         </div>
                         <div class="form-group">
                             <label for="edit-role-desc">Описание</label>
@@ -3194,21 +3046,14 @@
                 </div>
                 <div class="edit-role-permissions">
                     <label>Разрешения роли</label>
-                    {{ if .permissionCategories }}
+                    {{ if .service.AvailablePermissions }}
                         <div class="permissions-search">
                             <input type="text" id="permissions-search-input" placeholder="🔍 Поиск разрешений..." 
                                    onkeyup="filterPermissions()">
                         </div>
                         <div class="permissions-list" id="permissions-list">
-                            {{ range .permissionCategories }}
-                            <div class="permission-category-section" data-category="{{ .Name }}">
-                                <div class="permission-category-header">
-                                    <i class="fas fa-folder"></i>
-                                    <span class="category-name">{{ .DisplayName }}</span>
-                                    <span class="category-count">({{ len .Permissions }})</span>
-                                </div>
-                                <div class="permission-category-items">
-                                {{ range .Permissions }}
+                            {{ range .service.AvailablePermissions }}
+                                {{ if .DeletedAt.IsZero }}
                                 <div class="edit-permission-item" data-permission="{{ .Name }}" 
                                      data-search="{{ .Name }}{{ if .DisplayName }} {{ .DisplayName }}{{ end }}{{ if .Description }} {{ .Description }}{{ end }}"
                                      onclick="togglePermission('{{ .Name }}')">
@@ -3225,8 +3070,6 @@
                                     </div>
                                 </div>
                                 {{ end }}
-                                </div>
-                            </div>
                             {{ end }}
                         </div>
                     {{ else }}
@@ -3330,7 +3173,7 @@
                     
                     <div class="form-group">
                         <!-- Внутренние роли сервиса -->
-                        {{ if and .canAssignInternalRoles .serviceRoles }}
+                        {{ if and .canManageInternalRoles .serviceRoles }}
                         <div class="roles-category">
                             {{ if .canViewExternalRoles }}
                             <label class="roles-category-header">
@@ -3345,7 +3188,7 @@
                                 <div class="service-permission-checkbox">
                                     <input type="checkbox" id="role_{{ .Name }}" name="roles" value="{{ .Name }}">
                                     <div class="service-permission-label">
-                                        <span>{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}</span>
+                                        <span>{{ .Name }}</span>
                                         {{ if .Description }}<small>{{ .Description }}</small>{{ end }}
                                     </div>
                                 </div>
@@ -3356,7 +3199,7 @@
                         {{ end }}
                         
                         <!-- Внешние роли (для управления доступом к сервису из auth) -->
-                        {{ if and .canAssignExternalRoles .externalRoles }}
+                        {{ if and .canViewExternalRoles .externalRoles }}
                         <div class="roles-category" style="margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--border-color);">
                             <label class="roles-category-header">
                                 <i class="fas fa-external-link-alt" style="color: var(--warning-color);"></i> 
@@ -3370,7 +3213,7 @@
                                 <div class="service-permission-checkbox external-role-checkbox">
                                     <input type="checkbox" id="role_{{ .Name }}" name="external_roles" value="{{ .Name }}">
                                     <div class="service-permission-label">
-                                        <span><i class="fas fa-shield-alt" style="color: var(--warning-color); margin-right: 5px;"></i>{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}</span>
+                                        <span><i class="fas fa-shield-alt" style="color: var(--warning-color); margin-right: 5px;"></i>{{ .Name }}</span>
                                         {{ if .Description }}<small>{{ .Description }}</small>{{ end }}
                                     </div>
                                 </div>
@@ -3401,7 +3244,7 @@
                     
                     <div class="form-group">
                         <!-- Внутренние роли сервиса -->
-                        {{ if and (or .canAssignInternalRoles .canViewRoles .isSystemAdmin .isServiceManager) .serviceRoles }}
+                        {{ if and (or .canAssignRoles .canViewRoles .isSystemAdmin .isServiceManager) .serviceRoles }}
                         <div class="roles-category">
                             {{ if .canViewExternalRoles }}
                             <label class="roles-category-header">
@@ -3414,9 +3257,9 @@
                                 {{ range .serviceRoles }}
                                 {{ if not (and $.manageMode (eq .Name "admin")) }}
                                 <div class="service-permission-checkbox">
-                                    <input type="checkbox" id="edit_role_{{ .Name }}" name="roles" value="{{ .Name }}"{{ if not $.canAssignInternalRoles }} disabled{{ end }}>
+                                    <input type="checkbox" id="edit_role_{{ .Name }}" name="roles" value="{{ .Name }}"{{ if not $.canAssignRoles }} disabled{{ end }}>
                                     <div class="service-permission-label">
-                                        <span>{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}</span>
+                                        <span>{{ .Name }}</span>
                                         {{ if .Description }}<small>{{ .Description }}</small>{{ end }}
                                     </div>
                                 </div>
@@ -3427,7 +3270,7 @@
                         {{ end }}
                         
                         <!-- Внешние роли (для управления доступом к сервису из auth) -->
-                        {{ if and .canAssignExternalRoles .externalRoles }}
+                        {{ if and .canViewExternalRoles .externalRoles }}
                         <div class="roles-category" style="margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--border-color);">
                             <label class="roles-category-header">
                                 <i class="fas fa-external-link-alt" style="color: var(--warning-color);"></i> 
@@ -3439,9 +3282,9 @@
                             <div class="service-permissions-grid" id="editUserExternalRolesGrid">
                                 {{ range .externalRoles }}
                                 <div class="service-permission-checkbox external-role-checkbox">
-                                    <input type="checkbox" id="edit_role_{{ .Name }}" name="external_roles" value="{{ .Name }}"{{ if not $.canAssignExternalRoles }} disabled{{ end }}>
+                                    <input type="checkbox" id="edit_role_{{ .Name }}" name="external_roles" value="{{ .Name }}">
                                     <div class="service-permission-label">
-                                        <span><i class="fas fa-shield-alt" style="color: var(--warning-color); margin-right: 5px;"></i>{{ if .DisplayName }}{{ .DisplayName }}{{ else }}{{ .Name }}{{ end }}</span>
+                                        <span><i class="fas fa-shield-alt" style="color: var(--warning-color); margin-right: 5px;"></i>{{ .Name }}</span>
                                         {{ if .Description }}<small>{{ .Description }}</small>{{ end }}
                                     </div>
                                 </div>
@@ -3460,9 +3303,7 @@
             </div>
             <div class="service-modal-actions">
                 <button type="button" class="btn secondary" onclick="closeEditUserRolesModal()">Отмена</button>
-                {{ if or .canAssignInternalRoles .canAssignExternalRoles }}
                 <button type="button" class="btn primary" onclick="submitEditUserRoles()">Сохранить изменения</button>
-                {{ end }}
             </div>
         </div>
     </div>
@@ -3478,22 +3319,16 @@
                 <div class="edit-role-form-fields">
                     <form id="createExternalRoleForm">
                         <div class="form-group">
-                            <label for="external-role-name">Код роли *</label>
+                            <label for="external-role-name">Название роли *</label>
                             <input type="text" id="external-role-name" name="role_name" required 
                                    pattern="[a-z0-9_\-]+" title="Только строчные буквы, цифры, дефисы и подчеркивания"
                                    placeholder="например: {{ .service.Key }}_viewer">
-                            <small>Уникальный идентификатор роли (латиница, цифры, _, -)</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="external-role-display-name">Название роли</label>
-                            <input type="text" id="external-role-display-name" name="role_display_name" 
-                                   placeholder="например: Просмотр в {{ .service.Name }}">
-                            <small>Отображаемое название роли</small>
+                            <small>Роль будет создана в auth-сервисе</small>
                         </div>
                         <div class="form-group">
                             <label for="external-role-desc">Описание</label>
                             <input type="text" id="external-role-desc" name="role_description" 
-                                   placeholder="например: Доступ к просмотру данных в {{ .service.Name }}">
+                                   placeholder="например: Доступ к просмотру в {{ .service.Name }}">
                         </div>
                     </form>
                 </div>
@@ -3559,15 +3394,9 @@
                     <form id="editExternalRoleForm">
                         <input type="hidden" id="edit-external-role-original-name" name="original_name">
                         <div class="form-group">
-                            <label for="edit-external-role-name">Код роли *</label>
+                            <label for="edit-external-role-name">Название роли *</label>
                             <input type="text" id="edit-external-role-name" name="name" required 
                                    pattern="[a-z0-9_\-]+" title="Только строчные буквы, цифры, дефисы и подчеркивания">
-                            <small>Уникальный идентификатор роли (латиница, цифры, _, -)</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-external-role-display-name">Название роли</label>
-                            <input type="text" id="edit-external-role-display-name" name="display_name">
-                            <small>Отображаемое название роли</small>
                         </div>
                         <div class="form-group">
                             <label for="edit-external-role-desc">Описание</label>
@@ -3971,80 +3800,6 @@
         
         .btn.danger:hover {
             background: #c0392b;
-        }
-        
-        /* Logs Tab Styles */
-        .logs-container {
-            padding: 0;
-        }
-        
-        .logs-header {
-            margin-bottom: 20px;
-        }
-        
-        .logs-header h3 {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-            color: var(--primary-color);
-        }
-        
-        .logs-description {
-            color: var(--text-muted);
-            margin: 0;
-        }
-        
-        .logs-actions {
-            margin-bottom: 20px;
-        }
-        
-        .logs-iframe-container {
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
-            background: #1a1a2e;
-        }
-        
-        /* Стили для вкладки логов внутри страницы сервиса */
-        #logs.tab-content {
-            display: none;
-            height: calc(100vh - 250px);
-            min-height: 500px;
-        }
-        
-        #logs.tab-content.active {
-            display: block;
-        }
-        
-        #logs .logs-container {
-            height: 100%;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            margin: 0;
-            background: transparent;
-        }
-        
-        #logs .logs-iframe {
-            flex: 1;
-            width: 100%;
-            height: 100%;
-            min-height: 500px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            display: block;
-        }
-        
-        .logs-info {
-            margin-top: 15px;
-            color: var(--text-muted);
-        }
-        
-        .logs-info small {
-            display: flex;
-            align-items: center;
-            gap: 5px;
         }
     </style>
 </body>

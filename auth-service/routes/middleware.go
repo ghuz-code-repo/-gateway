@@ -229,11 +229,6 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		serviceID := c.Param("id")
 		serviceKey := c.Param("serviceKey")
 
-		// If no serviceKey in URL params, check query params (for endpoints like /check-user-exists?serviceKey=xxx)
-		if serviceKey == "" {
-			serviceKey = c.Query("serviceKey")
-		}
-
 		fmt.Printf("DEBUG Middleware: serviceID='%s', serviceKey='%s', path='%s'\n", serviceID, serviceKey, c.Request.URL.Path)
 
 		// If no serviceID in URL params, check query params
@@ -542,16 +537,6 @@ func requireServicePermission(c *gin.Context, permission string) bool {
 	user, exists := c.Get("user")
 	if !exists {
 		return false
-	}
-
-	// System admins have all permissions
-	if c.GetBool("isSystemAdmin") {
-		return true
-	}
-
-	// Service managers have all permissions for their service
-	if c.GetBool("isServiceManager") {
-		return true
 	}
 
 	serviceKey := c.Param("serviceKey")

@@ -1327,26 +1327,9 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 		log.Printf("GetUsersWithServiceRolesNew: Found user %s (%s) with roles: %v",
 			result.User.Username, result.User.Email, result.Roles)
 
-		// For auth service, filter out external roles (roles that control access to other services)
-		// We only want to show system roles (GOD, service-manager, user-manager, viewer, support)
-		filteredRoles := result.Roles
-		if serviceKey == "auth" {
-			filteredRoles = []string{}
-			for _, roleName := range result.Roles {
-				if IsSystemAuthRole(roleName) {
-					filteredRoles = append(filteredRoles, roleName)
-				}
-			}
-			// Skip users who only have external roles (no system roles) for auth service
-			if len(filteredRoles) == 0 {
-				log.Printf("GetUsersWithServiceRolesNew: Skipping user %s - only has external roles in auth service", result.User.Username)
-				continue
-			}
-		}
-
 		userWithRoles := UserWithServiceRoles{
 			User:         result.User,
-			ServiceRoles: filteredRoles,
+			ServiceRoles: result.Roles,
 		}
 
 		// Get user's external roles (roles in auth service that grant access to this service)
