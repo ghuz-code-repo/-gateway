@@ -15,8 +15,7 @@ import (
 type Role struct {
 	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	ServiceKey  string             `bson:"service" json:"service" validate:"required"`     // Foreign key to services.key
-	Name        string             `bson:"name" json:"name" validate:"required"`           // Role code (identifier)
-	DisplayName string             `bson:"display_name" json:"display_name"`               // Human-readable role name
+	Name        string             `bson:"name" json:"name" validate:"required"`           // Role name
 	Description string             `bson:"description" json:"description"`                 // Role description
 	Permissions []string           `bson:"permissions" json:"permissions"`                 // Array of permission names (free-form)
 	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`                     // Creation timestamp
@@ -25,10 +24,10 @@ type Role struct {
 }
 
 // CreateRole creates a new role for a specific service
-func CreateRole(serviceKey, name, displayName, description string, permissions []string) (*Role, error) {
+func CreateRole(serviceKey, name, description string, permissions []string) (*Role, error) {
 	ctx := context.Background()
 
-	log.Printf("DEBUG CreateRole: serviceKey=%s, name=%s, displayName=%s, permissions=%v", serviceKey, name, displayName, permissions)
+	log.Printf("DEBUG CreateRole: serviceKey=%s, name=%s, permissions=%v", serviceKey, name, permissions)
 
 	// Validate that permissions are valid for the service
 	if valid, invalidPerms := ValidateRolePermissions(serviceKey, permissions); !valid {
@@ -41,7 +40,6 @@ func CreateRole(serviceKey, name, displayName, description string, permissions [
 	role := &Role{
 		ServiceKey:  serviceKey,
 		Name:        name,
-		DisplayName: displayName,
 		Description: description,
 		Permissions: permissions,
 		CreatedAt:   time.Now(),
@@ -168,7 +166,7 @@ func GetRoleByID(id primitive.ObjectID) (*Role, error) {
 }
 
 // UpdateRole updates an existing role
-func UpdateRole(id primitive.ObjectID, serviceKey, name, displayName, description string, permissions []string) error {
+func UpdateRole(id primitive.ObjectID, serviceKey, name, description string, permissions []string) error {
 	ctx := context.Background()
 
 	// Validate that permissions are valid for the service
@@ -181,12 +179,11 @@ func UpdateRole(id primitive.ObjectID, serviceKey, name, displayName, descriptio
 		bson.M{"_id": id},
 		bson.M{
 			"$set": bson.M{
-				"service":      serviceKey,
-				"name":         name,
-				"display_name": displayName,
-				"description":  description,
-				"permissions":  permissions,
-				"updatedAt":    time.Now(),
+				"service":     serviceKey,
+				"name":        name,
+				"description": description,
+				"permissions": permissions,
+				"updatedAt":   time.Now(),
 			},
 		},
 	)
@@ -270,22 +267,15 @@ func GetInternalRolesByService(serviceKey string) ([]Role, error) {
 	return internalRoles, nil
 }
 
-// SystemAuthRoles is a map of system (internal) roles for auth service
-var SystemAuthRoles = map[string]bool{
-	"GOD": true, "god": true, "admin": true, "Admin": true, "ADMIN": true,
-	"service-manager": true, "user-manager": true, "viewer": true, "support": true,
-}
-
-// IsSystemAuthRole checks if a role name is a system auth role (not an external role)
-func IsSystemAuthRole(roleName string) bool {
-	return SystemAuthRoles[roleName]
-}
-
 // isExternalRole checks if a role is an external role (controls access to another service)
 // External roles have permissions that start with auth.<serviceKey>. where serviceKey is NOT auth-related
 func isExternalRole(role Role) bool {
 	// System roles are not external
-	if SystemAuthRoles[role.Name] {
+	systemRoles := map[string]bool{
+		"GOD": true, "god": true, "admin": true, "Admin": true, "ADMIN": true,
+		"service-manager": true, "user-manager": true, "viewer": true, "support": true,
+	}
+	if systemRoles[role.Name] {
 		return false
 	}
 
@@ -512,11 +502,10 @@ func UpdateServiceRole(role *ServiceRole) error {
 		bson.M{"_id": role.ID},
 		bson.M{
 			"$set": bson.M{
-				"name":         role.Name,
-				"display_name": role.DisplayName,
-				"description":  role.Description,
-				"permissions":  role.Permissions,
-				"updated_at":   role.UpdatedAt,
+				"name":        role.Name,
+				"description": role.Description,
+				"permissions": role.Permissions,
+				"updated_at":  role.UpdatedAt,
 			},
 		},
 	)

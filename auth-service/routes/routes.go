@@ -73,9 +73,7 @@ func SetupAuthRoutes(router *gin.Engine) {
 	router.POST("/login", RateLimitMiddleware(), loginHandler) // Rate limiting for login
 	router.GET("/logout", logoutHandler)
 	router.GET("/verify", verifyHandler)
-	router.GET("/verify-admin", verifyAdminHandler)            // Admin-only verification
-	router.GET("/verify-logs-access", verifyLogsAccessHandler) // Logs access verification with filter
-
+	router.GET("/verify-admin", verifyAdminHandler) // Admin-only verification
 	router.GET("/access-denied", accessDeniedHandler)
 
 	// Password recovery routes
@@ -181,7 +179,6 @@ func SetupAdminRoutes(router *gin.Engine) {
 
 	// External roles management (roles in auth-service that control access to external services)
 	router.POST("/services/:serviceKey/external-roles", serviceAdminAuthRequired(), createExternalRoleHandler)
-	router.GET("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), getExternalRoleHandler)
 	router.PUT("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), updateExternalRoleHandler)
 	router.DELETE("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), deleteExternalRoleHandler)
 
