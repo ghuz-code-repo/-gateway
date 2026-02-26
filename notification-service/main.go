@@ -101,7 +101,7 @@ type NotificationConfig struct {
 	SMTPUsername                string `json:"smtp_username"`
 	SMTPPassword                string `json:"smtp_password"`
 	SMTPFrom                    string `json:"smtp_from"`
-	SMTPUseTLS                  bool   `json:"smtp_use_tls" gorm:"default:true"`
+	SMTPUseTLS                  bool   `json:"smtp_use_tls" gorm:"default:false"`
 	SMTPUseAuth                 bool   `json:"smtp_use_auth" gorm:"default:true"`
 	SMTPAuthMethod              string `json:"smtp_auth_method" gorm:"default:'plain'"`
 	TelegramBotToken            string `json:"telegram_bot_token"`              // Токен для обычного бота
