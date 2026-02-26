@@ -406,53 +406,11 @@ func GetDatabase() *mongo.Database {
 }
 
 // CreateDefaultPermissions creates default permissions for services
+// NOTE: Legacy function — no longer overwrites service role permissions.
+// Service roles and their permissions are managed via auth-connector registration
+// and the admin panel. See ADR-001-service-based-authorization.md
 func CreateDefaultPermissions() {
-	ctx := context.Background()
-	services := []string{"calculators", "referal"} // Add "referal" to the default services
-
-	log.Println("Creating default permissions for services:", services)
-
-	for _, service := range services {
-		result, err := permsCol.UpdateOne(
-			ctx,
-			bson.M{"service": service},
-			bson.M{"$setOnInsert": bson.M{"service": service}},
-			options.Update().SetUpsert(true),
-		)
-		if err != nil {
-			log.Printf("Warning: Failed to insert permission for service %s: %v", service, err)
-		} else if result.UpsertedCount > 0 {
-			log.Printf("Created permission for service: %s", service)
-		}
-	}
-
-	// Ensure admin role has access to all services
-	updateAdminPermissions(services)
-}
-
-// updateAdminPermissions ensures the admin role has access to all services
-func updateAdminPermissions(services []string) {
-	ctx := context.Background()
-
-	// Find admin role
-	var adminRole Role
-	err := serviceRolesCol.FindOne(ctx, bson.M{"name": "admin"}).Decode(&adminRole)
-	if err != nil {
-		log.Printf("Warning: Failed to find admin role: %v", err)
-		return
-	}
-
-	// Update admin role permissions to include all services
-	_, err = serviceRolesCol.UpdateOne(
-		ctx,
-		bson.M{"name": "admin"},
-		bson.M{"$set": bson.M{"permissions": services}},
-	)
-	if err != nil {
-		log.Printf("Warning: Failed to update admin role permissions: %v", err)
-	} else {
-		log.Printf("Updated admin role with all service permissions")
-	}
+	log.Println("CreateDefaultPermissions: skipped (permissions managed by service registration)")
 }
 
 // EnsureAdminExists creates an admin user and role if no system administrators exist
