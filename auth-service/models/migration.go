@@ -50,7 +50,14 @@ func MigrateToADR001Schema() (*MigrationResult, error) {
 	// 	result.Errors = append(result.Errors, fmt.Sprintf("Default services creation failed: %v", err))
 	// }
 
-	// Phase 4: Remove unwanted system administration service
+	// Phase 4: Migrate role_type field on existing roles
+	err = migrateRoleTypes(result)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Role type migration failed: %v", err))
+		// Non-fatal: continue
+	}
+
+	// Phase 5: Remove unwanted system administration service
 	err = DeleteServiceByKey("system")
 	if err != nil {
 		log.Printf("Could not remove system service (might not exist): %v", err)
@@ -91,7 +98,7 @@ func migrateServicesSchema(result *MigrationResult) error {
 		for i, perm := range service.Permissions {
 			availablePermissions[i] = PermissionDef{
 				Name:        perm,
-				DisplayName: strings.Title(perm),
+				DisplayName: titleCase(perm),
 				Description: fmt.Sprintf("Permission to %s", perm),
 			}
 		}
@@ -163,6 +170,111 @@ func migrateRolesSchema(result *MigrationResult) error {
 		}
 	}
 
+	return nil
+}
+
+// migrateRoleTypes sets role_type and managed_service fields on existing roles
+// that don't have them yet. Uses heuristic: auth-service roles whose permissions
+// match "auth.<serviceKey>.*" pattern are external, all others are internal.
+func migrateRoleTypes(result *MigrationResult) error {
+	ctx := context.Background()
+
+	// Find roles without role_type field
+	cursor, err := serviceRolesCol.Find(ctx, bson.M{
+		"role_type": bson.M{"$exists": false},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to query roles: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	// Get all registered services to detect external permission patterns
+	servicesCursor, err := servicesCol.Find(ctx, bson.M{
+		"key": bson.M{"$ne": "auth"},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to query services: %v", err)
+	}
+	defer servicesCursor.Close(ctx)
+
+	serviceKeys := make(map[string]bool)
+	for servicesCursor.Next(ctx) {
+		var svc Service
+		if err := servicesCursor.Decode(&svc); err != nil {
+			continue
+		}
+		serviceKeys[svc.Key] = true
+	}
+
+	// System roles that should always be internal
+	systemRoleNames := map[string]bool{
+		"GOD": true, "god": true,
+		"admin": true, "Admin": true, "ADMIN": true,
+		"service-manager": true, "user-manager": true,
+		"viewer": true, "support": true,
+	}
+
+	updated := 0
+	for cursor.Next(ctx) {
+		var role Role
+		if err := cursor.Decode(&role); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("Failed to decode role for type migration: %v", err))
+			continue
+		}
+
+		roleType := RoleTypeInternal
+		managedService := ""
+
+		// For auth-service roles, check if they manage an external service
+		serviceField := role.ServiceKey
+		if serviceField == "" {
+			// Try reading from bson directly
+			continue
+		}
+
+		if serviceField == "auth" && !systemRoleNames[role.Name] {
+			// Check if role has permissions matching auth.<serviceKey>.* for a known service
+			for _, perm := range role.Permissions {
+				if perm == "auth.*" {
+					// Wildcard — this is a system admin role, keep internal
+					break
+				}
+				// Parse auth.<serviceKey>.<action>
+				parts := strings.Split(perm, ".")
+				if len(parts) >= 3 && parts[0] == "auth" {
+					candidateService := parts[1]
+					if serviceKeys[candidateService] {
+						roleType = RoleTypeExternal
+						managedService = candidateService
+						break
+					}
+				}
+			}
+		}
+
+		// Update the role
+		update := bson.M{
+			"$set": bson.M{
+				"role_type": roleType,
+				"updatedAt": time.Now(),
+			},
+		}
+		if managedService != "" {
+			update["$set"].(bson.M)["managed_service"] = managedService
+		}
+
+		_, err := serviceRolesCol.UpdateOne(ctx, bson.M{"_id": role.ID}, update)
+		if err != nil {
+			result.Errors = append(result.Errors,
+				fmt.Sprintf("Failed to set role_type for role %s: %v", role.Name, err))
+		} else {
+			updated++
+			log.Printf("Set role_type=%s for role '%s' (service: %s, managed: %s)",
+				roleType, role.Name, serviceField, managedService)
+		}
+	}
+
+	log.Printf("Role type migration: updated %d roles", updated)
 	return nil
 }
 

@@ -9,11 +9,12 @@
 # ===================================================================
 
 # ================================================================
-# EXTERNAL SERVICE UPSTREAMS (not part of gateway service discovery)
+# EXTERNAL SERVICE UPSTREAMS
 # ================================================================
-upstream apartment-finder {
-    server apartment-finder-app:5000;
-}
+# NOTE: All external upstreams use variable-based proxy_pass with
+# the resolver directive, so nginx can start even if services
+# are not yet available.
+# ================================================================
 
 # Redirect HTTP -> HTTPS
 server {
@@ -35,25 +36,33 @@ server {
     ssl_prefer_server_ciphers on;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
+    # Docker internal DNS resolver — allows proxy_pass with variables
+    # to resolve at runtime (not at config load), so nginx starts
+    # even if some upstreams (e.g. dozzle) are not yet running.
+    resolver 127.0.0.11 valid=30s ipv6=off;
+    resolver_timeout 5s;
+
     client_max_body_size 100M;
     add_header X-Debug-Message "Request processed by Nginx" always;
+
+    # Common proxy headers — inherited by all location blocks
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 
     # ================================================================
     # FAVICON CONFIGURATION
     # ================================================================
     
     # Insert favicon with unique tag
+    # sub_filter_types defaults to text/html — no need to redeclare
     sub_filter_once off;
-    sub_filter_types text/html;
     sub_filter '</head>' '<link rel="icon" type="image/x-icon" href="/vite.svg?v=2" data-version="golden-house-v2"></head>';
     
     # Main favicon endpoints - proxy to auth-service
     location = /vite.svg {
         proxy_pass http://auth-service:80/vite.svg;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
         add_header Content-Type "image/x-icon" always;
         add_header Cache-Control "public, max-age=3600" always;
         expires 1h;
@@ -79,10 +88,6 @@ server {
             return 404;
         }
         proxy_pass http://auth-service:80$request_uri;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_valid 200 24h;
         add_header Cache-Control "public, max-age=86400" always;
         expires 24h;
@@ -100,52 +105,31 @@ server {
     # Main page
     location = / {
         proxy_pass http://auth-service:80/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Login and Logout
     location /login {
+        limit_req zone=auth_login burst=10 nodelay;
         proxy_pass http://auth-service:80/login;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     location /logout {
         proxy_pass http://auth-service:80/logout;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Password recovery
     location /forgot-password {
+        limit_req zone=auth_recovery burst=3 nodelay;
         proxy_pass http://auth-service:80/forgot-password;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     location /reset-password {
+        limit_req zone=auth_login burst=5 nodelay;
         proxy_pass http://auth-service:80/reset-password;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     location /access-denied {
         proxy_pass http://auth-service:80/access-denied;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # ================================================================
@@ -155,37 +139,21 @@ server {
     # Menu endpoint (accessible to all authenticated users)
     location /menu {
         proxy_pass http://auth-service:80/menu;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Admin menu
     location /admin-menu {
         proxy_pass http://auth-service:80/admin-menu;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # User profile
     location /profile {
         proxy_pass http://auth-service:80/profile;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # System settings (for admins)
     location /settings {
         proxy_pass http://auth-service:80/settings;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # ================================================================
@@ -195,28 +163,16 @@ server {
     # Service management
     location /services {
         proxy_pass http://auth-service:80/services;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Service-specific Excel import/export endpoints (HIGH PRIORITY)
     location /service/ {
         proxy_pass http://auth-service:80;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # User management
     location /users {
         proxy_pass http://auth-service:80/users;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # ================================================================
@@ -235,7 +191,9 @@ server {
         error_page 403 = @error403_logs;
         
         # Dozzle web UI with WebSocket support
-        proxy_pass http://gateway-dozzle:8080;
+        # Use variable so nginx resolves at runtime, not at config load
+        set $dozzle_upstream http://gateway-dozzle:8080;
+        proxy_pass $dozzle_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -295,7 +253,8 @@ server {
         rewrite ^/services/[^/]+/logs(/.*)?$ /logs$1 break;
         
         # Dozzle web UI with WebSocket support
-        proxy_pass http://gateway-dozzle:8080;
+        set $dozzle_upstream2 http://gateway-dozzle:8080;
+        proxy_pass $dozzle_upstream2;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -350,64 +309,36 @@ server {
     # User existence check
     location /check-user-exists {
         proxy_pass http://auth-service:80/check-user-exists;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Role management
     location /roles {
         proxy_pass http://auth-service:80/roles;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Permission management
     location /permissions {
         proxy_pass http://auth-service:80/permissions;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Notification settings
     location /notification-settings {
         proxy_pass http://auth-service:80/notification-settings;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Migration management
     location /migration {
         proxy_pass http://auth-service:80/migration;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Document types
     location /document-types {
         proxy_pass http://auth-service:80/document-types;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Available services
     location /available-services {
         proxy_pass http://auth-service:80/available-services;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # ================================================================
@@ -417,19 +348,6 @@ server {
     # General API endpoints (high priority prefix)
     location ^~ /api/ {
         proxy_pass http://auth-service:80/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    
-    # Specific API for documents
-    location /api/profile/documents {
-        proxy_pass http://auth-service:80/api/profile/documents;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # ================================================================
@@ -439,19 +357,11 @@ server {
     # Data files from auth-service
     location /data/ {
         proxy_pass http://auth-service:80/data/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # Avatar endpoint (no caching for fresh images)
     location /avatar/ {
         proxy_pass http://auth-service:80/avatar/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
         add_header Pragma "no-cache" always;
         add_header Expires "0" always;
@@ -460,10 +370,6 @@ server {
     # Static CSS/JS files with caching
     location /static/ {
         proxy_pass http://auth-service:80/static/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_valid 200 1h;
         proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
         add_header Cache-Control "public, max-age=3600" always;
@@ -527,7 +433,8 @@ server {
 
     # Apartment Finder — standalone analytics service
     location /finder/ {
-        proxy_pass http://apartment-finder/;
+        set $apartment_upstream http://apartment-finder-app:5000;
+        proxy_pass $apartment_upstream/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -537,7 +444,8 @@ server {
 
     # Apartment Finder static files
     location /finder/static/ {
-        proxy_pass http://apartment-finder/static/;
+        set $apartment_static_upstream http://apartment-finder-app:5000;
+        proxy_pass $apartment_static_upstream/static/;
         proxy_set_header Host $host;
         proxy_cache_valid 200 1h;
         add_header Cache-Control "public, max-age=3600" always;

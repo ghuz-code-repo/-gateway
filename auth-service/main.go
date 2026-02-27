@@ -106,10 +106,11 @@ func checkAndCleanupAvatars() {
 }
 
 func main() {
-	// MongoDB connection string and db name from env or default
+	// MongoDB connection string and db name from env (required)
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
-		mongoURI = "mongodb://mongo:27017"
+		log.Fatal("MONGO_URI environment variable is required. " +
+			"Example: mongodb://authservice:password@mongo:27017/authdb?authSource=authdb")
 	}
 	dbName := os.Getenv("MONGO_DB")
 	if dbName == "" {
@@ -135,16 +136,6 @@ func main() {
 
 	// Create an admin user if it doesn't exist
 	models.EnsureAdminExists()
-
-	// Ensure referal permission exists
-	models.CreateDefaultPermissions()
-
-	// Ensure admin has all permissions
-	// models.EnsureAdminHasAllPermissions()
-
-	// After database initialization
-	models.InitializeDefaultPermissions()
-	models.InitializeDefaultDisplayNames()
 
 	// ADR-001: Perform migration to new schema
 	log.Println("Checking for ADR-001 schema migration...")
@@ -196,18 +187,25 @@ func main() {
 
 	// CORS middleware configuration
 	router.Use(func(c *gin.Context) {
-		// Get allowed origin from environment or use default
-		allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
-		if allowedOrigin == "" {
-			allowedOrigin = "http://localhost" // Default for development
+		// Build whitelist of allowed origins from environment
+		allowedOrigins := make(map[string]bool)
+		if envOrigin := os.Getenv("ALLOWED_ORIGIN"); envOrigin != "" {
+			for _, o := range strings.Split(envOrigin, ",") {
+				allowedOrigins[strings.TrimSpace(o)] = true
+			}
+		}
+		// Always allow localhost in development
+		if os.Getenv("ENVIRONMENT") != "production" {
+			allowedOrigins["http://localhost"] = true
+			allowedOrigins["http://localhost:80"] = true
+			allowedOrigins["https://localhost"] = true
 		}
 
 		origin := c.Request.Header.Get("Origin")
-		// Only set CORS headers if origin matches or in development
-		if origin == allowedOrigin || os.Getenv("ENVIRONMENT") != "production" {
+		if origin != "" && allowedOrigins[origin] {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-API-Key")
 			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 		}
 
@@ -233,8 +231,8 @@ func main() {
 		"127.0.0.1",      // localhost
 	})
 
-	// Set maximum memory for multipart forms to 99MB
-	router.MaxMultipartMemory = 99 << 20 // 99 MB
+	// Set maximum memory for multipart forms to 10MB
+	router.MaxMultipartMemory = 10 << 20 // 10 MB
 
 	// Set up static file serving
 	router.Static("/static", "./static")

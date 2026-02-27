@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -107,16 +106,9 @@ func verifyAdminHandler(c *gin.Context) {
 	}
 
 	// Parse and validate token
-	claims := &models.Claims{}
-	token, err := jwt.ParseWithClaims(cookie, claims, func(token *jwt.Token) (interface{}, error) {
-		jwtSecret := os.Getenv("JWT_SECRET")
-		if jwtSecret == "" {
-			jwtSecret = "default_jwt_secret_change_in_production"
-		}
-		return []byte(jwtSecret), nil
-	})
-
-	if err != nil || !token.Valid {
+	// Use validateToken for consistent blacklist checking
+	claims, valid := validateToken(cookie)
+	if !valid {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -151,16 +143,9 @@ func verifyHandler(c *gin.Context) {
 	log.Printf("DEBUG verifyHandler: found token cookie, length: %d", len(cookie))
 
 	// Parse and validate token
-	claims := &models.Claims{}
-	token, err := jwt.ParseWithClaims(cookie, claims, func(token *jwt.Token) (interface{}, error) {
-		jwtSecret := os.Getenv("JWT_SECRET")
-		if jwtSecret == "" {
-			jwtSecret = "default_jwt_secret_change_in_production"
-		}
-		return []byte(jwtSecret), nil
-	})
-
-	if err != nil || !token.Valid {
+	// Use validateToken for consistent blacklist checking
+	claims, valid := validateToken(cookie)
+	if !valid {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -216,15 +201,13 @@ func verifyHandler(c *gin.Context) {
 	// Check if user has any access to this service
 	if len(serviceRoles) == 0 && len(servicePermissions) == 0 {
 		// Admin role always has access to all services (legacy support)
-		if hasAdminRole(user) {
+		// Use pre-fetched roles to check admin status (avoid extra DB query)
+		allRoles := fetchUserRoles(user)
+		if hasAdminRoleWithRoles(allRoles, user.Username) {
 			serviceRoles = []string{"admin"}
 			// For admin, get all available permissions for the service
 			adminPermissions, _ := models.GetUserServicePermissions(claims.UserID, service)
 			servicePermissions = adminPermissions
-		} else if service == "referal" {
-			// Temporary: Allow all authenticated users to access referal service
-			serviceRoles = []string{"user"}
-			servicePermissions = []string{"referal.profile.view", "referal.profile.edit"}
 		} else {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
@@ -339,8 +322,8 @@ func verifyHandler(c *gin.Context) {
 	c.Header("X-User-Service-Roles", strings.Join(serviceRoles, ","))
 	c.Header("X-User-Service-Permissions", strings.Join(servicePermissions, ","))
 
-	// Legacy headers for backward compatibility
-	c.Header("X-User-Roles", strings.Join(user.Roles, ","))
+	// Legacy header populated from user_service_roles for backward compatibility
+	c.Header("X-User-Roles", strings.Join(serviceRoles, ","))
 	if hasAdminRole(user) {
 		c.Header("X-User-Admin", "true")
 	}
@@ -606,16 +589,9 @@ func verifyLogsAccessHandler(c *gin.Context) {
 	}
 
 	// Parse and validate token
-	claims := &models.Claims{}
-	token, err := jwt.ParseWithClaims(cookie, claims, func(token *jwt.Token) (interface{}, error) {
-		jwtSecret := os.Getenv("JWT_SECRET")
-		if jwtSecret == "" {
-			jwtSecret = "default_jwt_secret_change_in_production"
-		}
-		return []byte(jwtSecret), nil
-	})
-
-	if err != nil || !token.Valid {
+	// Use validateToken for consistent blacklist checking
+	claims, valid := validateToken(cookie)
+	if !valid {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}

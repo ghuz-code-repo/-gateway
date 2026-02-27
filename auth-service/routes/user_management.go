@@ -16,6 +16,54 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// userWithServiceRoles binds a user with their service role assignments (for templates)
+type userWithServiceRoles struct {
+	User         models.User
+	ServiceRoles []models.UserServiceRole
+}
+
+// buildUsersWithRoles enriches a list of users with their service roles
+// Uses batch loading to avoid N+1 queries
+func buildUsersWithRoles(users []models.User) []userWithServiceRoles {
+	// Load all user-service-role assignments in one query
+	allRolesGrouped, err := models.GetAllUserServiceRolesGrouped()
+	if err != nil {
+		log.Printf("Warning: Failed to batch-load service roles, falling back to per-user: %v", err)
+		// Fallback to per-user loading if batch fails
+		return buildUsersWithRolesFallback(users)
+	}
+
+	result := make([]userWithServiceRoles, 0, len(users))
+	for _, user := range users {
+		serviceRoles := allRolesGrouped[user.ID]
+		if serviceRoles == nil {
+			serviceRoles = []models.UserServiceRole{}
+		}
+		result = append(result, userWithServiceRoles{
+			User:         user,
+			ServiceRoles: serviceRoles,
+		})
+	}
+	return result
+}
+
+// buildUsersWithRolesFallback is the N+1 fallback used only if batch loading fails
+func buildUsersWithRolesFallback(users []models.User) []userWithServiceRoles {
+	result := make([]userWithServiceRoles, 0, len(users))
+	for _, user := range users {
+		serviceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
+		if err != nil {
+			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
+			serviceRoles = []models.UserServiceRole{}
+		}
+		result = append(result, userWithServiceRoles{
+			User:         user,
+			ServiceRoles: serviceRoles,
+		})
+	}
+	return result
+}
+
 // listUsersHandler displays all users (legacy)
 func listUsersHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
@@ -28,24 +76,7 @@ func listUsersHandler(c *gin.Context) {
 	}
 
 	// Prepare users with their service roles
-	type UserWithServiceRoles struct {
-		User         models.User
-		ServiceRoles []models.UserServiceRole
-	}
-
-	var usersWithRoles []UserWithServiceRoles
-	for _, user := range users {
-		serviceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-		if err != nil {
-			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
-			serviceRoles = []models.UserServiceRole{} // Empty slice if error
-		}
-
-		usersWithRoles = append(usersWithRoles, UserWithServiceRoles{
-			User:         user,
-			ServiceRoles: serviceRoles,
-		})
-	}
+	usersWithRoles := buildUsersWithRoles(users)
 
 	// Get 'imported' query parameter
 	importedCount := c.Query("imported")
@@ -132,13 +163,7 @@ func createUserHandler(c *gin.Context) {
 		return
 	}
 
-	// Determine roles based on system admin toggle
-	var roleNames []string
-	if systemAdmin == "true" {
-		roleNames = []string{"system.admin"} // Set system admin role if system admin is checked
-	}
-
-	// Create user with extended fields
+	// Create user with extended fields (no legacy Roles field)
 	newUser := models.User{
 		Username:   username,
 		Email:      email,
@@ -149,7 +174,6 @@ func createUserHandler(c *gin.Context) {
 		Phone:      phone,
 		Position:   position,
 		Department: department,
-		Roles:      roleNames,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
@@ -176,6 +200,22 @@ func createUserHandler(c *gin.Context) {
 	}
 
 	// Assign service roles
+	// First, assign system admin role if needed
+	if systemAdmin == "true" {
+		adminRole := models.UserServiceRole{
+			UserID:     userID,
+			ServiceKey: "auth",
+			RoleName:   "admin",
+			AssignedAt: time.Now(),
+			AssignedBy: user.ID,
+			IsActive:   true,
+		}
+		if err := models.CreateUserServiceRole(adminRole); err != nil {
+			log.Printf("Warning: Failed to assign admin role to user %s: %v", userID.Hex(), err)
+		}
+	}
+
+	// Then assign selected service roles
 	for _, serviceRole := range serviceRoles {
 		parts := strings.Split(serviceRole, "-")
 		if len(parts) == 2 {
@@ -349,12 +389,6 @@ func updateUserHandler(c *gin.Context) {
 		return
 	}
 
-	// Determine roles based on system admin toggle
-	var roleNames []string
-	if systemAdmin == "true" {
-		roleNames = []string{"system.admin"} // Set system admin role if system admin is checked
-	}
-
 	// Update user basic information
 	updatedUser := existingUser
 	updatedUser.Username = username
@@ -366,7 +400,6 @@ func updateUserHandler(c *gin.Context) {
 	updatedUser.Phone = phone
 	updatedUser.Position = position
 	updatedUser.Department = department
-	updatedUser.Roles = roleNames
 	updatedUser.UpdatedAt = time.Now()
 
 	// Update password if provided
@@ -431,6 +464,24 @@ func updateUserHandler(c *gin.Context) {
 
 	// Then assign new service roles
 	assignedCount := 0
+
+	// Assign system admin role via user_service_roles if needed
+	if systemAdmin == "true" {
+		adminRole := models.UserServiceRole{
+			UserID:     objectID,
+			ServiceKey: "auth",
+			RoleName:   "admin",
+			AssignedAt: time.Now(),
+			AssignedBy: currentUser.ID,
+			IsActive:   true,
+		}
+		if err := models.CreateUserServiceRole(adminRole); err != nil {
+			log.Printf("Warning: Failed to assign admin role to user %s: %v", objectID.Hex(), err)
+		} else {
+			assignedCount++
+		}
+	}
+
 	for _, serviceRole := range serviceRoles {
 		log.Printf("DEBUG: Processing service role: %s", serviceRole)
 		// Support both formats: "serviceKey:roleName" (new) and "serviceKey-roleName" (legacy)
@@ -725,24 +776,7 @@ func usersManagementHandler(c *gin.Context) {
 	}
 
 	// Prepare users with their service roles
-	type UserWithServiceRoles struct {
-		User         models.User
-		ServiceRoles []models.UserServiceRole
-	}
-
-	var usersWithRoles []UserWithServiceRoles
-	for _, user := range users {
-		serviceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-		if err != nil {
-			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
-			serviceRoles = []models.UserServiceRole{} // Empty slice if error
-		}
-
-		usersWithRoles = append(usersWithRoles, UserWithServiceRoles{
-			User:         user,
-			ServiceRoles: serviceRoles,
-		})
-	}
+	usersWithRoles := buildUsersWithRoles(users)
 
 	user := c.MustGet("user").(*models.User)
 
@@ -962,13 +996,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 	log.Printf("DEBUG: showEnhancedUserFormHandler called with userID: %s", userID)
 
 	// Check if current user is a system admin (has god-like permissions)
-	isGodUser := false
-	for _, role := range currentUser.Roles {
-		if role == "admin" || role == "system.admin" || role == "GOD" {
-			isGodUser = true
-			break
-		}
-	}
+	isGodUser := models.IsSystemAdmin(currentUser.ID)
 
 	// Basic permission checks for user management
 	canViewBasicInfo := isGodUser || hasAuthPermission(currentUser, "auth.users.view") || hasAuthPermission(currentUser, "auth.users.edit")
@@ -1053,54 +1081,9 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 			userServiceRoles = []models.UserServiceRole{}
 		}
 		log.Printf("DEBUG: User has %d service roles", len(userServiceRoles))
-		log.Printf("DEBUG: User old roles: %v", user.Roles)
 
-		// If user has no service roles in new system but has old roles, we need to migrate them
-		if len(userServiceRoles) == 0 && len(user.Roles) > 0 {
-			log.Printf("DEBUG: User has old roles but no new service roles, attempting to show old roles for migration")
-			// Convert old roles to display format for migration assistance
-			oldRolesInfo := make([]models.UserServiceRole, 0)
-
-			// Get all roles to find service mappings
-			allRoles, err := models.GetAllRoles()
-			if err == nil {
-				for _, userRoleName := range user.Roles {
-					if userRoleName == "admin" || userRoleName == "system.admin" {
-						continue // Skip system admin role
-					}
-
-					// Find this role in the roles collection
-					for _, role := range allRoles {
-						if role.Name == userRoleName && role.ServiceKey != "" {
-							oldRoleInfo := models.UserServiceRole{
-								UserID:     user.ID,
-								ServiceKey: role.ServiceKey,
-								RoleName:   role.Name,
-								IsActive:   true,
-								// Add a marker to show this is from old system
-							}
-							oldRolesInfo = append(oldRolesInfo, oldRoleInfo)
-							log.Printf("DEBUG: Found old role mapping: %s -> %s:%s", userRoleName, role.ServiceKey, role.Name)
-						}
-					}
-				}
-			}
-
-			// Use old roles info if available
-			if len(oldRolesInfo) > 0 {
-				userServiceRoles = oldRolesInfo
-				log.Printf("DEBUG: Using %d converted old roles for display", len(oldRolesInfo))
-			}
-		}
-
-		// Check if user is system admin (has "admin" or "system.admin" role)
-		isSystemAdmin := false
-		for _, role := range user.Roles {
-			if role == "admin" || role == "system.admin" {
-				isSystemAdmin = true
-				break
-			}
-		}
+		// Check if user is system admin via user_service_roles
+		isSystemAdmin := models.IsSystemAdmin(user.ID)
 		log.Printf("DEBUG: User is system admin: %t", isSystemAdmin)
 
 		// Count documents and roles for badges
@@ -1221,13 +1204,7 @@ func debugUserRolesHandler(c *gin.Context) {
 		}
 		log.Printf("DEBUG: User has %d service roles", len(userServiceRoles))
 
-		isSystemAdmin := false
-		for _, role := range user.Roles {
-			if role == "admin" || role == "system.admin" {
-				isSystemAdmin = true
-				break
-			}
-		}
+		isSystemAdmin := models.IsSystemAdmin(user.ID)
 
 		templateData := gin.H{
 			"title":         "Debug: Роли пользователя",
@@ -1265,24 +1242,7 @@ func usersManagementTestHandler(c *gin.Context) {
 	}
 
 	// Prepare users with their service roles
-	type UserWithServiceRoles struct {
-		User         models.User
-		ServiceRoles []models.UserServiceRole
-	}
-
-	var usersWithRoles []UserWithServiceRoles
-	for _, user := range users {
-		serviceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-		if err != nil {
-			log.Printf("Warning: Failed to get service roles for user %s: %v", user.ID.Hex(), err)
-			serviceRoles = []models.UserServiceRole{} // Empty slice if error
-		}
-
-		usersWithRoles = append(usersWithRoles, UserWithServiceRoles{
-			User:         user,
-			ServiceRoles: serviceRoles,
-		})
-	}
+	usersWithRoles := buildUsersWithRoles(users)
 
 	c.HTML(http.StatusOK, "users_management_test.html", gin.H{
 		"title":          "ТЕСТОВАЯ страница управления пользователями",

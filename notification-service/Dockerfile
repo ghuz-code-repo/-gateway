@@ -24,6 +24,9 @@ WORKDIR /root/
 # Copy the binary from builder stage
 COPY --from=builder /app/main .
 
+# Copy static files for web interface
+COPY --from=builder /app/static ./static
+
 # Create directory for logs
 RUN mkdir -p /var/log/notification-service
 

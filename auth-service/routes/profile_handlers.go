@@ -2,7 +2,7 @@ package routes
 
 import (
 	"auth-service/models"
-	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -24,7 +24,7 @@ func SetupProfileRoutes(router *gin.Engine) {
 	router.POST("/profile/document", authRequired(), uploadDocumentHandler)
 	router.POST("/profile/document/delete", authRequired(), deleteDocumentHandler)
 	router.GET("/profile/document/:id", authRequired(), downloadDocumentHandler)
-	
+
 	// Document system routes for profile
 	router.GET("/profile/documents", authRequired(), getMyDocumentsHandler)
 	router.GET("/profile/documents/:id", authRequired(), getUserDocumentHandler)
@@ -41,7 +41,7 @@ func SetupProfileRoutes(router *gin.Engine) {
 // profileHandler shows the user profile page
 func profileHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
-	
+
 	// Get user's service roles
 	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
 	if err != nil {
@@ -78,15 +78,15 @@ func profileHandler(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "profile.html", gin.H{
-		"title":         "Личный кабинет",
-		"username":      user.Username,
-		"full_name":     user.GetFullName(),
-		"short_name":    user.GetShortName(),
-		"user":          user,
-		"userRoles":     userRoles,
-		"serviceRoles":  serviceRolesMap,
-		"serviceNames":  serviceNames,
-		"timestamp":     time.Now().Unix(),
+		"title":        "Личный кабинет",
+		"username":     user.Username,
+		"full_name":    user.GetFullName(),
+		"short_name":   user.GetShortName(),
+		"user":         user,
+		"userRoles":    userRoles,
+		"serviceRoles": serviceRolesMap,
+		"serviceNames": serviceNames,
+		"timestamp":    time.Now().Unix(),
 	})
 }
 
@@ -103,12 +103,12 @@ func updateProfileHandler(c *gin.Context) {
 	position := c.PostForm("position")
 	department := c.PostForm("department")
 
-	fmt.Printf("updateProfileHandler: user=%s, email=%s, lastName=%s, firstName=%s, middleName=%s, suffix=%s, phone=%s, position=%s, department=%s\n", 
+	log.Printf("updateProfileHandler: user=%s, email=%s, lastName=%s, firstName=%s, middleName=%s, suffix=%s, phone=%s, position=%s, department=%s\n",
 		user.Username, email, lastName, firstName, middleName, suffix, phone, position, department)
 
 	err := models.UpdateUserProfile(user.ID, email, lastName, firstName, middleName, suffix, phone, position, department)
 	if err != nil {
-		fmt.Printf("updateProfileHandler error: %v\n", err)
+		log.Printf("updateProfileHandler error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить профиль"})
 		return
 	}
@@ -127,16 +127,16 @@ func updateProfileHandler(c *gin.Context) {
 		"success": true,
 		"message": "Профиль успешно обновлен",
 		"user": gin.H{
-			"email":       updatedUser.Email,
-			"lastName":    updatedUser.LastName,
-			"firstName":   updatedUser.FirstName,
-			"middleName":  updatedUser.MiddleName,
-			"suffix":      updatedUser.Suffix,
-			"fullName":    updatedUser.GetFullName(),
-			"shortName":   updatedUser.GetShortName(),
-			"phone":       updatedUser.Phone,
-			"position":    updatedUser.Position,
-			"department":  updatedUser.Department,
+			"email":      updatedUser.Email,
+			"lastName":   updatedUser.LastName,
+			"firstName":  updatedUser.FirstName,
+			"middleName": updatedUser.MiddleName,
+			"suffix":     updatedUser.Suffix,
+			"fullName":   updatedUser.GetFullName(),
+			"shortName":  updatedUser.GetShortName(),
+			"phone":      updatedUser.Phone,
+			"position":   updatedUser.Position,
+			"department": updatedUser.Department,
 		},
 	})
 }
@@ -149,7 +149,7 @@ func changePasswordHandler(c *gin.Context) {
 	newPassword := c.PostForm("new_password")
 	confirmPassword := c.PostForm("confirm_password")
 
-	fmt.Printf("changePasswordHandler: user=%s, currentPassword len=%d, newPassword len=%d, confirmPassword len=%d\n", 
+	log.Printf("changePasswordHandler: user=%s, currentPassword len=%d, newPassword len=%d, confirmPassword len=%d\n",
 		user.Username, len(currentPassword), len(newPassword), len(confirmPassword))
 
 	// Verify current password

@@ -56,7 +56,7 @@ func getUserServicePermissionsHandler(c *gin.Context) {
 		"roles":       roles,
 		"username":    user.Username,
 		"full_name":   user.GetFullName(),
-		"is_admin":    contains(user.Roles, "admin") || contains(user.Roles, "system.admin"),
+		"is_admin":    models.IsSystemAdmin(userObjectID),
 	})
 }
 
@@ -85,7 +85,7 @@ func getUserDocumentsHandler(c *gin.Context) {
 
 	// Get user documents
 	documents := user.Documents
-	
+
 	// For now, ignore document type filtering to avoid type issues
 	// TODO: Implement proper document type filtering if needed
 
@@ -94,27 +94,6 @@ func getUserDocumentsHandler(c *gin.Context) {
 		"username":  user.Username,
 		"full_name": user.GetFullName(),
 		"documents": documents,
-	})
-}
-
-// validateTokenHandler validates JWT token
-func validateTokenHandler(c *gin.Context) {
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" || len(authHeader) < 8 || authHeader[:7] != "Bearer " {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid or missing authorization header",
-		})
-		return
-	}
-
-	token := authHeader[7:]
-	
-	// TODO: Implement proper JWT validation
-	// For now, return a placeholder response
-	c.JSON(http.StatusOK, gin.H{
-		"valid":   true,
-		"token":   token,
-		"message": "Token validation not fully implemented",
 	})
 }
 

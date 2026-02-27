@@ -92,6 +92,43 @@ func HasAnyAuthPermission(userID primitive.ObjectID, permissions ...string) bool
 	return false
 }
 
+// IsSystemAdmin checks if user is a system admin via user_service_roles collection.
+// A system admin is a user who has "admin" or "GOD" role in the auth service,
+// or "admin" role in the legacy "system" service.
+// NOTE: Must stay in sync with checkAdminInRoles() in routes/middleware.go.
+func IsSystemAdmin(userID primitive.ObjectID) bool {
+	// Check auth service roles
+	roles, err := GetUserServiceRolesByUserIDAndService(userID, "auth")
+	if err != nil {
+		log.Printf("ERROR IsSystemAdmin: failed to get user service roles: %v", err)
+		return false
+	}
+
+	adminRoles := map[string]bool{
+		"admin": true,
+		"GOD":   true,
+	}
+
+	for _, r := range roles {
+		if r.IsActive && adminRoles[r.RoleName] {
+			return true
+		}
+	}
+
+	// Check legacy system/admin role
+	systemRoles, err := GetUserServiceRolesByUserIDAndService(userID, "system")
+	if err != nil {
+		return false
+	}
+	for _, r := range systemRoles {
+		if r.IsActive && r.RoleName == "admin" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // GetUserServiceRolesByUserIDAndService returns all service roles for a user in a specific service
 func GetUserServiceRolesByUserIDAndService(userID primitive.ObjectID, serviceKey string) ([]UserServiceRole, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"mime/quotedprintable"
 	"net"
@@ -33,7 +33,6 @@ func (ns *NotificationService) waitForSendSlot() {
 		timeSinceLastSend := time.Since(ns.lastSendTime)
 		if timeSinceLastSend < delayBetweenMessages {
 			waitTime := delayBetweenMessages - timeSinceLastSend
-			log.Printf("⏳ Global rate limit: waiting %v before next send", waitTime)
 			time.Sleep(waitTime)
 		}
 	}
@@ -99,9 +98,6 @@ func (ns *NotificationService) processBatch(batchID string) {
 
 // processNotification processes a single notification
 func (ns *NotificationService) processNotification(notification *Notification) {
-	log.Printf("Processing notification %d (type: %s, recipient: %s)",
-		notification.ID, notification.Type, notification.Recipient)
-
 	// Update status to sending
 	ns.db.Model(notification).Updates(Notification{
 		Status: StatusSending,
@@ -110,6 +106,8 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 	var err error
 	config := ns.getConfigFromDB()
 	maxAttempts := config.MaxRetryAttempts
+	const maxRateLimitRetries = 10
+	rateLimitRetries := 0
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		notification.Attempts = attempt
@@ -146,7 +144,12 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 
 		// Check if error is rate-limit (Telegram 429 Too Many Requests)
 		if isRateLimitError(err) {
-			log.Printf("⏳ Rate limit exceeded for notification %d, waiting 30 seconds...", notification.ID)
+			rateLimitRetries++
+			if rateLimitRetries > maxRateLimitRetries {
+				log.Printf("❌ Rate limit retry limit (%d) exceeded for notification %d", maxRateLimitRetries, notification.ID)
+				break
+			}
+			log.Printf("⏳ Rate limit exceeded for notification %d (retry %d/%d), waiting 30 seconds...", notification.ID, rateLimitRetries, maxRateLimitRetries)
 			time.Sleep(30 * time.Second)
 			// Не считаем попытку проваленной, пробуем снова
 			attempt--
@@ -195,8 +198,6 @@ func encodeQuotedPrintable(s string) string {
 
 // sendEmail sends an email notification
 func (ns *NotificationService) sendEmail(notification *Notification) error {
-	log.Printf("📧 Sending email to %s, subject: %s", notification.Recipient, notification.Subject)
-
 	config := ns.getEmailConfig()
 
 	// Validate configuration
@@ -206,11 +207,8 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	}
 
 	if config.UseAuth && (config.Username == "" || config.Password == "") {
-		log.Printf("❌ SMTP authentication required but credentials not provided")
 		return fmt.Errorf("SMTP authentication required but credentials not provided")
 	}
-
-	log.Printf("🔧 Using SMTP: %s:%s, auth=%v, tls=%v", config.Host, config.Port, config.UseAuth, config.UseTLS)
 
 	// Prepare recipient and content
 	originalRecipient := notification.Recipient
@@ -220,7 +218,6 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 
 	// Apply debug mode if enabled
 	if config.DebugMode && config.DebugEmail != "" {
-		log.Printf("🐛 DEBUG MODE: Redirecting email from %s to %s", originalRecipient, config.DebugEmail)
 		actualRecipient = config.DebugEmail
 		subject = "[DEBUG] " + subject
 		content = fmt.Sprintf("Конечным получателем является: %s\n\n%s", originalRecipient, content)
@@ -232,7 +229,6 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	if notification.AttachmentFilename != "" && len(notification.AttachmentContent) > 0 {
 		// Email with attachment - use MIME multipart
 		boundary := "----=_Part_" + fmt.Sprintf("%d", time.Now().Unix())
-
 		headers := []string{
 			"From: " + config.From,
 			"To: " + actualRecipient,
@@ -266,7 +262,6 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		}
 
 		messageBody = strings.Join(headers, "\r\n") + "\r\n" + strings.Join(textPart, "\r\n") + "\r\n" + strings.Join(attachmentPart, "\r\n")
-		log.Printf("📎 Email with attachment: %s (%d bytes)", notification.AttachmentFilename, len(notification.AttachmentContent))
 	} else {
 		// Simple email without attachment
 		message := []string{
@@ -315,7 +310,6 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 
 	// Authenticate if needed
 	if config.UseAuth {
-		log.Printf("🔑 Authenticating with method: %s, user: %s", config.AuthMethod, config.Username)
 		var auth smtp.Auth
 		switch strings.ToLower(config.AuthMethod) {
 		case "plain":
@@ -329,10 +323,8 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		}
 
 		if err = client.Auth(auth); err != nil {
-			log.Printf("❌ SMTP authentication failed: %v", err)
 			return fmt.Errorf("SMTP authentication error: %v", err)
 		}
-		log.Printf("✅ SMTP authentication successful")
 	}
 
 	// Set sender and recipient
@@ -357,15 +349,10 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 
 	err = wc.Close()
 	if err != nil {
-		log.Printf("❌ Failed to close SMTP data connection: %v", err)
 		return fmt.Errorf("SMTP data close error: %v", err)
 	}
 
-	if config.DebugMode && config.DebugEmail != "" {
-		log.Printf("✅ Email successfully sent to %s (DEBUG: original recipient was %s, notification #%d)", actualRecipient, originalRecipient, notification.ID)
-	} else {
-		log.Printf("✅ Email successfully sent to %s (notification #%d)", actualRecipient, notification.ID)
-	}
+	log.Printf("✅ Email sent to %s (notification #%d)", notification.Recipient, notification.ID)
 	return nil
 }
 
@@ -383,14 +370,10 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 			return fmt.Errorf("telegram system bot is not enabled")
 		}
 
-		// For system bot, use Chat ID from config if available
-		// Otherwise fall back to the recipient (username)
 		if config.SystemTelegramChatID != "" {
 			chatID = config.SystemTelegramChatID
-			log.Printf("📱 Sending Telegram message to Chat ID %s (system bot)", chatID)
 		} else {
 			chatID = notification.Recipient
-			log.Printf("📱 Sending Telegram message to %s (system bot, no Chat ID configured)", chatID)
 		}
 	} else {
 		botToken = config.TelegramBotToken
@@ -398,11 +381,9 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		if !config.TelegramEnabled {
 			return fmt.Errorf("telegram bot is not enabled")
 		}
-		log.Printf("📱 Sending Telegram message to chat %s (regular bot)", chatID)
 	}
 
 	if botToken == "" {
-		log.Printf("❌ Telegram bot token not configured")
 		return fmt.Errorf("telegram bot token not configured")
 	}
 
@@ -426,13 +407,13 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 
 	// Send request to Telegram Bot API
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payloadBytes))
+	resp, err := ns.httpClient.Post(url, "application/json", bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return fmt.Errorf("telegram API request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response: %v", err)
 	}
@@ -457,7 +438,7 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		return fmt.Errorf("telegram API returned error: %s", description)
 	}
 
-	log.Printf("✅ Telegram message successfully sent to %s (notification #%d)", notification.Recipient, notification.ID)
+	log.Printf("✅ Telegram message sent to %s (notification #%d)", notification.Recipient, notification.ID)
 	return nil
 }
 

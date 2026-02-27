@@ -22,7 +22,7 @@ func ExportUsersToExcel(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-	
+
 	user := currentUser.(*models.User)
 	log.Printf("User %s requested Excel export", user.Username)
 
@@ -40,12 +40,6 @@ func ExportUsersToExcel(c *gin.Context) {
 		log.Printf("Error getting services for export: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get services data"})
 		return
-	}
-	
-	// Log services for debugging
-	log.Printf("DEBUG EXPORT: Found %d services:", len(services))
-	for i, service := range services {
-		log.Printf("DEBUG EXPORT: Service %d - Key: '%s', Name: '%s'", i+1, service.Key, service.Name)
 	}
 
 	// Create Excel file
@@ -85,22 +79,22 @@ func ExportUsersToExcel(c *gin.Context) {
 	// Set response headers
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	filename := fmt.Sprintf("users_export_%s.xlsx", timestamp)
-	
+
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.Header("Pragma", "no-cache")
 	c.Header("Expires", "0")
-	
+
 	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer.Bytes())
-	
+
 	log.Printf("Excel export completed for user %s, file: %s", user.Username, filename)
 }
 
 // createUsersSheet creates the Users sheet with user data and service roles
 func createUsersSheet(file *excelize.File, users []models.UserImportExport, services []models.ServiceInfo) error {
 	sheetName := "Users"
-	
+
 	// Rename default sheet
 	file.SetSheetName("Sheet1", sheetName)
 
@@ -112,9 +106,9 @@ func createUsersSheet(file *excelize.File, users []models.UserImportExport, serv
 
 	// Add service headers
 	serviceHeaders := make([]string, len(services))
-	serviceMap := make(map[string]int) // service key -> column index
+	serviceMap := make(map[string]int)          // service key -> column index
 	serviceKeyToName := make(map[string]string) // service key -> service name
-	
+
 	for i, service := range services {
 		serviceHeaders[i] = service.Key // Use Key for headers to match import logic
 		serviceMap[service.Key] = len(baseHeaders) + i
@@ -134,13 +128,13 @@ func createUsersSheet(file *excelize.File, users []models.UserImportExport, serv
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"CCCCCC"}, Pattern: 1},
 	})
-	
+
 	file.SetCellStyle(sheetName, "A1", fmt.Sprintf("%s1", getColumnName(len(allHeaders))), headerStyle)
 
 	// Fill user data
 	for i, user := range users {
 		row := i + 2
-		
+
 		// Basic user data
 		file.SetCellValue(sheetName, fmt.Sprintf("A%d", row), user.ID)
 		file.SetCellValue(sheetName, fmt.Sprintf("B%d", row), user.Username)
@@ -153,13 +147,8 @@ func createUsersSheet(file *excelize.File, users []models.UserImportExport, serv
 		file.SetCellValue(sheetName, fmt.Sprintf("I%d", row), user.Department)
 		file.SetCellValue(sheetName, fmt.Sprintf("J%d", row), user.Position)
 		file.SetCellValue(sheetName, fmt.Sprintf("K%d", row), "") // Пароль - пустое поле
-		
-		// Debug logging for ban status and delete flag
-		if user.Banned == "" || user.DeleteUser == "" {
-			log.Printf("DEBUG: User %s has empty fields - Banned: '%s', DeleteUser: '%s'", user.Username, user.Banned, user.DeleteUser)
-		}
-		
-		file.SetCellValue(sheetName, fmt.Sprintf("L%d", row), user.Banned) // Забанен
+
+		file.SetCellValue(sheetName, fmt.Sprintf("L%d", row), user.Banned)     // Забанен
 		file.SetCellValue(sheetName, fmt.Sprintf("M%d", row), user.DeleteUser) // Удалить
 
 		// Service roles
@@ -270,7 +259,7 @@ func DownloadUsersTemplate(c *gin.Context) {
 	file.SetCellValue("Users", "H2", "+7 (999) 123-45-67")
 	file.SetCellValue("Users", "I2", "IT отдел")
 	file.SetCellValue("Users", "J2", "Разработчик")
-	file.SetCellValue("Users", "K2", "") // Пароль - пустое поле (будет сгенерирован автоматически)
+	file.SetCellValue("Users", "K2", "")      // Пароль - пустое поле (будет сгенерирован автоматически)
 	file.SetCellValue("Users", "L2", "false") // Забанен - false по умолчанию
 	file.SetCellValue("Users", "M2", "false") // Удалить - false по умолчанию
 
@@ -293,17 +282,14 @@ func DownloadUsersTemplate(c *gin.Context) {
 
 	// Set response headers
 	filename := "users_template.xlsx"
-	
+
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.Header("Pragma", "no-cache")
 	c.Header("Expires", "0")
-	
+
 	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer.Bytes())
-	
+
 	log.Printf("Template download completed")
 }
-
-
-

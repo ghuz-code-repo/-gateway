@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки Notification Service</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+        
+        .section h2 {
+            color: #34495e;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        input[type="text"], input[type="email"], input[type="password"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .button-group {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .system-alerts {
+            background-color: #e8f4fd;
+            border-left: 4px solid #3498db;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Настройки Notification Service</h1>
+        
+        <div id="success-message" class="success"></div>
+        <div id="error-message" class="error"></div>
+        
+        <form id="config-form">
+            <!-- Системные уведомления -->
+            <div class="section system-alerts">
+                <h2>📢 Системные уведомления</h2>
+                
+                <div class="form-group">
+                    <label for="system_email_recipient">Email для системных уведомлений:</label>
+                    <input type="email" id="system_email_recipient" name="system_email_recipient" 
+                           placeholder="admin@example.com">
+                    <div class="help-text">На этот email будут приходить уведомления о состоянии системы</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="system_telegram_chat_id">Telegram Chat ID для системных уведомлений:</label>
+                    <input type="text" id="system_telegram_chat_id" name="system_telegram_chat_id" 
+                           placeholder="123456789">
+                    <div class="help-text">ID чата или пользователя в Telegram для системных алертов</div>
+                </div>
+            </div>
+            
+            <!-- Debug режим -->
+            <div class="section" style="background-color: #fff3cd; border-left: 4px solid #ffc107;">
+                <h2>🐛 Debug режим</h2>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="debug_mode" name="debug_mode">
+                    <label for="debug_mode">Включить Debug режим</label>
+                </div>
+                <div class="help-text" style="margin-bottom: 15px;">В этом режиме все письма будут отправляться на указанный ниже email</div>
+                
+                <div class="form-group">
+                    <label for="debug_email">Email для Debug режима:</label>
+                    <input type="email" id="debug_email" name="debug_email" 
+                           placeholder="debug@example.com">
+                    <div class="help-text">Все письма будут отправляться на этот адрес с пометкой "[DEBUG]" в теме и информацией о конечном получателе в теле</div>
+                </div>
+            </div>
+            
+            <!-- SMTP настройки -->
+            <div class="section">
+                <h2>📧 SMTP настройки</h2>
+                
+                <div class="form-group">
+                    <label for="smtp_host">SMTP хост:</label>
+                    <input type="text" id="smtp_host" name="smtp_host" placeholder="smtp.gmail.com">
+                </div>
+                
+                <div class="form-group">
+                    <label for="smtp_port">SMTP порт:</label>
+                    <input type="text" id="smtp_port" name="smtp_port" placeholder="587">
+                </div>
+                
+                <div class="form-group">
+                    <label for="smtp_username">SMTP пользователь:</label>
+                    <input type="text" id="smtp_username" name="smtp_username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="smtp_password">SMTP пароль:</label>
+                    <input type="password" id="smtp_password" name="smtp_password">
+                </div>
+                
+                <div class="form-group">
+                    <label for="smtp_from">От кого (From):</label>
+                    <input type="email" id="smtp_from" name="smtp_from" placeholder="noreply@example.com">
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="smtp_use_tls" name="smtp_use_tls">
+                    <label for="smtp_use_tls">Использовать TLS</label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="smtp_use_auth" name="smtp_use_auth">
+                    <label for="smtp_use_auth">Использовать аутентификацию</label>
+                </div>
+            </div>
+            
+            <!-- Telegram настройки -->
+            <div class="section">
+                <h2>🤖 Telegram настройки</h2>
+                
+                <div class="form-group">
+                    <label for="telegram_bot_token">Токен обычного бота:</label>
+                    <input type="text" id="telegram_bot_token" name="telegram_bot_token" 
+                           placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="telegram_enabled" name="telegram_enabled">
+                    <label for="telegram_enabled">Включить обычный Telegram бот</label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="telegram_system_bot_token">Токен системного бота:</label>
+                    <input type="text" id="telegram_system_bot_token" name="telegram_system_bot_token" 
+                           placeholder="987654321:ZYXwvuTSRqponMLkjihGFEdcbA">
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="telegram_system_enabled" name="telegram_system_enabled">
+                    <label for="telegram_system_enabled">Включить системный Telegram бот</label>
+                </div>
+            </div>
+            
+            <!-- Параметры обработки -->
+            <div class="section">
+                <h2>⚙️ Параметры обработки</h2>
+                
+                <div class="form-group">
+                    <label for="max_retry_attempts">Максимальное количество попыток:</label>
+                    <input type="number" id="max_retry_attempts" name="max_retry_attempts" min="1" max="10" value="3">
+                </div>
+                
+                <div class="form-group">
+                    <label for="batch_size">Размер пакета:</label>
+                    <input type="number" id="batch_size" name="batch_size" min="1" max="100" value="10">
+                </div>
+                
+                <div class="form-group">
+                    <label for="delay_between_batches_ms">Задержка между пакетами (мс):</label>
+                    <input type="number" id="delay_between_batches_ms" name="delay_between_batches_ms" 
+                           min="100" max="10000" value="1000">
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button type="button" onclick="loadConfig()">Загрузить настройки</button>
+                <button type="submit">Сохранить настройки</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Загрузка текущих настроек
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/v1/config');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const config = await response.json();
+                
+                // Заполняем форму
+                document.getElementById('system_email_recipient').value = config.system_email_recipient || '';
+                document.getElementById('system_telegram_chat_id').value = config.system_telegram_chat_id || '';
+                document.getElementById('debug_mode').checked = config.debug_mode || false;
+                document.getElementById('debug_email').value = config.debug_email || '';
+                document.getElementById('smtp_host').value = config.smtp_host || '';
+                document.getElementById('smtp_port').value = config.smtp_port || '';
+                document.getElementById('smtp_username').value = config.smtp_username || '';
+                document.getElementById('smtp_password').value = config.smtp_password || '';
+                document.getElementById('smtp_from').value = config.smtp_from || '';
+                document.getElementById('smtp_use_tls').checked = config.smtp_use_tls || false;
+                document.getElementById('smtp_use_auth').checked = config.smtp_use_auth || false;
+                document.getElementById('telegram_bot_token').value = config.telegram_bot_token || '';
+                document.getElementById('telegram_enabled').checked = config.telegram_enabled || false;
+                document.getElementById('telegram_system_bot_token').value = config.telegram_system_bot_token || '';
+                document.getElementById('telegram_system_enabled').checked = config.telegram_system_enabled || false;
+                document.getElementById('max_retry_attempts').value = config.max_retry_attempts || 3;
+                document.getElementById('batch_size').value = config.batch_size || 10;
+                document.getElementById('delay_between_batches_ms').value = config.delay_between_batches_ms || 1000;
+                
+                showSuccess('Настройки загружены успешно');
+            } catch (error) {
+                showError('Ошибка загрузки настроек: ' + error.message);
+            }
+        }
+        
+        // Сохранение настроек
+        document.getElementById('config-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const config = {};
+            
+            // Собираем данные формы
+            for (let [key, value] of formData.entries()) {
+                if (key.includes('enabled') || key.includes('use_')) {
+                    config[key] = true; // checkbox всегда true если присутствует
+                } else if (key.includes('attempts') || key.includes('size') || key.includes('delay')) {
+                    config[key] = parseInt(value) || 0;
+                } else {
+                    config[key] = value;
+                }
+            }
+            
+            // Обрабатываем checkboxes которые не были отмечены
+            const checkboxes = ['smtp_use_tls', 'smtp_use_auth', 'telegram_enabled', 'telegram_system_enabled', 'debug_mode'];
+            checkboxes.forEach(checkbox => {
+                if (!config[checkbox]) {
+                    config[checkbox] = false;
+                }
+            });
+            
+            try {
+                const response = await fetch('/api/v1/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+                
+                showSuccess('Настройки сохранены успешно');
+            } catch (error) {
+                showError('Ошибка сохранения настроек: ' + error.message);
+            }
+        });
+        
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success-message');
+            const errorDiv = document.getElementById('error-message');
+            
+            errorDiv.style.display = 'none';
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        function showError(message) {
+            const successDiv = document.getElementById('success-message');
+            const errorDiv = document.getElementById('error-message');
+            
+            successDiv.style.display = 'none';
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 8000);
+        }
+        
+        // Автоматическая загрузка настроек при открытии страницы
+        window.addEventListener('load', loadConfig);
+    </script>
+</body>
+</html>
