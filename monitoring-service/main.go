@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,9 +20,11 @@ import (
 )
 
 type MonitoringService struct {
-	services     map[string]*ServiceStatus
-	configCache  *NotificationConfig
+	mu              sync.RWMutex
+	services        map[string]*ServiceStatus
+	configCache     *NotificationConfig
 	lastConfigFetch time.Time
+	httpClient      *http.Client
 }
 
 type ServiceStatus struct {
@@ -54,6 +60,9 @@ func main() {
 	// Initialize monitoring service
 	ms := &MonitoringService{
 		services: make(map[string]*ServiceStatus),
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 	}
 
 	// Load services from environment
@@ -63,12 +72,12 @@ func main() {
 	if os.Getenv("GIN_MODE") == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
-	
+
 	r := gin.Default()
 
 	// Serve static files
 	r.Static("/static", "./static")
-	
+
 	// Main page - monitoring dashboard
 	r.GET("/", func(c *gin.Context) {
 		c.File("./static/index.html")
@@ -87,13 +96,39 @@ func main() {
 		api.POST("/check", ms.forceHealthCheck)
 	}
 
-	// Start monitoring goroutine
-	go ms.startMonitoring()
+	// Start monitoring goroutine with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go ms.startMonitoring(ctx)
 
-	// Start server
+	// Start server with graceful shutdown
 	port := getEnvOrDefault("PORT", "80")
-	log.Printf("🔍 Starting monitoring service on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
+	}
+
+	go func() {
+		log.Printf("🔍 Starting monitoring service on port %s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("❌ Server error: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("⏳ Shutting down monitoring service...")
+
+	cancel() // Stop monitoring goroutine
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("❌ Server forced to shutdown: %v", err)
+	}
+	log.Println("✅ Monitoring service stopped gracefully")
 }
 
 func (ms *MonitoringService) loadServices() {
@@ -128,7 +163,7 @@ func (ms *MonitoringService) loadServices() {
 	}
 }
 
-func (ms *MonitoringService) startMonitoring() {
+func (ms *MonitoringService) startMonitoring(ctx context.Context) {
 	checkInterval := getEnvAsInt("CHECK_INTERVAL_SECONDS", 30)
 	ticker := time.NewTicker(time.Duration(checkInterval) * time.Second)
 	defer ticker.Stop()
@@ -138,23 +173,40 @@ func (ms *MonitoringService) startMonitoring() {
 	// Initial check
 	ms.checkAllServices()
 
-	for range ticker.C {
-		ms.checkAllServices()
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("🛑 Monitoring loop stopped")
+			return
+		case <-ticker.C:
+			ms.checkAllServices()
+		}
 	}
 }
 
 func (ms *MonitoringService) checkAllServices() {
-	for name, service := range ms.services {
-		ms.checkService(name, service)
+	ms.mu.RLock()
+	// Copy keys to avoid holding lock during HTTP checks
+	names := make([]string, 0, len(ms.services))
+	for name := range ms.services {
+		names = append(names, name)
+	}
+	ms.mu.RUnlock()
+
+	for _, name := range names {
+		ms.mu.RLock()
+		service, ok := ms.services[name]
+		ms.mu.RUnlock()
+		if ok {
+			ms.checkService(name, service)
+		}
 	}
 }
 
 func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
-	client := &http.Client{
-		Timeout: time.Duration(getEnvAsInt("HEALTH_CHECK_TIMEOUT_SECONDS", 10)) * time.Second,
-	}
+	resp, err := ms.httpClient.Get(service.URL)
 
-	resp, err := client.Get(service.URL)
+	ms.mu.Lock()
 	service.LastCheck = time.Now()
 
 	previousStatus := service.Status
@@ -163,6 +215,7 @@ func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
 		service.Status = "unhealthy"
 		service.ErrorCount++
 		service.LastError = err.Error()
+		ms.mu.Unlock()
 		log.Printf("❌ %s is unhealthy: %v", name, err)
 	} else {
 		defer resp.Body.Close()
@@ -172,11 +225,13 @@ func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
 			service.LastHealthy = time.Now()
 			service.ErrorCount = 0
 			service.LastError = ""
+			ms.mu.Unlock()
 			log.Printf("✅ %s is healthy", name)
 		} else {
 			service.Status = "unhealthy"
 			service.ErrorCount++
 			service.LastError = fmt.Sprintf("HTTP %d", resp.StatusCode)
+			ms.mu.Unlock()
 			log.Printf("❌ %s is unhealthy: HTTP %d", name, resp.StatusCode)
 		}
 	}
@@ -186,7 +241,7 @@ func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
 	sendEmailAlerts := config.SendSystemEmailNotifications
 	sendTelegramAlerts := config.SendSystemTelegramNotifications
 	enablePersistentAlerts := getEnvAsBool("ENABLE_PERSISTENT_ALERTS", false)
-	
+
 	if !sendEmailAlerts && !sendTelegramAlerts {
 		// Skip all alerts if both notification types are disabled
 		return
@@ -213,7 +268,7 @@ func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
 
 func (ms *MonitoringService) sendAlert(serviceName string, service *ServiceStatus, alertType string) {
 	notificationServiceURL := getEnvOrDefault("NOTIFICATION_SERVICE_URL", "http://notification-service:80")
-	
+
 	// Get notification settings from API (with caching) - includes recipients
 	config := ms.getNotificationConfig()
 	sendEmailAlerts := config.SendSystemEmailNotifications
@@ -223,7 +278,7 @@ func (ms *MonitoringService) sendAlert(serviceName string, service *ServiceStatu
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	subject := fmt.Sprintf("🚨 Service Monitor Alert: %s", serviceName)
-	
+
 	var content string
 	if service.Status == "healthy" {
 		content = fmt.Sprintf("✅ *Service Recovery*\n\n"+
@@ -231,7 +286,7 @@ func (ms *MonitoringService) sendAlert(serviceName string, service *ServiceStatu
 			"Status: %s\n"+
 			"Time: %s\n"+
 			"Message: %s\n\n"+
-			"The service is now responding normally.", 
+			"The service is now responding normally.",
 			serviceName, service.Status, timestamp, alertType)
 	} else {
 		content = fmt.Sprintf("❌ *Service Alert*\n\n"+
@@ -241,8 +296,8 @@ func (ms *MonitoringService) sendAlert(serviceName string, service *ServiceStatu
 			"Time: %s\n"+
 			"Error Count: %d\n"+
 			"Last Error: %s\n"+
-			"Message: %s", 
-			serviceName, service.Status, service.URL, timestamp, 
+			"Message: %s",
+			serviceName, service.Status, service.URL, timestamp,
 			service.ErrorCount, service.LastError, alertType)
 	}
 
@@ -276,11 +331,7 @@ func (ms *MonitoringService) sendNotification(serviceURL string, notification No
 		return
 	}
 
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	resp, err := client.Post(
+	resp, err := ms.httpClient.Post(
 		serviceURL+"/api/v1/notifications",
 		"application/json",
 		bytes.NewBuffer(jsonData),
@@ -293,30 +344,51 @@ func (ms *MonitoringService) sendNotification(serviceURL string, notification No
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusAccepted {
-		log.Printf("✅ %s notification sent successfully", strings.Title(notificationType))
+		log.Printf("✅ %s notification sent successfully", capitalizeFirst(notificationType))
 	} else {
 		log.Printf("❌ Failed to send %s notification: HTTP %d", notificationType, resp.StatusCode)
 	}
 }
 
+// capitalizeFirst capitalizes the first letter of a string (replaces deprecated strings.Title)
+func capitalizeFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 // API Handlers
 func (ms *MonitoringService) getServicesStatus(c *gin.Context) {
+	ms.mu.RLock()
+	// Copy map for safe serialization
+	servicesCopy := make(map[string]*ServiceStatus, len(ms.services))
+	for k, v := range ms.services {
+		copy := *v
+		servicesCopy[k] = &copy
+	}
+	ms.mu.RUnlock()
+
 	c.JSON(http.StatusOK, gin.H{
-		"services": ms.services,
+		"services":  servicesCopy,
 		"timestamp": time.Now(),
 	})
 }
 
 func (ms *MonitoringService) getServiceStatus(c *gin.Context) {
 	serviceName := c.Param("service")
-	
+
+	ms.mu.RLock()
 	service, exists := ms.services[serviceName]
 	if !exists {
+		ms.mu.RUnlock()
 		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
+	copy := *service
+	ms.mu.RUnlock()
 
-	c.JSON(http.StatusOK, service)
+	c.JSON(http.StatusOK, &copy)
 }
 
 func (ms *MonitoringService) forceHealthCheck(c *gin.Context) {
@@ -334,11 +406,10 @@ func (ms *MonitoringService) getNotificationConfig() NotificationConfig {
 	}
 
 	notificationServiceURL := getEnvOrDefault("NOTIFICATION_SERVICE_URL", "http://notification-service:80")
-	
+
 	// Try to fetch from API
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(notificationServiceURL + "/api/v1/config")
-	
+	resp, err := ms.httpClient.Get(notificationServiceURL + "/api/v1/config")
+
 	if err != nil {
 		log.Printf("⚠️ Failed to fetch notification config from API, using env fallback: %v", err)
 		return ms.getConfigFromEnv()
@@ -357,7 +428,7 @@ func (ms *MonitoringService) getNotificationConfig() NotificationConfig {
 	}
 
 	config := NotificationConfig{
-		SendSystemEmailNotifications:    true,  // Default to true
+		SendSystemEmailNotifications:    true, // Default to true
 		SendSystemTelegramNotifications: true,
 		SystemEmailRecipient:            "",
 		SystemTelegramUsername:          "",
@@ -379,8 +450,8 @@ func (ms *MonitoringService) getNotificationConfig() NotificationConfig {
 	// Cache the config
 	ms.configCache = &config
 	ms.lastConfigFetch = time.Now()
-	
-	log.Printf("✅ Fetched notification config from API: Email=%v (to: %s), Telegram=%v (to: %s)", 
+
+	log.Printf("✅ Fetched notification config from API: Email=%v (to: %s), Telegram=%v (to: %s)",
 		config.SendSystemEmailNotifications, config.SystemEmailRecipient,
 		config.SendSystemTelegramNotifications, config.SystemTelegramUsername)
 
@@ -395,7 +466,7 @@ func (ms *MonitoringService) getConfigFromEnv() NotificationConfig {
 		SystemEmailRecipient:            getEnvOrDefault("SYSTEM_EMAIL_RECIPIENT", ""),
 		SystemTelegramUsername:          getEnvOrDefault("SYSTEM_TELEGRAM_USERNAME", ""),
 	}
-	log.Printf("📝 Using notification config from ENV: Email=%v (to: %s), Telegram=%v (to: %s)", 
+	log.Printf("📝 Using notification config from ENV: Email=%v (to: %s), Telegram=%v (to: %s)",
 		config.SendSystemEmailNotifications, config.SystemEmailRecipient,
 		config.SendSystemTelegramNotifications, config.SystemTelegramUsername)
 	return config

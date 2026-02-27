@@ -2,7 +2,6 @@ package routes
 
 import (
 	"auth-service/models"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -16,11 +15,7 @@ import (
 func validateToken(tokenString string) (*models.Claims, bool) {
 	claims := &models.Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		jwtSecret := os.Getenv("JWT_SECRET")
-		if jwtSecret == "" {
-			jwtSecret = "default_jwt_secret_change_in_production"
-		}
-		return []byte(jwtSecret), nil
+		return models.GetJWTSecret(), nil
 	})
 
 	if err != nil || !token.Valid {
@@ -28,7 +23,7 @@ func validateToken(tokenString string) (*models.Claims, bool) {
 	}
 
 	// SECURITY: Check if token is blacklisted
-	if models.IsTokenBlacklisted(tokenString) {
+	if models.IsTokenBlacklisted(claims) {
 		log.Printf("Security: Blocked blacklisted token for user %s", claims.UserID)
 		return nil, false
 	}
@@ -84,16 +79,9 @@ func adminMiddleware() gin.HandlerFunc {
 		}
 
 		// Parse and validate token
-		claims := &models.Claims{}
-		token, err := jwt.ParseWithClaims(cookie, claims, func(token *jwt.Token) (interface{}, error) {
-			jwtSecret := os.Getenv("JWT_SECRET")
-			if jwtSecret == "" {
-				jwtSecret = "default_jwt_secret_change_in_production"
-			}
-			return []byte(jwtSecret), nil
-		})
-
-		if err != nil || !token.Valid {
+		// Use validateToken for consistent blacklist checking
+		claims, valid := validateToken(cookie)
+		if !valid {
 			c.Redirect(http.StatusFound, "/login?redirect="+c.Request.URL.Path)
 			c.Abort()
 			return
@@ -215,8 +203,11 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		c.Set("full_name", user.GetFullName())
 		c.Set("short_name", user.GetShortName())
 
+		// Fetch roles ONCE for all subsequent checks in this request
+		roles := getUserRolesCached(c, user)
+
 		// Check if user is system admin using new service_roles system
-		isSystemAdmin := hasAdminRole(user)
+		isSystemAdmin := hasAdminRoleWithRoles(roles, user.Username)
 
 		// If system admin, allow access to everything
 		if isSystemAdmin {
@@ -229,7 +220,7 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		serviceID := c.Param("id")
 		serviceKey := c.Param("serviceKey")
 
-		fmt.Printf("DEBUG Middleware: serviceID='%s', serviceKey='%s', path='%s'\n", serviceID, serviceKey, c.Request.URL.Path)
+		log.Printf("Middleware: serviceID='%s', serviceKey='%s', path='%s'", serviceID, serviceKey, c.Request.URL.Path)
 
 		// If no serviceID in URL params, check query params
 		if serviceID == "" {
@@ -257,8 +248,8 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 				return
 			}
 
-			// Check if user is admin of this service
-			if hasServiceAdminRole(user, service.Key) {
+			// Check if user is admin of this service (using cached roles)
+			if checkServiceAdminInRoles(roles, service.Key) {
 				c.Set("isSystemAdmin", false)
 				c.Set("isServiceManager", false)
 				c.Set("serviceKey", service.Key)
@@ -266,8 +257,8 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 				return
 			}
 
-			// Check if user is service-manager of this service
-			if hasServiceManagerRole(user, service.Key) {
+			// Check if user is service-manager of this service (using cached roles)
+			if checkServiceManagerInRoles(roles, service.Key) {
 				c.Set("isSystemAdmin", false)
 				c.Set("isServiceManager", true)
 				c.Set("serviceKey", service.Key)
@@ -275,12 +266,11 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 				return
 			}
 
-			// Check if user has an external role that grants access to this service
-			if hasExternalRoleForService(user, service.Key) {
-				fmt.Printf("DEBUG Middleware: Access granted (external role by ID) for user='%s' in service='%s'\n", user.Username, service.Key)
+			// Check if user has an external role that grants access to this service (using cached roles)
+			if checkExternalRoleInRoles(roles, user.Username, service.Key) {
 				c.Set("isSystemAdmin", false)
-				c.Set("isServiceManager", false)     // External role users have limited access based on permissions
-				c.Set("hasExternalRoleAccess", true) // Mark as external role access
+				c.Set("isServiceManager", false)
+				c.Set("hasExternalRoleAccess", true)
 				c.Set("serviceKey", service.Key)
 				c.Next()
 				return
@@ -289,11 +279,9 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 
 		// Handle service routes by key (new excel import/export routes)
 		if serviceKey != "" {
-			fmt.Printf("DEBUG Middleware: Processing serviceKey='%s'\n", serviceKey)
 			// Get service by key
 			service, err := models.GetServiceByKey(serviceKey)
 			if err != nil {
-				fmt.Printf("DEBUG Middleware: Service not found for key='%s': %v\n", serviceKey, err)
 				c.HTML(http.StatusNotFound, "error.html", gin.H{
 					"error": "Сервис не найден",
 				})
@@ -301,10 +289,8 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 				return
 			}
 
-			// Check if user is admin of this service
-			fmt.Printf("DEBUG Middleware: Checking admin role for user='%s' in service='%s'\n", user.Username, service.Key)
-			if hasServiceAdminRole(user, service.Key) {
-				fmt.Printf("DEBUG Middleware: Access granted (admin) for user='%s' in service='%s'\n", user.Username, service.Key)
+			// Check if user is admin of this service (using cached roles)
+			if checkServiceAdminInRoles(roles, service.Key) {
 				c.Set("isSystemAdmin", false)
 				c.Set("isServiceManager", false)
 				c.Set("serviceKey", service.Key)
@@ -312,9 +298,8 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 				return
 			}
 
-			// Check if user is service-manager of this service
-			if hasServiceManagerRole(user, service.Key) {
-				fmt.Printf("DEBUG Middleware: Access granted (service-manager) for user='%s' in service='%s'\n", user.Username, service.Key)
+			// Check if user is service-manager of this service (using cached roles)
+			if checkServiceManagerInRoles(roles, service.Key) {
 				c.Set("isSystemAdmin", false)
 				c.Set("isServiceManager", true)
 				c.Set("serviceKey", service.Key)
@@ -322,22 +307,19 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 				return
 			}
 
-			// Check if user has an external role that grants access to this service
-			if hasExternalRoleForService(user, service.Key) {
-				fmt.Printf("DEBUG Middleware: Access granted (external role) for user='%s' in service='%s'\n", user.Username, service.Key)
+			// Check if user has an external role that grants access to this service (using cached roles)
+			if checkExternalRoleInRoles(roles, user.Username, service.Key) {
 				c.Set("isSystemAdmin", false)
-				c.Set("isServiceManager", false)     // External role users have limited access based on permissions
-				c.Set("hasExternalRoleAccess", true) // Mark as external role access
+				c.Set("isServiceManager", false)
+				c.Set("hasExternalRoleAccess", true)
 				c.Set("serviceKey", service.Key)
 				c.Next()
 				return
 			}
-
-			fmt.Printf("DEBUG Middleware: Access denied for user='%s' in service='%s'\n", user.Username, service.Key)
 		}
 
 		// No access
-		fmt.Printf("DEBUG Middleware: Access denied - no valid service found for user='%s', serviceID='%s', serviceKey='%s', path='%s'\n", user.Username, serviceID, serviceKey, c.Request.URL.Path)
+		log.Printf("Middleware: Access denied for user='%s', path='%s'", user.Username, c.Request.URL.Path)
 		c.HTML(http.StatusForbidden, "error.html", gin.H{
 			"error": "У вас нет прав для доступа к этому ресурсу",
 		})
@@ -345,16 +327,44 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 	}
 }
 
+// getUserRolesCached returns user's service roles, fetching once per request via gin.Context cache.
+// This eliminates N+1 DB queries when multiple role checks happen in one request.
+func getUserRolesCached(c *gin.Context, user *models.User) []models.UserServiceRole {
+	if cached, exists := c.Get("_cachedUserRoles"); exists {
+		return cached.([]models.UserServiceRole)
+	}
+	roles, err := models.GetUserServiceRolesByUserID(user.ID)
+	if err != nil {
+		log.Printf("Error fetching roles for user %s: %v", user.Username, err)
+		roles = []models.UserServiceRole{}
+	}
+	c.Set("_cachedUserRoles", roles)
+	return roles
+}
+
+// fetchUserRoles returns user's service roles from DB (for cases where gin.Context is unavailable).
+func fetchUserRoles(user *models.User) []models.UserServiceRole {
+	roles, err := models.GetUserServiceRolesByUserID(user.ID)
+	if err != nil {
+		log.Printf("Error fetching roles for user %s: %v", user.Username, err)
+		return []models.UserServiceRole{}
+	}
+	return roles
+}
+
 // hasAdminRole checks if a user is a system administrator
 func hasAdminRole(user *models.User) bool {
-	// Check service_roles for system.admin or auth.GOD role
-	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-	if err != nil {
-		fmt.Printf("Ошибка получения ролей для пользователя %s: %v\n", user.Username, err)
-		return false
-	}
+	return checkAdminInRoles(fetchUserRoles(user), user.Username)
+}
 
-	// Check if user has 'admin' role in 'system' service OR 'GOD' role in 'auth' service
+// hasAdminRoleWithRoles checks admin role using pre-fetched roles
+func hasAdminRoleWithRoles(roles []models.UserServiceRole, username string) bool {
+	return checkAdminInRoles(roles, username)
+}
+
+// checkAdminInRoles checks if the given roles contain system admin.
+// NOTE: Must stay in sync with IsSystemAdmin() in models/auth_permissions.go.
+func checkAdminInRoles(userServiceRoles []models.UserServiceRole, username string) bool {
 	for _, serviceRole := range userServiceRoles {
 		if !serviceRole.IsActive {
 			continue
@@ -367,13 +377,13 @@ func hasAdminRole(user *models.User) bool {
 
 		// New auth.GOD role (supreme administrator)
 		if serviceRole.ServiceKey == "auth" && serviceRole.RoleName == "GOD" {
-			fmt.Printf("User %s has GOD role (supreme administrator)\n", user.Username)
+			log.Printf("User %s has GOD role (supreme administrator)", username)
 			return true
 		}
 
 		// Also check for auth.admin role (system administrator)
 		if serviceRole.ServiceKey == "auth" && serviceRole.RoleName == "admin" {
-			fmt.Printf("User %s has auth.admin role (system administrator)\n", user.Username)
+			log.Printf("User %s has auth.admin role (system administrator)", username)
 			return true
 		}
 	}
@@ -382,57 +392,45 @@ func hasAdminRole(user *models.User) bool {
 
 // hasServiceAdminRole checks if a user has admin role in a specific service
 func hasServiceAdminRole(user *models.User, serviceKey string) bool {
-	// Get user's service roles using ADR-001 system
-	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-	if err != nil {
-		fmt.Printf("Ошибка получения ролей для пользователя %s: %v\n", user.Username, err)
-		return false
-	}
+	return checkServiceAdminInRoles(fetchUserRoles(user), serviceKey)
+}
 
-	// Check if user has 'admin' role in this specific service
-	for _, role := range userServiceRoles {
+func checkServiceAdminInRoles(roles []models.UserServiceRole, serviceKey string) bool {
+	for _, role := range roles {
 		if role.ServiceKey == serviceKey && role.RoleName == "admin" && role.IsActive {
-			fmt.Printf("Пользователь %s является админом сервиса %s\n", user.Username, serviceKey)
 			return true
 		}
 	}
-
-	fmt.Printf("Пользователь %s НЕ является админом сервиса %s\n", user.Username, serviceKey)
 	return false
 }
 
 // hasServiceManagerRole checks if a user has service-manager role in a specific service
 func hasServiceManagerRole(user *models.User, serviceKey string) bool {
-	// Get user's service roles using ADR-001 system
-	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-	if err != nil {
-		fmt.Printf("Ошибка получения ролей для пользователя %s: %v\n", user.Username, err)
-		return false
-	}
+	return checkServiceManagerInRoles(fetchUserRoles(user), serviceKey)
+}
 
-	// Check if user has 'service-manager' role in this specific service
-	for _, role := range userServiceRoles {
+func checkServiceManagerInRoles(roles []models.UserServiceRole, serviceKey string) bool {
+	for _, role := range roles {
 		if role.ServiceKey == serviceKey && role.RoleName == "service-manager" && role.IsActive {
-			fmt.Printf("Пользователь %s является service-manager сервиса %s\n", user.Username, serviceKey)
 			return true
 		}
 	}
-
-	// Also check if user has 'service-manager' role in auth service (global service manager)
-	for _, role := range userServiceRoles {
+	// Also check global service-manager role in auth service
+	for _, role := range roles {
 		if role.ServiceKey == "auth" && role.RoleName == "service-manager" && role.IsActive {
-			fmt.Printf("Пользователь %s является глобальным service-manager (auth.service-manager)\n", user.Username)
 			return true
 		}
 	}
-
-	fmt.Printf("Пользователь %s НЕ является service-manager сервиса %s\n", user.Username, serviceKey)
 	return false
 }
 
 // hasExternalRoleForService checks if a user has any external role in auth service that grants access to a specific service
 // External roles are roles in auth service with permissions like auth.<serviceKey>.*
 func hasExternalRoleForService(user *models.User, serviceKey string) bool {
+	return checkExternalRoleInRoles(fetchUserRoles(user), user.Username, serviceKey)
+}
+
+func checkExternalRoleInRoles(userServiceRoles []models.UserServiceRole, username string, serviceKey string) bool {
 	// Get external roles defined for this service
 	externalRoles, err := models.GetExternalRolesForService(serviceKey)
 	if err != nil || len(externalRoles) == 0 {
@@ -445,17 +443,11 @@ func hasExternalRoleForService(user *models.User, serviceKey string) bool {
 		externalRoleNames[role.Name] = true
 	}
 
-	// Get user's roles
-	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-	if err != nil {
-		return false
-	}
-
 	// Check if user has any external role in auth service for this service
 	for _, role := range userServiceRoles {
 		if role.ServiceKey == "auth" && role.IsActive {
 			if externalRoleNames[role.RoleName] {
-				fmt.Printf("Пользователь %s имеет внешнюю роль %s для доступа к сервису %s\n", user.Username, role.RoleName, serviceKey)
+				log.Printf("User %s has external role %s for service %s", username, role.RoleName, serviceKey)
 				return true
 			}
 		}
@@ -466,35 +458,15 @@ func hasExternalRoleForService(user *models.User, serviceKey string) bool {
 
 // hasAnyRoleInService checks if a user has any active role in a specific service
 func hasAnyRoleInService(user *models.User, serviceKey string) bool {
-	// Get user's service roles using ADR-001 system
-	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
-	if err != nil {
-		fmt.Printf("Ошибка получения ролей для пользователя %s: %v\n", user.Username, err)
-		return false
-	}
+	return checkAnyRoleInService(fetchUserRoles(user), serviceKey)
+}
 
-	// Check if user has any active role in this specific service
-	for _, role := range userServiceRoles {
+func checkAnyRoleInService(roles []models.UserServiceRole, serviceKey string) bool {
+	for _, role := range roles {
 		if role.ServiceKey == serviceKey && role.IsActive {
-			fmt.Printf("Пользователь %s имеет роль %s в сервисе %s\n", user.Username, role.RoleName, serviceKey)
 			return true
 		}
 	}
-
-	// Also check old roles system for backward compatibility
-	roles, err := models.GetAllRoles()
-	if err == nil {
-		for _, userRole := range user.Roles {
-			for _, role := range roles {
-				if role.Name == userRole && role.ServiceKey == serviceKey {
-					fmt.Printf("Пользователь %s имеет старую роль %s в сервисе %s\n", user.Username, userRole, serviceKey)
-					return true
-				}
-			}
-		}
-	}
-
-	fmt.Printf("Пользователь %s НЕ имеет ролей в сервисе %s\n", user.Username, serviceKey)
 	return false
 }
 
@@ -545,4 +517,30 @@ func requireServicePermission(c *gin.Context, permission string) bool {
 	}
 
 	return models.HasServicePermission(user.(*models.User).ID, serviceKey, permission)
+}
+
+// internalAPIKeyRequired is middleware that validates the X-API-Key header
+// for service-to-service API calls. The key is configured via INTERNAL_API_KEY env var.
+func internalAPIKeyRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		apiKey := os.Getenv("INTERNAL_API_KEY")
+		if apiKey == "" {
+			log.Fatal("FATAL: INTERNAL_API_KEY environment variable is not set. " +
+				"All /api/* endpoints would be unprotected. " +
+				"Set INTERNAL_API_KEY in .env before starting the service.")
+		}
+
+		providedKey := c.GetHeader("X-API-Key")
+
+		if providedKey != apiKey {
+			log.Printf("WARNING: Invalid API key from %s for %s", c.ClientIP(), c.Request.URL.Path)
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid or missing API key",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }

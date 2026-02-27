@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 // NotificationClient provides methods to send notifications via the notification service
@@ -25,7 +26,7 @@ func NewNotificationClient() *NotificationClient {
 
 	return &NotificationClient{
 		BaseURL: baseURL,
-		client:  &http.Client{},
+		client:  &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -40,7 +41,7 @@ type NotificationRequest struct {
 // BatchNotificationRequest represents a batch notification request
 type BatchNotificationRequest struct {
 	Notifications []NotificationRequest `json:"notifications"`
-	BatchID       string               `json:"batch_id,omitempty"`
+	BatchID       string                `json:"batch_id,omitempty"`
 }
 
 // SendEmailNotification sends a single email notification through the notification service

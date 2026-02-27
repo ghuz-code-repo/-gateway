@@ -21,7 +21,7 @@ type Permission struct {
 
 // CreatePermission creates a new service permission
 func CreatePermission(service string, displayName string) error {
-	collection := client.Database("authdb").Collection("permissions")
+	collection := permsCol
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -57,7 +57,7 @@ func CreatePermission(service string, displayName string) error {
 
 // GetPermissionByID returns a permission by its ID
 func GetPermissionByID(id primitive.ObjectID) (*Permission, error) {
-	collection := client.Database("authdb").Collection("permissions")
+	collection := permsCol
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -72,7 +72,7 @@ func GetPermissionByID(id primitive.ObjectID) (*Permission, error) {
 
 // GetPermissionByService returns a permission by its service name
 func GetPermissionByService(service string) (*Permission, error) {
-	collection := client.Database("authdb").Collection("permissions")
+	collection := permsCol
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -87,7 +87,7 @@ func GetPermissionByService(service string) (*Permission, error) {
 
 // UpdatePermissionDisplayName updates the display name of a permission
 func UpdatePermissionDisplayName(id primitive.ObjectID, displayName string) error {
-	collection := client.Database("authdb").Collection("permissions")
+	collection := permsCol
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -105,7 +105,7 @@ func UpdatePermissionDisplayName(id primitive.ObjectID, displayName string) erro
 
 // GetAllPermissions returns all permissions in the system
 func GetAllPermissions() ([]Permission, error) {
-	collection := client.Database("authdb").Collection("permissions")
+	collection := permsCol
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -125,7 +125,7 @@ func GetAllPermissions() ([]Permission, error) {
 
 // DeletePermission deletes a permission by ID
 func DeletePermission(id primitive.ObjectID) error {
-	collection := client.Database("authdb").Collection("permissions")
+	collection := permsCol
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -137,121 +137,7 @@ func DeletePermission(id primitive.ObjectID) error {
 	return nil
 }
 
-// InitializeDefaultDisplayNames ensures all permissions have proper display names
-func InitializeDefaultDisplayNames() {
-	defaultDisplayNames := map[string]string{
-		"referal":     "Реферальная программа",
-		"calculators": "Калькуляторы",
-	}
-
-	permissions, err := GetAllPermissions()
-	if err != nil {
-		fmt.Println("Error loading permissions:", err)
-		return
-	}
-
-	for _, permission := range permissions {
-		if displayName, ok := defaultDisplayNames[permission.Service]; ok {
-			if permission.DisplayName != displayName && permission.DisplayName == "" {
-				UpdatePermissionDisplayName(permission.ID, displayName)
-				fmt.Printf("Updated display name for %s to '%s'\n", permission.Service, displayName)
-			}
-		}
-	}
-}
-
-// InitializeDefaultPermissions ensures admin role exists and creates admin user only if no system administrators exist
-func InitializeDefaultPermissions() {
-	fmt.Println("Checking for system admin role...")
-
-	// Check if system admin role exists
-	adminRoles, err := GetRolesByName("admin")
-	if err != nil || len(adminRoles) == 0 {
-		// Create admin role if it doesn't exist
-		fmt.Println("Creating system admin role...")
-		// Admin role should be a system-wide role (not tied to a specific service)
-		_, err := CreateRole("system", "admin", "Системный администратор", []string{})
-		if err != nil {
-			fmt.Printf("Error creating admin role: %v\n", err)
-		} else {
-			fmt.Println("System admin role created successfully")
-		}
-	} else {
-		fmt.Println("System admin role already exists")
-	}
-
-	// Check if any system administrators exist (not just user "admin")
-	fmt.Println("Checking for existing system administrators...")
-	systemAdmins, err := GetUsersWithRole("admin")
-	if err != nil {
-		fmt.Printf("Warning: Error checking for system administrators: %v\n", err)
-		systemAdmins = []*User{} // Default to empty if error
-	}
-
-	if len(systemAdmins) == 0 {
-		// Create default admin user only if no system administrators exist
-		fmt.Println("No system administrators found, creating default admin user...")
-		_, err := CreateUser("admin", "d.tolkunov@gh.uz", "admin", "Default System Administrator", []string{"admin"})
-		if err != nil {
-			fmt.Printf("Error creating default admin user: %v\n", err)
-		} else {
-			fmt.Println("Default admin user created successfully with username: admin, password: admin")
-		}
-	} else {
-		fmt.Printf("Found %d existing system administrator(s), no need to create default admin\n", len(systemAdmins))
-		for _, admin := range systemAdmins {
-			fmt.Printf("  - %s (%s)\n", admin.Username, admin.Email)
-		}
-	}
-}
-
-// CheckPermission checks if a user has permission for a service
-func CheckPermission(userID string, service string) bool {
-	// Get user
-	user, err := GetUserByID(userID)
-	if err != nil {
-		return false
-	}
-
-	// Admin role always has permission
-	for _, roleName := range user.Roles {
-		if roleName == "admin" || roleName == "system.admin" {
-			return true
-		}
-	}
-
-	// For non-admin users, check roles and permissions
-	roles, err := GetAllRoles()
-	if err != nil {
-		return false
-	}
-
-	// Check if any of the user's roles grant permission to the service
-	for _, roleName := range user.Roles {
-		for _, role := range roles {
-			if role.Name == roleName {
-				for _, perm := range role.Permissions {
-					if perm == service {
-						return true
-					}
-				}
-			}
-		}
-	}
-
-	return false
-}
-
-// Helper function to get keys from a map
-func getMapKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-// Helper function to check if a slice contains a string
+// contains checks if a slice contains a string
 func contains(slice []string, str string) bool {
 	for _, s := range slice {
 		if s == str {
@@ -259,24 +145,4 @@ func contains(slice []string, str string) bool {
 		}
 	}
 	return false
-}
-
-// GetRolesByName returns roles by name
-func GetRolesByName(name string) ([]Role, error) {
-	collection := client.Database("authdb").Collection("service_roles")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	var roles []Role
-	cursor, err := collection.Find(ctx, bson.M{"name": name})
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch roles: %v", err)
-	}
-	defer cursor.Close(ctx)
-
-	if err = cursor.All(ctx, &roles); err != nil {
-		return nil, fmt.Errorf("failed to decode roles: %v", err)
-	}
-
-	return roles, nil
 }

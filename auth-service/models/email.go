@@ -29,18 +29,18 @@ func isIPAddress(host string) bool {
 	return net.ParseIP(host) != nil
 }
 
-// getTLSConfig creates appropriate TLS configuration based on whether host is IP or DNS name
+// getTLSConfig creates appropriate TLS configuration based on whether host is IP or DNS name.
+// WARNING: When host is an IP address, TLS certificate verification is skipped (InsecureSkipVerify).
+// This is acceptable ONLY for internal/trusted networks. For external SMTP servers, always use DNS hostnames.
 func getTLSConfig(host string) *tls.Config {
 	if isIPAddress(host) {
-		log.Printf("Host %s is an IP address, using InsecureSkipVerify for TLS", host)
+		log.Printf("WARNING: SMTP host %s is an IP address — TLS certificate verification disabled (MITM risk on untrusted networks)", host)
 		return &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, //nolint:gosec // Acceptable for internal network SMTP by IP
 		}
-	} else {
-		log.Printf("Host %s is a DNS name, using normal TLS verification", host)
-		return &tls.Config{
-			ServerName: host,
-		}
+	}
+	return &tls.Config{
+		ServerName: host,
 	}
 }
 

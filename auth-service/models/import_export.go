@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"time"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -24,7 +25,7 @@ type UserImportExport struct {
 	Position        string            `xlsx:"Должность" json:"position"`
 	Phone           string            `xlsx:"Телефон" json:"phone"`
 	Password        string            `xlsx:"Пароль" json:"password,omitempty"`
-	Banned          string            `xlsx:"Забанен" json:"banned"` // "true" or "false" 
+	Banned          string            `xlsx:"Забанен" json:"banned"`      // "true" or "false"
 	DeleteUser      string            `xlsx:"Удалить" json:"delete_user"` // "true" to delete user
 	ServiceRoles    map[string]string `json:"service_roles"`
 	PasswordChanged bool              `json:"password_changed,omitempty"` // Indicates if password was changed during import
@@ -40,14 +41,14 @@ type ServiceInfo struct {
 
 // ImportResult represents the result of an import operation
 type ImportResult struct {
-	ProcessedRows        int                    `json:"processed_rows"`
-	CreatedUsers         []UserImportExport     `json:"created_users"`
-	UpdatedUsers         []UserImportExport     `json:"updated_users"`
-	DeletedUsers         []UserImportExport     `json:"deleted_users"`
-	BannedUsers          []UserImportExport     `json:"banned_users"`
-	UnbannedUsers        []UserImportExport     `json:"unbanned_users"`
-	Errors               []ImportError          `json:"errors"`
-	EmailNotifications   []EmailNotification    `json:"email_notifications"`
+	ProcessedRows      int                 `json:"processed_rows"`
+	CreatedUsers       []UserImportExport  `json:"created_users"`
+	UpdatedUsers       []UserImportExport  `json:"updated_users"`
+	DeletedUsers       []UserImportExport  `json:"deleted_users"`
+	BannedUsers        []UserImportExport  `json:"banned_users"`
+	UnbannedUsers      []UserImportExport  `json:"unbanned_users"`
+	Errors             []ImportError       `json:"errors"`
+	EmailNotifications []EmailNotification `json:"email_notifications"`
 }
 
 // ImportError represents an error during import
@@ -72,24 +73,24 @@ type ImportLogEntry struct {
 // EmailNotification represents an email notification sent during import
 type EmailNotification struct {
 	RecipientEmail string    `json:"recipient_email"`
-	Type          string    `json:"type"`
-	Success       bool      `json:"success"`
-	ErrorMessage  string    `json:"error_message,omitempty"`
-	SentAt        time.Time `json:"sent_at"`
+	Type           string    `json:"type"`
+	Success        bool      `json:"success"`
+	ErrorMessage   string    `json:"error_message,omitempty"`
+	SentAt         time.Time `json:"sent_at"`
 }
 
 // ServiceImportResult represents the result of a service-specific import operation
 type ServiceImportResult struct {
-	ProcessedRows    int                 `json:"processed_rows"`
-	CreatedUsers     []UserImportExport  `json:"created_users"`
-	AddedToService   []UserImportExport  `json:"added_to_service"`
-	UpdatedRoles     []UserImportExport  `json:"updated_roles"`
-	Errors           []ImportError       `json:"errors"`
+	ProcessedRows  int                `json:"processed_rows"`
+	CreatedUsers   []UserImportExport `json:"created_users"`
+	AddedToService []UserImportExport `json:"added_to_service"`
+	UpdatedRoles   []UserImportExport `json:"updated_roles"`
+	Errors         []ImportError      `json:"errors"`
 }
 
 // ServiceImportLogEntry represents a log entry for service-specific import operations
 type ServiceImportLogEntry struct {
-	ID            primitive.ObjectID   `bson:"_id,omitempty" json:"id"`
+	ID            primitive.ObjectID  `bson:"_id,omitempty" json:"id"`
 	Timestamp     time.Time           `bson:"timestamp" json:"timestamp"`
 	AdminUsername string              `bson:"admin_username" json:"admin_username"`
 	ServiceKey    string              `bson:"service_key" json:"service_key"`
@@ -112,11 +113,18 @@ func GetUsersForExport() ([]UserImportExport, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Create service key to name mapping
 	serviceKeyToName := make(map[string]string)
 	for _, service := range services {
 		serviceKeyToName[service.Key] = service.Name
+	}
+
+	// Batch-load all user service roles in one query (avoids N+1)
+	allRolesGrouped, err := GetAllUserServiceRolesGrouped()
+	if err != nil {
+		log.Printf("Warning: Failed to batch-load service roles for export: %v", err)
+		allRolesGrouped = make(map[primitive.ObjectID][]UserServiceRole)
 	}
 
 	var exportUsers []UserImportExport
@@ -141,27 +149,23 @@ func GetUsersForExport() ([]UserImportExport, error) {
 			DeleteUser:   "false", // Default value, user sets to "true" to delete
 			ServiceRoles: make(map[string]string),
 		}
-		
+
 		// Debug logging for empty fields
 		if exportUser.Banned == "" || exportUser.DeleteUser == "" {
-			log.Printf("DEBUG: User %s export data - Banned: '%s', DeleteUser: '%s', IsBanned: %t", 
+			log.Printf("DEBUG: User %s export data - Banned: '%s', DeleteUser: '%s', IsBanned: %t",
 				user.Username, exportUser.Banned, exportUser.DeleteUser, user.IsBanned)
 		}
 
-		// Get user service roles
-		userRoles, err := GetUserServiceRolesByUserID(user.ID)
-		if err != nil {
-			log.Printf("Warning: Could not get roles for user %s: %v", user.Username, err)
-			// Continue with empty roles rather than failing
-		} else {
+		// Get user service roles from batch-loaded data
+		userRoles := allRolesGrouped[user.ID]
+		if len(userRoles) > 0 {
 			// Group roles by service key (not name) for consistency with forms
 			serviceRolesMap := make(map[string][]string)
 			for _, userRole := range userRoles {
-				// Use service key directly instead of converting to name
 				serviceKey := userRole.ServiceKey
 				serviceRolesMap[serviceKey] = append(serviceRolesMap[serviceKey], userRole.RoleName)
 			}
-			
+
 			// Convert to comma-separated strings
 			for serviceKey, roles := range serviceRolesMap {
 				exportUser.ServiceRoles[serviceKey] = strings.Join(roles, ",")
@@ -182,7 +186,7 @@ func GetServicesForExport() ([]ServiceInfo, error) {
 		log.Printf("ERROR: GetAllServices failed: %v", err)
 		return nil, err
 	}
-	
+
 	log.Printf("DEBUG SERVICES EXPORT: GetAllServices returned %d services", len(services))
 
 	var serviceInfos []ServiceInfo
@@ -193,7 +197,7 @@ func GetServicesForExport() ([]ServiceInfo, error) {
 			log.Printf("Warning: Could not get roles for service %s: %v", service.Key, err)
 			roles = []Role{} // Continue with empty roles rather than failing
 		}
-		
+
 		roleNames := make([]string, len(roles))
 		for i, role := range roles {
 			roleNames[i] = role.Name
@@ -225,13 +229,13 @@ func SaveImportLog(logEntry *ImportLogEntry) error {
 // GetImportLogs retrieves import logs with pagination
 func GetImportLogs(limit, skip int) ([]ImportLogEntry, error) {
 	collection := db.Collection("import_logs")
-	
+
 	// Create find options with sorting (newest first) and pagination
 	opts := options.Find()
-	opts.SetSort(bson.D{{"timestamp", -1}}) // Sort by timestamp descending (newest first)
+	opts.SetSort(bson.D{{Key: "timestamp", Value: -1}}) // Sort by timestamp descending (newest first)
 	opts.SetLimit(int64(limit))
 	opts.SetSkip(int64(skip))
-	
+
 	cursor, err := collection.Find(context.Background(), bson.M{}, opts)
 	if err != nil {
 		return nil, err
@@ -253,7 +257,7 @@ func GetImportLogs(limit, skip int) ([]ImportLogEntry, error) {
 // GetImportLogByID retrieves a specific import log by ID
 func GetImportLogByID(id string) (*ImportLogEntry, error) {
 	collection := db.Collection("import_logs")
-	
+
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
@@ -359,7 +363,7 @@ func LogServiceImportOperation(adminUsername, serviceKey, serviceName, fileName 
 // SaveServiceImportLog saves a service import log entry to the database
 func SaveServiceImportLog(logEntry *ServiceImportLogEntry) error {
 	ctx := context.Background()
-	
+
 	_, err := db.Collection("service_import_logs").InsertOne(ctx, logEntry)
 	if err != nil {
 		log.Printf("Failed to save service import log: %v", err)
@@ -373,27 +377,27 @@ func SaveServiceImportLog(logEntry *ServiceImportLogEntry) error {
 // GetServiceImportLogs retrieves import logs for a specific service
 func GetServiceImportLogs(serviceKey string, limit int) ([]ServiceImportLogEntry, error) {
 	ctx := context.Background()
-	
+
 	filter := bson.M{}
 	if serviceKey != "" {
 		filter["service_key"] = serviceKey
 	}
-	
+
 	opts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
 	if limit > 0 {
 		opts.SetLimit(int64(limit))
 	}
-	
+
 	cursor, err := db.Collection("service_import_logs").Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	
+
 	var logs []ServiceImportLogEntry
 	if err := cursor.All(ctx, &logs); err != nil {
 		return nil, err
 	}
-	
+
 	return logs, nil
 }

@@ -20,6 +20,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// defaultDBTimeout is the standard timeout for database operations
+const defaultDBTimeout = 10 * time.Second
+
 var (
 	client              *mongo.Client
 	db                  *mongo.Database
@@ -258,49 +261,63 @@ func GenerateSecurePassword() string {
 		allChars  = lowercase + uppercase + digits + special
 	)
 
+	// mustRandInt wraps rand.Int and panics on CSPRNG failure (critical security path)
+	mustRandInt := func(max int64) int64 {
+		n, err := rand.Int(rand.Reader, big.NewInt(max))
+		if err != nil {
+			log.Fatalf("CRITICAL: CSPRNG failure in password generation: %v", err)
+		}
+		return n.Int64()
+	}
+
 	// Generate random length between 10-16
-	length, _ := rand.Int(rand.Reader, big.NewInt(7)) // 0-6
-	passwordLength := int(length.Int64()) + 10        // 10-16
+	passwordLength := int(mustRandInt(7)) + 10
 
 	password := make([]byte, passwordLength)
 
 	// Ensure at least one character from each category
 	categories := []string{lowercase, uppercase, digits, special}
 	for i, category := range categories {
-		charIndex, _ := rand.Int(rand.Reader, big.NewInt(int64(len(category))))
-		password[i] = category[charIndex.Int64()]
+		password[i] = category[mustRandInt(int64(len(category)))]
 	}
 
 	// Fill the rest with random characters
 	for i := 4; i < passwordLength; i++ {
-		charIndex, _ := rand.Int(rand.Reader, big.NewInt(int64(len(allChars))))
-		password[i] = allChars[charIndex.Int64()]
+		password[i] = allChars[mustRandInt(int64(len(allChars)))]
 	}
 
 	// Shuffle the password
 	for i := len(password) - 1; i > 0; i-- {
-		j, _ := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
-		password[i], password[j.Int64()] = password[j.Int64()], password[i]
+		j := mustRandInt(int64(i + 1))
+		password[i], password[j] = password[j], password[i]
 	}
 
 	return string(password)
 }
 
-// InitDB initializes MongoDB connection and collections
+// InitDB initializes MongoDB connection and collections.
+// The URI should include authentication credentials, e.g.:
+//
+//	mongodb://authservice:password@mongo:27017/authdb?authSource=authdb
 func InitDB(uri, dbName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	log.Printf("Connecting to MongoDB (database: %s)...", dbName)
+
 	var err error
 	client, err = mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
-		return err
+		return fmt.Errorf("mongo connect: %w", err)
 	}
 
-	// Ping to verify connection
+	// Ping to verify connection and authentication
 	err = client.Ping(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("mongo ping (check credentials and network): %w", err)
 	}
+
+	log.Printf("Connected to MongoDB successfully (database: %s)", dbName)
 
 	// Initialize the database
 	db = client.Database(dbName)
@@ -316,7 +333,7 @@ func InitDB(uri, dbName string) error {
 
 	// Create indexes for unique fields
 	_, err = usersCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"username", 1}},
+		Keys:    bson.D{{Key: "username", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
@@ -328,25 +345,18 @@ func InitDB(uri, dbName string) error {
 
 	_, err = serviceRolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{"service", 1},
-			{"name", 1},
+			{Key: "service", Value: 1},
+			{Key: "name", Value: 1},
 		},
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
 		log.Printf("Warning: Failed to create role compound index (service, name): %v", err)
 	}
-	_, err = permsCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"service", 1}},
-		Options: options.Index().SetUnique(true),
-	})
-	if err != nil {
-		log.Printf("Warning: Failed to create permission service index: %v", err)
-	}
 
 	// Create unique index for services collection on key field
 	_, err = servicesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"key", 1}},
+		Keys:    bson.D{{Key: "key", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
@@ -356,9 +366,9 @@ func InitDB(uri, dbName string) error {
 	// Create compound unique index for user_service_roles (user_id, service_key, role_name)
 	_, err = userServiceRolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{"user_id", 1},
-			{"service_key", 1},
-			{"role_name", 1},
+			{Key: "user_id", Value: 1},
+			{Key: "service_key", Value: 1},
+			{Key: "role_name", Value: 1},
 		},
 		Options: options.Index().SetUnique(true),
 	})
@@ -368,7 +378,7 @@ func InitDB(uri, dbName string) error {
 
 	// Create index on user_id for fast lookups
 	_, err = userServiceRolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{"user_id", 1}},
+		Keys: bson.D{{Key: "user_id", Value: 1}},
 	})
 	if err != nil {
 		log.Printf("Warning: Failed to create user_service_roles user_id index: %v", err)
@@ -376,11 +386,67 @@ func InitDB(uri, dbName string) error {
 
 	// Create unique index for document_types collection
 	_, err = documentTypesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"id", 1}},
+		Keys:    bson.D{{Key: "id", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
 		log.Printf("Warning: Failed to create document_types id index: %v", err)
+	}
+
+	// P3: Index on users.email for login/password-reset lookups
+	_, err = usersCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "email", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create users email index: %v", err)
+	}
+
+	// P3: Compound index on blacklisted_tokens for per-request IsTokenBlacklisted check
+	blacklistCol := db.Collection("blacklisted_tokens")
+	_, err = blacklistCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "user_id", Value: 1},
+			{Key: "created_at", Value: 1},
+			{Key: "expires_at", Value: 1},
+		},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create blacklisted_tokens compound index: %v", err)
+	}
+
+	// TTL index on blacklisted_tokens.expires_at for automatic cleanup
+	_, err = blacklistCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(0),
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create blacklisted_tokens TTL index: %v", err)
+	}
+
+	// Indexes on password_reset_tokens for token validation and cleanup
+	passResetCol := db.Collection("password_reset_tokens")
+	_, err = passResetCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "token", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create password_reset_tokens token index: %v", err)
+	}
+	_, err = passResetCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create password_reset_tokens user_id index: %v", err)
+	}
+
+	// Index for user_service_roles lookups by service_key + is_active (used in aggregation)
+	_, err = userServiceRolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "service_key", Value: 1},
+			{Key: "is_active", Value: 1},
+		},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create user_service_roles service_key+is_active index: %v", err)
 	}
 
 	// Create default services
@@ -415,88 +481,53 @@ func CreateDefaultPermissions() {
 
 // EnsureAdminExists creates an admin user and role if no system administrators exist
 func EnsureAdminExists() {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
-	// Create default permissions if needed
-	CreateDefaultPermissions()
-
-	// Ensure admin role (system-wide role) exists
+	// Ensure admin role exists in auth-service (ADR-001 compliant)
 	var adminRole Role
-	err := serviceRolesCol.FindOne(ctx, bson.M{"service": "system", "name": "admin"}).Decode(&adminRole)
+	err := serviceRolesCol.FindOne(ctx, bson.M{
+		"$or": []bson.M{
+			{"service": "auth", "name": "admin"},
+			{"service_key": "auth", "name": "admin"},
+		},
+	}).Decode(&adminRole)
 	if err == mongo.ErrNoDocuments {
-		// Create admin role
+		// Create admin role in auth-service with wildcard permission
 		adminRole = Role{
-			ServiceKey:  "system",
+			ServiceKey:  "auth",
 			Name:        "admin",
 			Description: "System Administrator",
-			Permissions: []string{},
+			Permissions: []string{"auth.*"},
+			RoleType:    RoleTypeInternal,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
-		}
-
-		// Get all permissions
-		cursor, err := permsCol.Find(ctx, bson.M{})
-		if err != nil {
-			log.Printf("Warning: Failed to fetch permissions: %v", err)
-		} else {
-			var perms []Permission
-			if err = cursor.All(ctx, &perms); err == nil {
-				for _, p := range perms {
-					adminRole.Permissions = append(adminRole.Permissions, p.Service)
-				}
-			}
-			cursor.Close(ctx)
 		}
 
 		result, err := serviceRolesCol.InsertOne(ctx, adminRole)
 		if err != nil {
 			log.Printf("Warning: Failed to create admin role: %v", err)
 		} else {
-			log.Println("Created system admin role with all permissions")
+			log.Println("Created system admin role with auth.* permission")
 			adminRole.ID = result.InsertedID.(primitive.ObjectID)
 		}
 	}
 
-	// Always ensure admin role has all current permissions
-	if err == nil {
-		// Update admin role with all permissions
-		cursor, err := permsCol.Find(ctx, bson.M{})
-		if err == nil {
-			var perms []Permission
-			if err = cursor.All(ctx, &perms); err == nil {
-				permServices := []string{}
-				for _, p := range perms {
-					permServices = append(permServices, p.Service)
-				}
-
-				if len(permServices) > 0 {
-					_, err = serviceRolesCol.UpdateOne(
-						ctx,
-						bson.M{"service": "system", "name": "admin"},
-						bson.M{"$set": bson.M{
-							"permissions": permServices,
-							"updatedAt":   time.Now(),
-						}},
-					)
-					if err != nil {
-						log.Printf("Warning: Failed to update admin role permissions: %v", err)
-					}
-				}
-			}
-			cursor.Close(ctx)
-		}
-	}
-
-	// Check if any system administrators exist
-	var systemAdminsCount int64
-	systemAdminsCount, err = usersCol.CountDocuments(ctx, bson.M{"roles": "admin"})
+	// Check if any system administrators exist via user_service_roles
+	adminCount, err := userServiceRolesCol.CountDocuments(ctx, bson.M{
+		"service_key": "auth",
+		"role_name":   bson.M{"$in": []string{"admin", "GOD"}},
+		"is_active":   true,
+	})
 	if err != nil {
 		log.Printf("Warning: Failed to count system administrators: %v", err)
-		systemAdminsCount = 0
+		adminCount = 0
 	}
 
-	// Only create default admin user if no system administrators exist
-	if systemAdminsCount == 0 {
+	// Also check legacy system for admins (backward compat during migration)
+	legacyAdminCount, _ := usersCol.CountDocuments(ctx, bson.M{"roles": "admin"})
+
+	if adminCount == 0 && legacyAdminCount == 0 {
 		log.Println("No system administrators found, creating default admin user")
 
 		// Create default admin user with password "admin"
@@ -510,26 +541,41 @@ func EnsureAdminExists() {
 			Username:  "admin",
 			Email:     "d.tolkunov@gh.uz",
 			Password:  string(hashedPassword),
-			Roles:     []string{"admin"},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
 
-		_, err = usersCol.InsertOne(ctx, adminUser)
+		result, err := usersCol.InsertOne(ctx, adminUser)
 		if err != nil {
 			log.Printf("Warning: Failed to create default admin user: %v", err)
 			return
 		}
 
+		adminUserID := result.InsertedID.(primitive.ObjectID)
+
+		// Assign admin role via user_service_roles
+		adminAssignment := UserServiceRole{
+			UserID:     adminUserID,
+			ServiceKey: "auth",
+			RoleName:   "admin",
+			AssignedAt: time.Now(),
+			IsActive:   true,
+		}
+		if err := CreateUserServiceRole(adminAssignment); err != nil {
+			log.Printf("Warning: Failed to assign admin role: %v", err)
+		}
+
 		log.Println("Created default admin user with username: admin, password: admin")
 	} else {
-		log.Printf("Found %d system administrator(s), no need to create default admin", systemAdminsCount)
+		log.Printf("Found %d system administrator(s) (new: %d, legacy: %d), no need to create default admin",
+			adminCount+legacyAdminCount, adminCount, legacyAdminCount)
 	}
 }
 
 // CreateDefaultDocumentTypes creates default document types
 func CreateDefaultDocumentTypes() error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	documentTypes := []DocumentType{
 		{
@@ -737,7 +783,8 @@ func CreateDefaultDocumentTypes() error {
 
 // ValidateUser checks if user credentials are valid
 func ValidateUser(username, password string) (*User, bool) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	var user User
 
 	// Input validation and sanitization
@@ -778,11 +825,6 @@ func ValidateUser(username, password string) (*User, bool) {
 
 // GenerateToken creates a new JWT token for a user
 func GenerateToken(user *User) (string, error) {
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "default_jwt_secret_change_in_production"
-	}
-
 	expirationTime := time.Now().Add(24 * time.Hour)
 	issuedAt := time.Now()
 	claims := &Claims{
@@ -795,55 +837,13 @@ func GenerateToken(user *User) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(jwtSecret))
+	return token.SignedString(GetJWTSecret())
 }
-
-// CheckPermission verifies if a user has permission to access a service
-// func CheckPermission(userID, service string) bool {
-// 	ctx := context.Background()
-// 	uid, err := primitive.ObjectIDFromHex(userID)
-// 	if err != nil {
-// 		log.Printf("Invalid user ID format: %v", err)
-// 		return false
-// 	}
-
-// 	// Get user and roles
-// 	var user User
-// 	err = usersCol.FindOne(ctx, bson.M{"_id": uid}).Decode(&user)
-// 	if err != nil {
-// 		log.Printf("User not found: %v", err)
-// 		return false
-// 	}
-
-// 	log.Printf("Checking permission for user %s and service %s", user.Username, service)
-// 	log.Printf("User has roles: %v", user.Roles)
-
-// 	// Check each role the user has for the service permission
-// 	for _, roleName := range user.Roles {
-// 		var role Role
-// 		err = rolesCol.FindOne(ctx, bson.M{"name": roleName}).Decode(&role)
-// 		if err != nil {
-// 			log.Printf("Role %s not found: %v", roleName, err)
-// 			continue
-// 		}
-
-// 		log.Printf("Role %s has permissions: %v", roleName, role.Permissions)
-
-// 		for _, permService := range role.Permissions {
-// 			if permService == service {
-// 				log.Printf("Permission granted for service %s", service)
-// 				return true
-// 			}
-// 		}
-// 	}
-
-// 	log.Printf("Permission denied for service %s", service)
-// 	return false
-// }
 
 // GetUserByID retrieves a user by their ID
 func GetUserByID(userID string) (*User, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	uid, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, err
@@ -858,9 +858,59 @@ func GetUserByID(userID string) (*User, error) {
 	return &user, nil
 }
 
+// GetUsersByIDs batch-loads multiple users by their ObjectIDs in a single query.
+func GetUsersByIDs(ids []primitive.ObjectID) ([]User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cursor, err := usersCol.Find(ctx, bson.M{"_id": bson.M{"$in": ids}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []User
+	if err = cursor.All(ctx, &users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+// GetDistinctUserIDsByServiceKey returns distinct user IDs that have active roles
+// in the specified service. Single aggregation query — no N+1.
+func GetDistinctUserIDsByServiceKey(serviceKey string) ([]primitive.ObjectID, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pipeline := []bson.M{
+		{"$match": bson.M{"service_key": serviceKey, "is_active": true}},
+		{"$group": bson.M{"_id": "$user_id"}},
+	}
+
+	cursor, err := userServiceRolesCol.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []struct {
+		ID primitive.ObjectID `bson:"_id"`
+	}
+	if err = cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	ids := make([]primitive.ObjectID, len(results))
+	for i, r := range results {
+		ids[i] = r.ID
+	}
+	return ids, nil
+}
+
 // GetUserByObjectID retrieves a user by MongoDB ObjectID
 func GetUserByObjectID(id primitive.ObjectID) (*User, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	var user User
 
 	err := usersCol.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
@@ -873,7 +923,8 @@ func GetUserByObjectID(id primitive.ObjectID) (*User, error) {
 
 // GetUserByEmail retrieves a user by email address
 func GetUserByEmail(email string) (*User, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	var user User
 
 	err := usersCol.FindOne(ctx, bson.M{"email": email}).Decode(&user)
@@ -889,8 +940,7 @@ func GetUserByEmail(email string) (*User, error) {
 
 // UpdateUser updates an existing user in the database
 func UpdateUser(id primitive.ObjectID, username, email, password, fullName string, roles []string) error {
-	// Get a handle to the users collection
-	collection := client.Database("authdb").Collection("users")
+	collection := usersCol
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -962,8 +1012,7 @@ func DeleteUser(id primitive.ObjectID) error {
 	fullName := user.FullName
 	userIDHex := id.Hex()
 
-	// Get a handle to the users collection
-	collection := client.Database("authdb").Collection("users")
+	collection := usersCol
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -1116,7 +1165,7 @@ func deleteUserRelatedRecords(userID primitive.ObjectID, username string) error 
 	deletedRecordsCount := 0
 
 	// 1. Delete all import logs where this user was the admin
-	importLogsCol := client.Database("authdb").Collection("import_logs")
+	importLogsCol := db.Collection("import_logs")
 	importLogResult, err := importLogsCol.DeleteMany(ctx, bson.M{"admin_username": username})
 	if err != nil {
 		log.Printf("Warning: Failed to delete import logs for user %s: %v", username, err)
@@ -1126,7 +1175,6 @@ func deleteUserRelatedRecords(userID primitive.ObjectID, username string) error 
 	}
 
 	// 2. Delete all user service roles (this should already be done by RemoveAllUserServiceRoles, but double-check)
-	userServiceRolesCol := client.Database("authdb").Collection("user_service_roles")
 	serviceRolesResult, err := userServiceRolesCol.DeleteMany(ctx, bson.M{"user_id": userID})
 	if err != nil {
 		log.Printf("Warning: Failed to delete service roles for user %s: %v", username, err)
@@ -1136,7 +1184,7 @@ func deleteUserRelatedRecords(userID primitive.ObjectID, username string) error 
 	}
 
 	// 3. Delete any user-related activity logs (if such collection exists)
-	activityLogsCol := client.Database("authdb").Collection("activity_logs")
+	activityLogsCol := db.Collection("activity_logs")
 	activityResult, err := activityLogsCol.DeleteMany(ctx, bson.M{"user_id": userID})
 	if err != nil {
 		log.Printf("Info: No activity logs collection or failed to delete for user %s: %v", username, err)
@@ -1146,7 +1194,7 @@ func deleteUserRelatedRecords(userID primitive.ObjectID, username string) error 
 	}
 
 	// 4. Delete any user sessions (if such collection exists)
-	userSessionsCol := client.Database("authdb").Collection("user_sessions")
+	userSessionsCol := db.Collection("user_sessions")
 	sessionsResult, err := userSessionsCol.DeleteMany(ctx, bson.M{"user_id": userID})
 	if err != nil {
 		log.Printf("Info: No user sessions collection or failed to delete for user %s: %v", username, err)
@@ -1173,7 +1221,8 @@ func deleteUserRelatedRecords(userID primitive.ObjectID, username string) error 
 
 // GetUsersWithRole returns all users who have the specified role
 func GetUsersWithRole(roleName string) ([]*User, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	cursor, err := usersCol.Find(ctx, bson.M{"roles": roleName})
 	if err != nil {
 		return nil, err
@@ -1188,10 +1237,17 @@ func GetUsersWithRole(roleName string) ([]*User, error) {
 	return users, nil
 }
 
-// GetAllUsers retrieves all users
+// GetAllUsers retrieves all users with lightweight projection (excludes password and attachment content)
 func GetAllUsers() ([]User, error) {
-	ctx := context.Background()
-	cursor, err := usersCol.Find(ctx, bson.M{})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	opts := options.Find().SetProjection(bson.M{
+		"password":           0,
+		"attachment_content": 0,
+	})
+
+	cursor, err := usersCol.Find(ctx, bson.M{}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1205,9 +1261,53 @@ func GetAllUsers() ([]User, error) {
 	return users, nil
 }
 
+// GetUsersPaginated retrieves users with pagination and lightweight projection.
+// Returns (users, totalCount, error). page is 1-based, pageSize defaults to 50.
+func GetUsersPaginated(page, pageSize int) ([]User, int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 1000 {
+		pageSize = 50
+	}
+
+	// Count total users
+	total, err := usersCol.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	skip := int64((page - 1) * pageSize)
+	opts := options.Find().
+		SetProjection(bson.M{
+			"password":           0,
+			"attachment_content": 0,
+		}).
+		SetSkip(skip).
+		SetLimit(int64(pageSize)).
+		SetSort(bson.D{{Key: "username", Value: 1}})
+
+	cursor, err := usersCol.Find(ctx, bson.M{}, opts)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []User
+	if err = cursor.All(ctx, &users); err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
+}
+
 // GetUsersWithServiceRoles retrieves users who have roles in a specific service
 func GetUsersWithServiceRoles(serviceKey string) ([]User, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Find users with service_roles array containing matching service_key
 	cursor, err := usersCol.Find(ctx, bson.M{
@@ -1227,8 +1327,10 @@ func GetUsersWithServiceRoles(serviceKey string) ([]User, error) {
 }
 
 // GetUsersWithServiceRolesNew retrieves users with their roles in a specific service (ADR-001)
+// Uses aggregation pipeline + batch loading to avoid N+1 queries.
 func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	log.Printf("GetUsersWithServiceRolesNew: Looking for users in service: %s", serviceKey)
 
@@ -1255,7 +1357,6 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 		}},
 	}
 
-	log.Printf("GetUsersWithServiceRolesNew: Executing aggregation pipeline")
 	cursor, err := userServiceRolesCol.Aggregate(ctx, pipeline)
 	if err != nil {
 		log.Printf("GetUsersWithServiceRolesNew: Error executing pipeline: %v", err)
@@ -1263,7 +1364,16 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 	}
 	defer cursor.Close(ctx)
 
-	var results []UserWithServiceRoles
+	// Decode all results first to collect user IDs
+	type aggregationResult struct {
+		User  User     `bson:"user"`
+		Roles []string `bson:"roles"`
+	}
+	var aggResults []aggregationResult
+	if err := cursor.All(ctx, &aggResults); err != nil {
+		log.Printf("GetUsersWithServiceRolesNew: Error decoding results: %v", err)
+		return nil, err
+	}
 
 	// Get external roles for this service to filter user's auth roles
 	externalRolesForService, _ := GetExternalRolesForService(serviceKey)
@@ -1272,34 +1382,32 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 		externalRoleNames[extRole.Name] = true
 	}
 
-	for cursor.Next(ctx) {
-		var result struct {
-			User  User     `bson:"user"`
-			Roles []string `bson:"roles"`
+	// Batch-load auth role assignments for all users in one query (eliminates N+1)
+	var authRolesByUser map[primitive.ObjectID][]UserServiceRole
+	if len(externalRoleNames) > 0 && len(aggResults) > 0 {
+		userIDs := make([]primitive.ObjectID, len(aggResults))
+		for i, r := range aggResults {
+			userIDs[i] = r.User.ID
 		}
-		if err := cursor.Decode(&result); err != nil {
-			log.Printf("GetUsersWithServiceRolesNew: Error decoding result: %v", err)
-			continue
+		authRolesByUser, err = GetUserServiceRolesByUserIDs(userIDs, "auth")
+		if err != nil {
+			log.Printf("GetUsersWithServiceRolesNew: Warning: failed to batch-load auth roles: %v", err)
+			authRolesByUser = make(map[primitive.ObjectID][]UserServiceRole)
 		}
+	}
 
-		log.Printf("GetUsersWithServiceRolesNew: Found user %s (%s) with roles: %v",
-			result.User.Username, result.User.Email, result.Roles)
-
+	results := make([]UserWithServiceRoles, 0, len(aggResults))
+	for _, r := range aggResults {
 		userWithRoles := UserWithServiceRoles{
-			User:         result.User,
-			ServiceRoles: result.Roles,
+			User:         r.User,
+			ServiceRoles: r.Roles,
 		}
 
-		// Get user's external roles (roles in auth service that grant access to this service)
+		// Check external roles from batch-loaded data
 		if len(externalRoleNames) > 0 {
-			authRoleAssignments, err := GetUserServiceRoleAssignments(result.User.ID)
-			if err == nil && authRoleAssignments != nil {
-				for _, assignment := range authRoleAssignments {
-					if assignment.ServiceKey == "auth" && assignment.IsActive {
-						if externalRoleNames[assignment.RoleName] {
-							userWithRoles.ExternalRoles = append(userWithRoles.ExternalRoles, assignment.RoleName)
-						}
-					}
+			for _, assignment := range authRolesByUser[r.User.ID] {
+				if assignment.IsActive && externalRoleNames[assignment.RoleName] {
+					userWithRoles.ExternalRoles = append(userWithRoles.ExternalRoles, assignment.RoleName)
 				}
 			}
 		}
@@ -1314,7 +1422,8 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 // CreateUser creates a new user
 // CreateUserWithNames creates a user with separated name fields
 func CreateUserWithNames(username, email, password, lastName, firstName, middleName, suffix string, roleNames []string) (primitive.ObjectID, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -1340,7 +1449,7 @@ func CreateUserWithNames(username, email, password, lastName, firstName, middleN
 	}
 
 	// Add email notification after successful user creation
-	if err == nil && email != "" {
+	if email != "" {
 		// Get Russian email template - use GetFullName() method
 		subject, body := GetAccountCreatedEmail(user.GetFullName(), username, password, roleNames)
 
@@ -1352,7 +1461,8 @@ func CreateUserWithNames(username, email, password, lastName, firstName, middleN
 
 // CreateUser creates a user with legacy fullName field (for backward compatibility)
 func CreateUser(username, email, password string, fullName string, roleNames []string) (primitive.ObjectID, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -1375,7 +1485,7 @@ func CreateUser(username, email, password string, fullName string, roleNames []s
 	}
 
 	// Add email notification after successful user creation
-	if err == nil && email != "" {
+	if email != "" {
 		// Get Russian email template
 		subject, body := GetAccountCreatedEmail(fullName, username, password, roleNames)
 
@@ -1413,7 +1523,7 @@ func ImportUsersFromExcel(filePath string) (int, error) {
 	headerRow := rows[0]
 
 	// Debug: Print all headers
-	fmt.Printf("Found headers: %v\n", headerRow)
+	log.Printf("Found headers: %v\n", headerRow)
 
 	// Map to store column indices with case-insensitive matching
 	columnMap := make(map[string]int)
@@ -1483,7 +1593,7 @@ func ImportUsersFromExcel(filePath string) (int, error) {
 		// Ensure the row has enough columns
 		if len(row) <= columnMap["username"] || len(row) <= columnMap["email"] ||
 			len(row) <= columnMap["password"] || len(row) <= columnMap["full_name"] {
-			fmt.Printf("Warning: Row %d doesn't have enough columns: %v\n", i+1, row)
+			log.Printf("Warning: Row %d doesn't have enough columns: %v\n", i+1, row)
 			continue
 		}
 
@@ -1494,14 +1604,14 @@ func ImportUsersFromExcel(filePath string) (int, error) {
 
 		// Skip if essential fields are empty
 		if username == "" || password == "" {
-			fmt.Printf("Warning: Row %d has empty username or password\n", i+1)
+			log.Printf("Warning: Row %d has empty username or password\n", i+1)
 			continue
 		}
 
 		// Check if user already exists
 		existingUser, err := GetUserByUsername(username)
 		if err == nil && existingUser != nil {
-			fmt.Printf("User %s already exists, skipping\n", username)
+			log.Printf("User %s already exists, skipping\n", username)
 			continue
 		}
 
@@ -1511,7 +1621,7 @@ func ImportUsersFromExcel(filePath string) (int, error) {
 			rolesStr := strings.TrimSpace(row[rolesIndex])
 			if rolesStr != "" {
 				roles = ParseRolesString(rolesStr)
-				fmt.Printf("Found roles for user %s: %v\n", username, roles)
+				log.Printf("Found roles for user %s: %v\n", username, roles)
 			}
 		}
 
@@ -1523,12 +1633,12 @@ func ImportUsersFromExcel(filePath string) (int, error) {
 		// Create user
 		_, err = CreateUser(username, email, password, fullName, roles)
 		if err != nil {
-			fmt.Printf("Error creating user %s: %v\n", username, err)
+			log.Printf("Error creating user %s: %v\n", username, err)
 			continue
 		}
 
 		usersCreated++
-		fmt.Printf("Created user %s with roles %v\n", username, roles)
+		log.Printf("Created user %s with roles %v\n", username, roles)
 	}
 
 	return usersCreated, nil
@@ -1540,7 +1650,8 @@ func GetCollection(name string) *mongo.Collection {
 }
 
 func GetUserByUsername(username string) (*User, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	var user User
 
 	err := usersCol.FindOne(ctx, bson.M{"username": username}).Decode(&user)
@@ -1556,7 +1667,8 @@ func GetUserByUsername(username string) (*User, error) {
 
 // GetUserByEmailOrUsername retrieves a user by email or username
 func GetUserByEmailOrUsername(identifier string) (*User, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	var user User
 
 	// Search by email or username using $or operator
@@ -1578,42 +1690,10 @@ func GetUserByEmailOrUsername(identifier string) (*User, error) {
 	return &user, nil
 }
 
-// GetRolesByName retrieves roles by their name
-// func GetRolesByName(name string) ([]*Role, error) {
-// 	ctx := context.Background()
-
-// 	// Create a filter for the query
-// 	filter := bson.M{"name": name}
-
-// 	// Execute the find operation
-// 	cursor, err := rolesCol.Find(ctx, filter)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer cursor.Close(ctx)
-
-// 	// Parse the results
-// 	var roles []*Role
-// 	if err := cursor.All(ctx, &roles); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return roles, nil
-// }
-
-// Helper function
-// func contains(slice []string, str string) bool {
-// 	for _, s := range slice {
-// 		if s == str {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
-
 // AssignRoleToUser assigns a role to a user
 func AssignRoleToUser(userID primitive.ObjectID, roleName string) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Get current user
 	var user User
@@ -1641,7 +1721,8 @@ func AssignRoleToUser(userID primitive.ObjectID, roleName string) error {
 
 // RemoveRoleFromUser removes a role from a user
 func RemoveRoleFromUser(userID primitive.ObjectID, roleName string) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Remove role from user's roles
 	_, err := usersCol.UpdateOne(
@@ -1655,7 +1736,8 @@ func RemoveRoleFromUser(userID primitive.ObjectID, roleName string) error {
 
 // AssignUserToServiceRole assigns a role to a user in a specific service
 func AssignUserToServiceRole(userID primitive.ObjectID, serviceKey, roleName string, assignedBy primitive.ObjectID) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Check if role exists in service
 	role, err := GetRoleByServiceAndName(serviceKey, roleName)
@@ -1695,7 +1777,8 @@ func AssignUserToServiceRole(userID primitive.ObjectID, serviceKey, roleName str
 
 // GetUserServiceRoleAssignments returns all service role assignments for a user
 func GetUserServiceRoleAssignments(userID primitive.ObjectID) ([]UserServiceRole, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	cursor, err := userServiceRolesCol.Find(ctx, bson.M{
 		"user_id":   userID,
@@ -1711,9 +1794,42 @@ func GetUserServiceRoleAssignments(userID primitive.ObjectID) ([]UserServiceRole
 	return roles, err
 }
 
+// GetUserServiceRolesByUserIDs batch-loads service role assignments for multiple users
+// filtered by service key. Returns map[userID][]UserServiceRole. Eliminates N+1 queries.
+func GetUserServiceRolesByUserIDs(userIDs []primitive.ObjectID, serviceKey string) (map[primitive.ObjectID][]UserServiceRole, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"user_id": bson.M{"$in": userIDs},
+	}
+	if serviceKey != "" {
+		filter["service_key"] = serviceKey
+	}
+
+	cursor, err := userServiceRolesCol.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var allRoles []UserServiceRole
+	if err = cursor.All(ctx, &allRoles); err != nil {
+		return nil, err
+	}
+
+	grouped := make(map[primitive.ObjectID][]UserServiceRole, len(userIDs))
+	for _, role := range allRoles {
+		grouped[role.UserID] = append(grouped[role.UserID], role)
+	}
+
+	return grouped, nil
+}
+
 // GetUserAccessibleServices returns services where user has any role
 func GetUserAccessibleServices(userID primitive.ObjectID) ([]string, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Use aggregation to get distinct service keys
 	pipeline := []bson.M{
@@ -1748,7 +1864,8 @@ func GetUserAccessibleServices(userID primitive.ObjectID) ([]string, error) {
 
 // RemoveUserFromServiceRole removes a role from user in a service
 func RemoveUserFromServiceRole(userID primitive.ObjectID, serviceKey, roleName string) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	_, err := userServiceRolesCol.UpdateOne(
 		ctx,
@@ -1875,7 +1992,8 @@ type ServiceWithRoles struct {
 }
 
 // GetAllServicesWithRolesForTemplate returns all services with their roles in template-friendly format
-// Excludes the "system" service as system roles are handled separately
+// Excludes the "system" service as system roles are handled separately.
+// Uses batch loading of all roles to avoid N+1 queries.
 func GetAllServicesWithRolesForTemplate() ([]ServiceWithRoles, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1894,12 +2012,29 @@ func GetAllServicesWithRolesForTemplate() ([]ServiceWithRoles, error) {
 		return nil, err
 	}
 
+	// Batch-load all service roles in one query (eliminates N+1)
+	allRolesCursor, err := serviceRolesCol.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer allRolesCursor.Close(ctx)
+
+	var allRoles []Role
+	if err = allRolesCursor.All(ctx, &allRoles); err != nil {
+		return nil, err
+	}
+
+	// Group roles by service key
+	rolesByService := make(map[string][]Role)
+	for _, role := range allRoles {
+		rolesByService[role.ServiceKey] = append(rolesByService[role.ServiceKey], role)
+	}
+
 	var servicesWithRoles []ServiceWithRoles
 	for _, service := range services {
-		roles, err := GetRolesByService(service.Key)
-		if err != nil {
-			log.Printf("Warning: Failed to get roles for service %s: %v", service.Key, err)
-			continue
+		roles := rolesByService[service.Key]
+		if roles == nil {
+			roles = []Role{}
 		}
 
 		servicesWithRoles = append(servicesWithRoles, ServiceWithRoles{
@@ -1932,6 +2067,31 @@ func GetUserServiceRolesByUserID(userID primitive.ObjectID) ([]UserServiceRole, 
 	return userServiceRoles, nil
 }
 
+// GetAllUserServiceRolesGrouped loads ALL user-service-role assignments in one query
+// and returns them grouped by user_id. Eliminates N+1 queries in batch operations.
+func GetAllUserServiceRolesGrouped() (map[primitive.ObjectID][]UserServiceRole, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cursor, err := userServiceRolesCol.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var allRoles []UserServiceRole
+	if err = cursor.All(ctx, &allRoles); err != nil {
+		return nil, err
+	}
+
+	grouped := make(map[primitive.ObjectID][]UserServiceRole, len(allRoles)/3+1)
+	for _, role := range allRoles {
+		grouped[role.UserID] = append(grouped[role.UserID], role)
+	}
+
+	return grouped, nil
+}
+
 // RemoveAllUserServiceRoles removes all service roles for a user
 func RemoveAllUserServiceRoles(userID primitive.ObjectID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1950,7 +2110,7 @@ func UpdateUserProfile(userID primitive.ObjectID, email, lastName, firstName, mi
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	fmt.Printf("UpdateUserProfile: userID=%s, email=%s, lastName=%s, firstName=%s, middleName=%s, suffix=%s, phone=%s, position=%s, department=%s\n",
+	log.Printf("UpdateUserProfile: userID=%s, email=%s, lastName=%s, firstName=%s, middleName=%s, suffix=%s, phone=%s, position=%s, department=%s\n",
 		userID.Hex(), email, lastName, firstName, middleName, suffix, phone, position, department)
 
 	update := bson.M{
@@ -1969,11 +2129,11 @@ func UpdateUserProfile(userID primitive.ObjectID, email, lastName, firstName, mi
 
 	result, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
 	if err != nil {
-		fmt.Printf("UpdateUserProfile error: %v\n", err)
+		log.Printf("UpdateUserProfile error: %v\n", err)
 		return err
 	}
 
-	fmt.Printf("UpdateUserProfile result: matched=%d, modified=%d\n", result.MatchedCount, result.ModifiedCount)
+	log.Printf("UpdateUserProfile result: matched=%d, modified=%d\n", result.MatchedCount, result.ModifiedCount)
 	return nil
 }
 
@@ -1982,7 +2142,7 @@ func UpdateUserProfileLegacy(userID primitive.ObjectID, email, fullName, phone, 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	fmt.Printf("UpdateUserProfileLegacy: userID=%s, email=%s, fullName=%s, phone=%s, position=%s, department=%s\n",
+	log.Printf("UpdateUserProfileLegacy: userID=%s, email=%s, fullName=%s, phone=%s, position=%s, department=%s\n",
 		userID.Hex(), email, fullName, phone, position, department)
 
 	update := bson.M{
@@ -1998,11 +2158,11 @@ func UpdateUserProfileLegacy(userID primitive.ObjectID, email, fullName, phone, 
 
 	result, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
 	if err != nil {
-		fmt.Printf("UpdateUserProfileLegacy error: %v\n", err)
+		log.Printf("UpdateUserProfileLegacy error: %v\n", err)
 		return err
 	}
 
-	fmt.Printf("UpdateUserProfileLegacy result: matched=%d, modified=%d\n", result.MatchedCount, result.ModifiedCount)
+	log.Printf("UpdateUserProfileLegacy result: matched=%d, modified=%d\n", result.MatchedCount, result.ModifiedCount)
 	return nil
 }
 
@@ -2027,10 +2187,10 @@ func UpdateUserAvatarWithCrop(userID primitive.ObjectID, avatarPath, originalAva
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	fmt.Printf("UpdateUserAvatarWithCrop called for user %s\n", userID.Hex())
-	fmt.Printf("Avatar path: %s\n", avatarPath)
-	fmt.Printf("Original avatar path: %s\n", originalAvatarPath)
-	fmt.Printf("Crop coordinates: %+v\n", cropCoords)
+	log.Printf("UpdateUserAvatarWithCrop called for user %s\n", userID.Hex())
+	log.Printf("Avatar path: %s\n", avatarPath)
+	log.Printf("Original avatar path: %s\n", originalAvatarPath)
+	log.Printf("Crop coordinates: %+v\n", cropCoords)
 
 	update := bson.M{
 		"$set": bson.M{
@@ -2043,17 +2203,16 @@ func UpdateUserAvatarWithCrop(userID primitive.ObjectID, avatarPath, originalAva
 
 	result, err := usersCol.UpdateOne(ctx, bson.M{"_id": userID}, update)
 	if err != nil {
-		fmt.Printf("UpdateUserAvatarWithCrop failed: %v\n", err)
+		log.Printf("UpdateUserAvatarWithCrop failed: %v\n", err)
 		return err
 	}
 
-	fmt.Printf("UpdateUserAvatarWithCrop successful, matched: %d, modified: %d\n", result.MatchedCount, result.ModifiedCount)
+	log.Printf("UpdateUserAvatarWithCrop successful, matched: %d, modified: %d\n", result.MatchedCount, result.ModifiedCount)
 	return nil
 }
 
 // UpdateUserEmail updates only the email address of a user
 func UpdateUserEmail(userID primitive.ObjectID, email string) error {
-	usersCol := client.Database("authdb").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -2507,7 +2666,8 @@ func CleanupExpiredPasswordResetTokens() error {
 
 // MigrateUserNamesFromFullName migrates users who have FullName but empty separate name fields
 func MigrateUserNamesFromFullName() error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Find users with FullName but without separate name fields
 	cursor, err := usersCol.Find(ctx, bson.M{
@@ -2606,28 +2766,11 @@ func InvalidateAllUserSessions(userID primitive.ObjectID, reason string) error {
 	return nil
 }
 
-// IsTokenBlacklisted checks if a JWT token is blacklisted
-func IsTokenBlacklisted(tokenString string) bool {
-	// We'll implement a simple approach: if user has any blacklist entries
-	// created after their last login, consider all their tokens invalid
-
-	// Parse token to extract user ID and issued time
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		jwtSecret := os.Getenv("JWT_SECRET")
-		if jwtSecret == "" {
-			jwtSecret = "default_jwt_secret_change_in_production"
-		}
-		return []byte(jwtSecret), nil
-	})
-
-	if err != nil {
-		log.Printf("Warning: Failed to parse token for blacklist check: %v", err)
-		return true // If we can't parse it, consider it invalid
-	}
-
-	claims, ok := token.Claims.(*Claims)
-	if !ok {
-		log.Printf("Warning: Invalid token claims for blacklist check")
+// IsTokenBlacklisted checks if a JWT token is blacklisted by examining the claims.
+// Accepts pre-parsed claims to avoid re-parsing the token.
+func IsTokenBlacklisted(claims *Claims) bool {
+	if claims == nil {
+		log.Printf("Warning: nil claims passed to IsTokenBlacklisted")
 		return true
 	}
 
@@ -2672,7 +2815,7 @@ func IsTokenBlacklisted(tokenString string) bool {
 // ResetUserPassword generates a new temporary password for user
 func ResetUserPassword(userID primitive.ObjectID) (string, error) {
 	// Generate a new random password
-	tempPassword := generateRandomPassword(12)
+	tempPassword := GenerateSecurePassword()
 
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
@@ -2680,7 +2823,8 @@ func ResetUserPassword(userID primitive.ObjectID) (string, error) {
 		return "", fmt.Errorf("failed to hash password: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	_, err = usersCol.UpdateOne(
 		ctx,
 		bson.M{"_id": userID},
@@ -2699,19 +2843,6 @@ func ResetUserPassword(userID primitive.ObjectID) (string, error) {
 	return tempPassword, nil
 }
 
-// generateRandomPassword generates a random password of specified length
-func generateRandomPassword(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
-	password := make([]byte, length)
-
-	for i := range password {
-		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		password[i] = charset[num.Int64()]
-	}
-
-	return string(password)
-}
-
 // HashPassword hashes a password using bcrypt
 func HashPassword(password string) (string, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -2723,7 +2854,8 @@ func HashPassword(password string) (string, error) {
 
 // BanUser bans a user with reason
 func BanUser(userID primitive.ObjectID, reason string) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 	now := time.Now()
 
 	_, err := usersCol.UpdateOne(
@@ -2749,7 +2881,8 @@ func BanUser(userID primitive.ObjectID, reason string) error {
 
 // UnbanUser removes ban from user
 func UnbanUser(userID primitive.ObjectID) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	_, err := usersCol.UpdateOne(
 		ctx,
@@ -2820,7 +2953,7 @@ func ExportUsersToExcel(users []interface{}) (string, error) {
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E0E0E0"}, Pattern: 1},
 	})
 	if err == nil {
-		file.SetCellStyle(sheetName, "A1", fmt.Sprintf("H1"), style)
+		file.SetCellStyle(sheetName, "A1", "H1", style)
 	}
 
 	// Data rows
@@ -2912,7 +3045,7 @@ func GenerateUsersImportTemplate() (string, error) {
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#4472C4"}, Pattern: 1},
 	})
 	if err == nil {
-		file.SetCellStyle(sheetName, "A1", fmt.Sprintf("J1"), style)
+		file.SetCellStyle(sheetName, "A1", "J1", style)
 	}
 
 	// Auto-fit columns in template
@@ -2943,7 +3076,8 @@ func GenerateUsersImportTemplate() (string, error) {
 
 // UpdateUserComplete updates all user fields including roles
 func UpdateUserComplete(user User) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	filter := bson.M{"_id": user.ID}
 	update := bson.M{
@@ -2973,7 +3107,8 @@ func UpdateUserComplete(user User) error {
 
 // DeactivateUserServiceRoles deactivates all service roles for a user
 func DeactivateUserServiceRoles(userID primitive.ObjectID) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	filter := bson.M{
 		"user_id":   userID,
@@ -2992,7 +3127,8 @@ func DeactivateUserServiceRoles(userID primitive.ObjectID) error {
 
 // DeactivateUserServiceRole deactivates a specific service role for a user
 func DeactivateUserServiceRole(userID primitive.ObjectID, serviceKey, roleName string) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	filter := bson.M{
 		"user_id":     userID,
@@ -3013,7 +3149,8 @@ func DeactivateUserServiceRole(userID primitive.ObjectID, serviceKey, roleName s
 
 // CreateUserFromStruct creates a user from a User struct
 func CreateUserFromStruct(user User) (primitive.ObjectID, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	result, err := usersCol.InsertOne(ctx, user)
 	if err != nil {
@@ -3025,7 +3162,8 @@ func CreateUserFromStruct(user User) (primitive.ObjectID, error) {
 
 // UpdateUserDocuments updates the documents field for a user
 func UpdateUserDocuments(userID primitive.ObjectID, documents []UserDocument) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	filter := bson.M{"_id": userID}
 	update := bson.M{
@@ -3045,7 +3183,8 @@ func UpdateUserDocuments(userID primitive.ObjectID, documents []UserDocument) er
 
 // GetUserPermissionsForService returns all permissions for a user in a specific service
 func GetUserPermissionsForService(userID primitive.ObjectID, serviceKey string) ([]string, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	// Get user's active roles in the service
 	pipeline := []bson.M{
@@ -3120,7 +3259,8 @@ func GetUserPermissionsForService(userID primitive.ObjectID, serviceKey string) 
 
 // GetUserRolesForService returns all role names for a user in a specific service
 func GetUserRolesForService(userID primitive.ObjectID, serviceKey string) ([]string, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	filter := bson.M{
 		"userId":     userID,
@@ -3148,7 +3288,8 @@ func GetUserRolesForService(userID primitive.ObjectID, serviceKey string) ([]str
 
 // GetUserDocuments returns all documents for a user
 func GetUserDocuments(userID string) ([]UserDocument, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
@@ -3235,7 +3376,7 @@ func GetUsersByServicePermission(serviceKey string, permissionName string) ([]*U
 	log.Printf("DEBUG GetUsersByServicePermission: serviceKey=%s, permissionName=%s", serviceKey, permissionName)
 
 	// Get all roles that have this permission
-	rolesCol := client.Database("authdb").Collection("service_roles")
+	localRolesCol := serviceRolesCol
 
 	// Debug: Log the query
 	query := bson.M{
@@ -3244,7 +3385,7 @@ func GetUsersByServicePermission(serviceKey string, permissionName string) ([]*U
 	}
 	log.Printf("DEBUG GetUsersByServicePermission: query=%+v", query)
 
-	cursor, err := rolesCol.Find(ctx, query)
+	cursor, err := localRolesCol.Find(ctx, query)
 
 	if err != nil {
 		log.Printf("ERROR GetUsersByServicePermission: failed to query roles: %v", err)

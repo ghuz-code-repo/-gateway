@@ -23,9 +23,9 @@ func ImportUsersFromExcel(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-	
+
 	user := currentUser.(*models.User)
-	
+
 	// Create import log entry
 	logEntry := models.ImportLogEntry{
 		Timestamp:     time.Now(),
@@ -37,7 +37,7 @@ func ImportUsersFromExcel(c *gin.Context) {
 			DeletedUsers:       []models.UserImportExport{},
 			BannedUsers:        []models.UserImportExport{},
 			UnbannedUsers:      []models.UserImportExport{},
-			Errors:            []models.ImportError{},
+			Errors:             []models.ImportError{},
 			EmailNotifications: []models.EmailNotification{},
 		},
 	}
@@ -88,7 +88,7 @@ func ImportUsersFromExcel(c *gin.Context) {
 		models.SaveImportLog(&logEntry)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error": err.Error(),
+			"error":   err.Error(),
 			"details": err.Error(),
 		})
 		return
@@ -101,8 +101,8 @@ func ImportUsersFromExcel(c *gin.Context) {
 	// Save log
 	models.SaveImportLog(&logEntry)
 
-	log.Printf("Import completed for user %s: %d processed, %d created, %d updated, %d deleted, %d banned, %d unbanned, %d errors", 
-		user.Username, result.ProcessedRows, len(result.CreatedUsers), len(result.UpdatedUsers), 
+	log.Printf("Import completed for user %s: %d processed, %d created, %d updated, %d deleted, %d banned, %d unbanned, %d errors",
+		user.Username, result.ProcessedRows, len(result.CreatedUsers), len(result.UpdatedUsers),
 		len(result.DeletedUsers), len(result.BannedUsers), len(result.UnbannedUsers), len(result.Errors))
 
 	// Return result in format expected by frontend
@@ -125,14 +125,14 @@ func ImportUsersFromExcel(c *gin.Context) {
 // processExcelImport processes the Excel file and imports users
 func processExcelImport(file *excelize.File, adminUserID primitive.ObjectID) (*models.ImportResult, error) {
 	result := &models.ImportResult{
-		ProcessedRows:        0,
-		CreatedUsers:         []models.UserImportExport{},
-		UpdatedUsers:         []models.UserImportExport{},
-		DeletedUsers:         []models.UserImportExport{},
-		BannedUsers:          []models.UserImportExport{},
-		UnbannedUsers:        []models.UserImportExport{},
-		Errors:              []models.ImportError{},
-		EmailNotifications:   []models.EmailNotification{},
+		ProcessedRows:      0,
+		CreatedUsers:       []models.UserImportExport{},
+		UpdatedUsers:       []models.UserImportExport{},
+		DeletedUsers:       []models.UserImportExport{},
+		BannedUsers:        []models.UserImportExport{},
+		UnbannedUsers:      []models.UserImportExport{},
+		Errors:             []models.ImportError{},
+		EmailNotifications: []models.EmailNotification{},
 	}
 
 	// Get Users sheet
@@ -202,18 +202,12 @@ func processExcelImport(file *excelize.File, adminUserID primitive.ObjectID) (*m
 		}
 	}
 
-	// Debug: Log found service columns
-	log.Printf("DEBUG IMPORT: Found %d service columns:", len(serviceColumns))
-	for serviceKey, colIndex := range serviceColumns {
-		log.Printf("DEBUG IMPORT: Service column - Key: '%s', Column Index: %d", serviceKey, colIndex)
-	}
-
 	result.ProcessedRows = len(rows) - 1 // Exclude header
 
 	// Process each data row
 	for rowIndex, row := range rows[1:] {
 		actualRowNum := rowIndex + 2 // Excel row number (1-based + header)
-		
+
 		// Parse user data from row
 		importUser, parseErrors := parseUserFromRow(row, columnMap, serviceColumns)
 		if len(parseErrors) > 0 {
@@ -292,19 +286,19 @@ func parseUserFromRow(row []string, columnMap map[string]int, serviceColumns map
 	// Parse service roles - process ALL service columns, including empty ones
 	for serviceKey, colIndex := range serviceColumns {
 		rolesStr := getCellValue(colIndex)
-		
+
 		if rolesStr != "" {
 			// Clean up roles string and validate
 			roles := strings.Split(rolesStr, ",")
 			validRoles := []string{}
-			
+
 			for _, role := range roles {
 				role = strings.TrimSpace(role)
 				if role != "" {
 					validRoles = append(validRoles, role)
 				}
 			}
-			
+
 			user.ServiceRoles[serviceKey] = strings.Join(validRoles, ",")
 		} else {
 			// Empty roles string means remove all roles for this service
@@ -349,7 +343,7 @@ func processUser(importUser models.UserImportExport, adminUserID primitive.Objec
 			}
 		}
 	}
-	
+
 	// Additional safety check
 	if existingUser == nil {
 		isNewUser = true
@@ -379,8 +373,8 @@ func createNewUser(importUser models.UserImportExport, adminUserID primitive.Obj
 	if password == "" {
 		password = models.GenerateSecurePassword()
 	}
-	
-	log.Printf("Creating new user %s with email %s, password length: %d", importUser.Username, importUser.Email, len(password))
+
+	log.Printf("Creating new user %s with email %s", importUser.Username, importUser.Email)
 
 	// Create user
 	userID, err := models.CreateUserWithNames(
@@ -398,7 +392,7 @@ func createNewUser(importUser models.UserImportExport, adminUserID primitive.Obj
 	}
 
 	// Update additional fields
-	err = models.UpdateUserProfile(userID, importUser.Email, importUser.LastName, importUser.FirstName, 
+	err = models.UpdateUserProfile(userID, importUser.Email, importUser.LastName, importUser.FirstName,
 		importUser.MiddleName, importUser.Suffix, importUser.Phone, importUser.Position, importUser.Department)
 	if err != nil {
 		log.Printf("Warning: Failed to update profile for new user %s: %v", importUser.Username, err)
@@ -416,14 +410,13 @@ func createNewUser(importUser models.UserImportExport, adminUserID primitive.Obj
 
 	// Send email notification (non-blocking - errors are logged but don't stop import)
 	// Use the original password variable, not importUser.Password which might be modified
-	log.Printf("Sending creation notification to %s with password (length %d): %s", importUser.Email, len(password), password)
 	emailResult := sendUserNotification(importUser.Email, "created", password)
 	result.EmailNotifications = append(result.EmailNotifications, emailResult)
-	
+
 	// Log email failure but DON'T stop the import process
 	// The notification service already stores failed emails with retry mechanism
 	if !emailResult.Success {
-		log.Printf("⚠️ WARNING: Email notification failed for user %s: %s", 
+		log.Printf("⚠️ WARNING: Email notification failed for user %s: %s",
 			importUser.Email, emailResult.ErrorMessage)
 		log.Printf("⚠️ User created successfully, but notification was not sent.")
 		log.Printf("⚠️ Failed email is stored in notification service and will be retried automatically.")
@@ -439,12 +432,11 @@ func updateExistingUser(existingUser *models.User, importUser models.UserImportE
 	if existingUser == nil {
 		return fmt.Errorf("existingUser is nil - this should not happen")
 	}
-	
-	log.Printf("Updating existing user %s (ID: %s) with email %s, password provided: %t (length: %d)", 
-		existingUser.Username, existingUser.ID.Hex(), importUser.Email, importUser.Password != "", len(importUser.Password))
-	
+
+	log.Printf("Updating existing user %s (ID: %s) with email %s", existingUser.Username, existingUser.ID.Hex(), importUser.Email)
+
 	hasChanges := false
-	
+
 	// Check if profile data changed
 	if existingUser.FirstName != importUser.FirstName ||
 		existingUser.LastName != importUser.LastName ||
@@ -454,12 +446,12 @@ func updateExistingUser(existingUser *models.User, importUser models.UserImportE
 		existingUser.Department != importUser.Department ||
 		existingUser.Position != importUser.Position ||
 		existingUser.Email != importUser.Email {
-		
+
 		hasChanges = true
-		
+
 		// Update profile
-		err := models.UpdateUserProfile(existingUser.ID, importUser.Email, importUser.LastName, 
-			importUser.FirstName, importUser.MiddleName, importUser.Suffix, importUser.Phone, 
+		err := models.UpdateUserProfile(existingUser.ID, importUser.Email, importUser.LastName,
+			importUser.FirstName, importUser.MiddleName, importUser.Suffix, importUser.Phone,
 			importUser.Position, importUser.Department)
 		if err != nil {
 			return fmt.Errorf("failed to update user profile: %v", err)
@@ -508,7 +500,7 @@ func updateExistingUser(existingUser *models.User, importUser models.UserImportE
 			// Store original password before any modifications to importUser
 			passwordForEmail = importUser.Password
 		}
-		
+
 		// Only send email if significant changes occurred (not just role updates)
 		profileChanged := existingUser.FirstName != importUser.FirstName ||
 			existingUser.LastName != importUser.LastName ||
@@ -519,16 +511,15 @@ func updateExistingUser(existingUser *models.User, importUser models.UserImportE
 			existingUser.Position != importUser.Position ||
 			existingUser.Email != importUser.Email ||
 			passwordChanged
-			
+
 		if profileChanged {
-			log.Printf("Sending update notification to %s with password (length %d): %s", importUser.Email, len(passwordForEmail), passwordForEmail)
 			emailResult := sendUserNotification(importUser.Email, "updated", passwordForEmail)
 			result.EmailNotifications = append(result.EmailNotifications, emailResult)
-			
+
 			// Log email failure but DON'T stop the import process
 			// The notification service already stores failed emails with retry mechanism
 			if !emailResult.Success {
-				log.Printf("⚠️ WARNING: Email notification failed for user %s: %s", 
+				log.Printf("⚠️ WARNING: Email notification failed for user %s: %s",
 					importUser.Email, emailResult.ErrorMessage)
 				log.Printf("⚠️ User updated successfully, but notification was not sent.")
 				log.Printf("⚠️ Failed email is stored in notification service and will be retried automatically.")
@@ -544,20 +535,14 @@ func updateExistingUser(existingUser *models.User, importUser models.UserImportE
 // updateUserServiceRoles updates user's service roles
 func updateUserServiceRoles(userID primitive.ObjectID, serviceRoles map[string]string, adminUserID primitive.ObjectID) (bool, error) {
 	hasChanges := false
-	
-	log.Printf("DEBUG IMPORT: updateUserServiceRoles called for user %s", userID.Hex())
-	log.Printf("DEBUG IMPORT: Import serviceRoles: %+v", serviceRoles)
-	
+
 	// Get current user roles FIRST
 	currentRoles, err := models.GetUserServiceRolesByUserID(userID)
 	if err != nil {
-		log.Printf("DEBUG IMPORT: Error getting current roles: %v", err)
 		return false, err
 	}
-	log.Printf("DEBUG IMPORT: Current user has %d roles", len(currentRoles))
-	
+
 	if len(serviceRoles) == 0 {
-		log.Printf("DEBUG IMPORT: No service roles in import data - removing ALL current user roles")
 		// If no service roles in import, remove all current user roles
 		for _, role := range currentRoles {
 			err = models.RemoveUserFromServiceRoles(userID, role.ServiceKey)
@@ -565,10 +550,8 @@ func updateUserServiceRoles(userID primitive.ObjectID, serviceRoles map[string]s
 				log.Printf("Warning: Failed to remove user from service %s: %v", role.ServiceKey, err)
 			} else {
 				hasChanges = true
-				log.Printf("DEBUG IMPORT: Removed all roles from service %s", role.ServiceKey)
 			}
 		}
-		log.Printf("DEBUG IMPORT: Completed removal of all roles, hasChanges=%t", hasChanges)
 		return hasChanges, nil
 	}
 
@@ -589,7 +572,7 @@ func updateUserServiceRoles(userID primitive.ObjectID, serviceRoles map[string]s
 	for serviceKey := range currentServiceRoles {
 		allServiceKeys[serviceKey] = true
 	}
-	
+
 	// Update roles for each service
 	for serviceKey := range allServiceKeys {
 		rolesStr := serviceRoles[serviceKey] // This will be "" if not in import file
@@ -606,7 +589,6 @@ func updateUserServiceRoles(userID primitive.ObjectID, serviceRoles map[string]s
 				}
 			}
 		}
-		log.Printf("DEBUG IMPORT: Processing service %s: rolesStr='%s', newRoles=%v", serviceKey, rolesStr, newRoles)
 
 		// Get service by key instead of name
 		service, err := models.GetServiceByKey(serviceKey)
@@ -618,38 +600,26 @@ func updateUserServiceRoles(userID primitive.ObjectID, serviceRoles map[string]s
 		// Compare with current roles
 		currentRolesList := currentServiceRoles[serviceKey]
 		if !equalStringSlices(currentRolesList, newRoles) {
-			log.Printf("DEBUG IMPORT: Roles changing for service %s: current=%v -> new=%v", serviceKey, currentRolesList, newRoles)
-			
 			// Remove all current roles for this service
-			log.Printf("DEBUG IMPORT: Removing all current roles from service %s", service.Key)
 			err = models.RemoveUserFromServiceRoles(userID, service.Key)
 			if err != nil {
 				log.Printf("ERROR IMPORT: Failed to remove user from service %s: %v", service.Key, err)
-			} else {
-				log.Printf("DEBUG IMPORT: Successfully removed all roles from service %s", service.Key)
 			}
 
 			// Add new roles
 			for _, roleName := range newRoles {
 				if roleName != "" {
-					log.Printf("DEBUG IMPORT: Assigning role %s to user in service %s", roleName, service.Key)
 					err = models.AssignUserToServiceRole(userID, service.Key, roleName, adminUserID)
 					if err != nil {
 						log.Printf("ERROR IMPORT: Failed to assign role %s to user in service %s: %v", roleName, service.Key, err)
-					} else {
-						log.Printf("DEBUG IMPORT: Successfully assigned role %s to user in service %s", roleName, service.Key)
 					}
 				}
 			}
-			
+
 			hasChanges = true
-			log.Printf("DEBUG IMPORT: Roles update completed for service %s", serviceKey)
-		} else {
-			log.Printf("DEBUG IMPORT: No change needed for service %s: current=%v, new=%v", serviceKey, currentRolesList, newRoles)
 		}
 	}
-	
-	log.Printf("DEBUG IMPORT: updateUserServiceRoles completed with hasChanges=%t", hasChanges)
+
 	return hasChanges, nil
 }
 
@@ -657,8 +627,8 @@ func updateUserServiceRoles(userID primitive.ObjectID, serviceRoles map[string]s
 func sendUserNotification(email, notificationType, password string) models.EmailNotification {
 	notification := models.EmailNotification{
 		RecipientEmail: email,
-		Type:          notificationType,
-		SentAt:        time.Now(),
+		Type:           notificationType,
+		SentAt:         time.Now(),
 	}
 
 	// Prepare email content
@@ -703,36 +673,36 @@ Email: %s`, email)
 	// Try to send email with retry mechanism
 	const maxRetries = 3
 	var lastError error
-	
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Printf("Email attempt %d/%d to %s", attempt, maxRetries, email)
-		
+
 		err := models.SendEmailNotificationNew(email, subject, body)
 		if err == nil {
 			log.Printf("Email successfully sent to %s on attempt %d", email, attempt)
 			notification.Success = true
 			return notification
 		}
-		
+
 		lastError = err
 		log.Printf("Email attempt %d failed for %s: %v", attempt, email, err)
-		
+
 		// If this is not the last attempt, wait before retrying
 		if attempt < maxRetries {
 			time.Sleep(time.Duration(attempt) * time.Second) // Progressive delay
 		}
 	}
-	
+
 	// All attempts failed - log and notify admin (but this is not critical for import)
 	log.Printf("⚠️ All email attempts failed for %s: %v", email, lastError)
 	log.Printf("ℹ️ Email will be stored in notification service with retry mechanism")
-	
+
 	// Try to send fallback notification to admin
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail == "" {
 		adminEmail = "admin@gh.uz" // Default admin email
 	}
-	
+
 	fallbackSubject := "⚠️ Не удалось отправить email пользователю"
 	fallbackBody := fmt.Sprintf(`ВНИМАНИЕ! Ошибка доставки email при импорте пользователей.
 
@@ -750,7 +720,7 @@ Email сохранён в notification service и будет повторно о
 Тема: %s
 
 %s`, email, notificationType, lastError, subject, body)
-	
+
 	// Try to send admin notification (single attempt - non-blocking)
 	adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
 	if adminErr != nil {
@@ -758,10 +728,10 @@ Email сохранён в notification service и будет повторно о
 	} else {
 		log.Printf("✅ Admin fallback notification sent to %s", adminEmail)
 	}
-	
+
 	notification.Success = false
 	notification.ErrorMessage = fmt.Sprintf("Failed to send email after %d attempts: %v. User created/updated successfully, email stored for retry.", maxRetries, lastError)
-	
+
 	return notification
 }
 
@@ -770,18 +740,18 @@ func equalStringSlices(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	
+
 	aMap := make(map[string]bool)
 	for _, s := range a {
 		aMap[s] = true
 	}
-	
+
 	for _, s := range b {
 		if !aMap[s] {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -797,7 +767,7 @@ func processUserDeletion(importUser models.UserImportExport, result *models.Impo
 			existingUser, err = models.GetUserByID(objectID.Hex())
 		}
 	}
-	
+
 	if existingUser == nil {
 		// Try to find by username/email
 		existingUser, err = models.GetUserByUsernameOrEmail(importUser.Username, importUser.Email)
@@ -809,26 +779,26 @@ func processUserDeletion(importUser models.UserImportExport, result *models.Impo
 
 	if existingUser != nil {
 		log.Printf("Deleting user %s (ID: %s)", existingUser.Username, existingUser.ID.Hex())
-		
+
 		err := models.DeleteUser(existingUser.ID)
 		if err != nil {
 			return fmt.Errorf("failed to delete user %s: %v", existingUser.Username, err)
 		}
-		
+
 		// Add to deleted users list
 		importUser.ID = existingUser.ID.Hex()
 		result.DeletedUsers = append(result.DeletedUsers, importUser)
-		
+
 		log.Printf("Successfully deleted user %s", existingUser.Username)
 	}
-	
+
 	return nil
 }
 
 // processBanStatusChange handles ban/unban operations
 func processBanStatusChange(existingUser *models.User, importUser models.UserImportExport, result *models.ImportResult) (bool, error) {
 	shouldBeBanned := strings.ToLower(strings.TrimSpace(importUser.Banned)) == "true"
-	
+
 	if existingUser.IsBanned != shouldBeBanned {
 		if shouldBeBanned {
 			// Ban user
@@ -836,7 +806,7 @@ func processBanStatusChange(existingUser *models.User, importUser models.UserImp
 			if err != nil {
 				return false, fmt.Errorf("failed to ban user %s: %v", existingUser.Username, err)
 			}
-			
+
 			importUser.ID = existingUser.ID.Hex()
 			result.BannedUsers = append(result.BannedUsers, importUser)
 			log.Printf("Banned user %s", existingUser.Username)
@@ -846,13 +816,13 @@ func processBanStatusChange(existingUser *models.User, importUser models.UserImp
 			if err != nil {
 				return false, fmt.Errorf("failed to unban user %s: %v", existingUser.Username, err)
 			}
-			
+
 			importUser.ID = existingUser.ID.Hex()
 			result.UnbannedUsers = append(result.UnbannedUsers, importUser)
 			log.Printf("Unbanned user %s", existingUser.Username)
 		}
 		return true, nil // Status was changed
 	}
-	
+
 	return false, nil // No changes
 }

@@ -40,6 +40,7 @@ services:
       - ./auth-service/.env
     depends_on:
       - mongo
+      - docker-socket-proxy
     networks:
       - service_network     # Для общения с другими сервисами
       - data_network        # Для доступа к MongoDB
@@ -48,12 +49,12 @@ services:
       - ./auth-service/static:/root/static
       - ./auth-service/templates:/root/templates
       - nginx_dynamic_config:/etc/nginx/conf.d/dynamic  # Shared volume for nginx configs
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access to Docker for nginx reload
     environment:
       - TZ=Asia/Tashkent
       - NOTIFICATION_SERVICE_URL=http://notification-service:80
       - NGINX_CONTAINER_NAME=gateway-nginx-1
       - NGINX_DYNAMIC_CONFIG_DIR=/etc/nginx/conf.d/dynamic
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
     restart: always
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
@@ -65,15 +66,20 @@ services:
   mongo:
     image: mongo:6
     restart: always
+    command: ["--auth"]
     networks:
       - data_network
     volumes:
       - ./mongo_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/01-create-app-user.js:ro
     environment:
       - MONGO_INITDB_DATABASE=authdb
+      - MONGO_INITDB_ROOT_USERNAME=mongoadmin
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_APP_PASSWORD=${MONGO_APP_PASSWORD}
       - TZ=Asia/Tashkent
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      test: ["CMD", "mongosh", "--quiet", "-u", "mongoadmin", "-p", "${MONGO_ROOT_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.runCommand('ping').ok"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -100,13 +106,50 @@ services:
       retries: 3
       start_period: 15s
 
-  dozzle:
-    image: amir20/dozzle:latest
-    container_name: gateway-dozzle
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: gateway-docker-proxy
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
+      - TZ=Asia/Tashkent
+      # Only allow container-related operations (exec for nginx reload, logs for dozzle)
+      - CONTAINERS=1
+      - INFO=1          # Required for dozzle v10+ (GET /info on startup)
+      - POST=1          # Required for docker exec
+      - EXEC=1          # Required for docker exec
+      - LOG=1           # Required for dozzle log streaming
+      - EVENTS=1        # Required for dozzle real-time updates
+      # Block everything else
+      - IMAGES=0
+      - NETWORKS=0
+      - VOLUMES=0
+      - BUILD=0
+      - COMMIT=0
+      - SWARM=0
+      - NODES=0
+      - SERVICES=0
+      - TASKS=0
+      - SECRETS=0
+      - CONFIGS=0
+    networks:
+      - service_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: gateway-dozzle
+    restart: always
+    depends_on:
+      - docker-socket-proxy
+    environment:
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
       - DOZZLE_LEVEL=info
       # Forward proxy mode for per-service access control
       - DOZZLE_AUTH_PROVIDER=forward-proxy

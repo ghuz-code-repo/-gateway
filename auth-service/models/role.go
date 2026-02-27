@@ -4,23 +4,40 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// RoleType constants for distinguishing internal vs external roles
+const (
+	RoleTypeInternal = "internal" // Internal role: controls access within its own service
+	RoleTypeExternal = "external" // External role: defined in auth-service but controls access to another service
+)
+
 // Role represents a user role with permissions for a specific service
 type Role struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ServiceKey  string             `bson:"service" json:"service" validate:"required"`     // Foreign key to services.key
-	Name        string             `bson:"name" json:"name" validate:"required"`           // Role name
-	Description string             `bson:"description" json:"description"`                 // Role description
-	Permissions []string           `bson:"permissions" json:"permissions"`                 // Array of permission names (free-form)
-	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`                     // Creation timestamp
-	UpdatedAt   time.Time          `bson:"updatedAt" json:"updatedAt"`                     // Update timestamp
-	DeletedAt   *time.Time         `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"` // Soft delete timestamp
+	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	ServiceKey     string             `bson:"service" json:"service" validate:"required"`                 // Foreign key to services.key
+	Name           string             `bson:"name" json:"name" validate:"required"`                       // Role name
+	Description    string             `bson:"description" json:"description"`                             // Role description
+	Permissions    []string           `bson:"permissions" json:"permissions"`                             // Array of permission names (free-form)
+	RoleType       string             `bson:"role_type" json:"role_type"`                                 // "internal" or "external" (default: "internal")
+	ManagedService string             `bson:"managed_service,omitempty" json:"managed_service,omitempty"` // For external roles: the service key this role manages
+	CreatedAt      time.Time          `bson:"createdAt" json:"createdAt"`                                 // Creation timestamp
+	UpdatedAt      time.Time          `bson:"updatedAt" json:"updatedAt"`                                 // Update timestamp
+	DeletedAt      *time.Time         `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"`             // Soft delete timestamp
+}
+
+// IsExternal returns true if this role is an external role (manages another service)
+func (r *Role) IsExternal() bool {
+	return r.RoleType == RoleTypeExternal
+}
+
+// IsInternal returns true if this role is an internal role
+func (r *Role) IsInternal() bool {
+	return r.RoleType != RoleTypeExternal // default to internal if empty
 }
 
 // CreateRole creates a new role for a specific service
@@ -42,6 +59,7 @@ func CreateRole(serviceKey, name, description string, permissions []string) (*Ro
 		Name:        name,
 		Description: description,
 		Permissions: permissions,
+		RoleType:    RoleTypeInternal, // Default to internal
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -243,69 +261,21 @@ func GetRolesByService(serviceKey string) ([]Role, error) {
 }
 
 // GetInternalRolesByService returns only internal roles for a service
-// For auth service, this excludes external roles (roles with permissions like auth.<otherService>.*)
+// Uses the role_type field to filter (no more hardcoded string parsing)
 func GetInternalRolesByService(serviceKey string) ([]Role, error) {
 	allRoles, err := GetRolesByService(serviceKey)
 	if err != nil {
 		return nil, err
 	}
 
-	// For non-auth services, return all roles
-	if serviceKey != "auth" {
-		return allRoles, nil
-	}
-
-	// For auth service, filter out external roles
-	// External roles have permissions like auth.referal.*, auth.client-service.*, etc.
 	var internalRoles []Role
 	for _, role := range allRoles {
-		if !isExternalRole(role) {
+		if role.IsInternal() {
 			internalRoles = append(internalRoles, role)
 		}
 	}
 
 	return internalRoles, nil
-}
-
-// isExternalRole checks if a role is an external role (controls access to another service)
-// External roles have permissions that start with auth.<serviceKey>. where serviceKey is NOT auth-related
-func isExternalRole(role Role) bool {
-	// System roles are not external
-	systemRoles := map[string]bool{
-		"GOD": true, "god": true, "admin": true, "Admin": true, "ADMIN": true,
-		"service-manager": true, "user-manager": true, "viewer": true, "support": true,
-	}
-	if systemRoles[role.Name] {
-		return false
-	}
-
-	// Check if all permissions are for external service management
-	// External permissions look like: auth.referal.*, auth.client-service.*, etc.
-	externalPrefixes := []string{
-		"auth.referal.", "auth.client-service.", "auth.calculator.",
-		"auth.notification-service.", "auth.monitoring-service.",
-	}
-
-	hasExternalPerms := false
-	hasInternalPerms := false
-
-	for _, perm := range role.Permissions {
-		isExternal := false
-		for _, prefix := range externalPrefixes {
-			if strings.HasPrefix(perm, prefix) {
-				isExternal = true
-				break
-			}
-		}
-		if isExternal {
-			hasExternalPerms = true
-		} else {
-			hasInternalPerms = true
-		}
-	}
-
-	// Role is external if it has only external permissions (no internal auth.* permissions)
-	return hasExternalPerms && !hasInternalPerms
 }
 
 // GetRoleByServiceAndName retrieves a role by service key and name
@@ -374,14 +344,16 @@ func RemovePermissionFromRole(id primitive.ObjectID, permission string) error {
 
 // ServiceRole represents a role specifically for service management
 type ServiceRole struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ServiceKey  string             `bson:"service_key" json:"service_key" validate:"required"`
-	Name        string             `bson:"name" json:"name" validate:"required"`
-	DisplayName string             `bson:"display_name" json:"display_name"`
-	Description string             `bson:"description" json:"description"`
-	Permissions []string           `bson:"permissions" json:"permissions"`
-	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at"`
+	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	ServiceKey     string             `bson:"service_key" json:"service_key" validate:"required"`
+	Name           string             `bson:"name" json:"name" validate:"required"`
+	DisplayName    string             `bson:"display_name" json:"display_name"`
+	Description    string             `bson:"description" json:"description"`
+	Permissions    []string           `bson:"permissions" json:"permissions"`
+	RoleType       string             `bson:"role_type" json:"role_type"`
+	ManagedService string             `bson:"managed_service,omitempty" json:"managed_service,omitempty"`
+	CreatedAt      time.Time          `bson:"created_at" json:"created_at"`
+	UpdatedAt      time.Time          `bson:"updated_at" json:"updated_at"`
 }
 
 // GetServiceRoleByID retrieves a service role by its ID

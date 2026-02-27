@@ -1,17 +1,20 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,9 +24,15 @@ import (
 )
 
 type NotificationService struct {
-	db           *gorm.DB
-	sendMutex    sync.Mutex // Мьютекс для синхронизации отправки
-	lastSendTime time.Time  // Время последней отправки
+	db              *gorm.DB
+	sendMutex       sync.Mutex // Мьютекс для синхронизации отправки
+	lastSendTime    time.Time  // Время последней отправки
+	configCache     *NotificationConfig
+	configCacheMu   sync.RWMutex
+	lastConfigFetch time.Time
+	httpClient      *http.Client   // Shared HTTP client for external API calls
+	workerSem       chan struct{}  // Semaphore to limit concurrent send goroutines
+	wg              sync.WaitGroup // Tracks in-flight goroutines for graceful shutdown
 }
 
 type NotificationType string
@@ -48,33 +57,33 @@ const (
 
 // Notification represents a single notification
 type Notification struct {
-	ID                  uint                `json:"id" gorm:"primaryKey"`
-	Type                NotificationType    `json:"type" gorm:"not null"`
-	Recipient           string              `json:"recipient" gorm:"not null"`
-	Subject             string              `json:"subject,omitempty"`
-	Content             string              `json:"content" gorm:"not null"`
-	AttachmentFilename  string              `json:"attachment_filename,omitempty"`
-	AttachmentContent   []byte              `json:"attachment_content,omitempty" gorm:"type:bytea"`
-	Status              NotificationStatus  `json:"status" gorm:"default:pending"`
-	Attempts            int                 `json:"attempts" gorm:"default:0"`
-	MaxAttempts         int                 `json:"max_attempts" gorm:"default:3"`
-	LastError           string              `json:"last_error,omitempty"`
-	BatchID             string              `json:"batch_id,omitempty"`
-	CreatedAt           int64               `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt           int64               `json:"updated_at" gorm:"autoUpdateTime"`
-	SentAt              *int64              `json:"sent_at,omitempty"`
+	ID                 uint               `json:"id" gorm:"primaryKey"`
+	Type               NotificationType   `json:"type" gorm:"not null"`
+	Recipient          string             `json:"recipient" gorm:"not null"`
+	Subject            string             `json:"subject,omitempty"`
+	Content            string             `json:"content" gorm:"not null"`
+	AttachmentFilename string             `json:"attachment_filename,omitempty"`
+	AttachmentContent  []byte             `json:"attachment_content,omitempty" gorm:"type:bytea"`
+	Status             NotificationStatus `json:"status" gorm:"default:pending;index"`
+	Attempts           int                `json:"attempts" gorm:"default:0"`
+	MaxAttempts        int                `json:"max_attempts" gorm:"default:3"`
+	LastError          string             `json:"last_error,omitempty"`
+	BatchID            string             `json:"batch_id,omitempty" gorm:"index"`
+	CreatedAt          int64              `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt          int64              `json:"updated_at" gorm:"autoUpdateTime"`
+	SentAt             *int64             `json:"sent_at,omitempty"`
 }
 
 // NotificationBatch represents a batch of notifications
 type NotificationBatch struct {
-	ID              string `json:"id" gorm:"primaryKey"`
-	TotalCount      int    `json:"total_count"`
-	ProcessedCount  int    `json:"processed_count" gorm:"default:0"`
-	SuccessCount    int    `json:"success_count" gorm:"default:0"`
-	FailedCount     int    `json:"failed_count" gorm:"default:0"`
-	Status          string `json:"status" gorm:"default:processing"`
-	CreatedAt       int64  `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt       int64  `json:"updated_at" gorm:"autoUpdateTime"`
+	ID             string `json:"id" gorm:"primaryKey"`
+	TotalCount     int    `json:"total_count"`
+	ProcessedCount int    `json:"processed_count" gorm:"default:0"`
+	SuccessCount   int    `json:"success_count" gorm:"default:0"`
+	FailedCount    int    `json:"failed_count" gorm:"default:0"`
+	Status         string `json:"status" gorm:"default:processing"`
+	CreatedAt      int64  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      int64  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 // BatchNotificationRequest represents a request to send multiple notifications
@@ -95,32 +104,32 @@ type SingleNotificationRequest struct {
 
 // NotificationConfig represents stored notification service configuration
 type NotificationConfig struct {
-	ID                          uint   `json:"id" gorm:"primaryKey"`
-	SMTPHost                    string `json:"smtp_host" gorm:"default:'smtp.gmail.com'"`
-	SMTPPort                    string `json:"smtp_port" gorm:"default:'587'"`
-	SMTPUsername                string `json:"smtp_username"`
-	SMTPPassword                string `json:"smtp_password"`
-	SMTPFrom                    string `json:"smtp_from"`
-	SMTPUseTLS                  bool   `json:"smtp_use_tls" gorm:"default:false"`
-	SMTPUseAuth                 bool   `json:"smtp_use_auth" gorm:"default:true"`
-	SMTPAuthMethod              string `json:"smtp_auth_method" gorm:"default:'plain'"`
-	TelegramBotToken            string `json:"telegram_bot_token"`              // Токен для обычного бота
-	TelegramSystemBotToken      string `json:"telegram_system_bot_token"`       // Токен для системного бота
-	TelegramEnabled             bool   `json:"telegram_enabled" gorm:"default:false"`
-	TelegramSystemEnabled       bool   `json:"telegram_system_enabled" gorm:"default:false"`
-	SystemEmailRecipient        string `json:"system_email_recipient"`          // Email для системных уведомлений
-	SystemTelegramUsername      string `json:"system_telegram_username"`        // Telegram Username для системных уведомлений (сохраняется для UI)
-	SystemTelegramChatID        string `json:"system_telegram_chat_id"`         // Telegram Chat ID (используется для отправки)
-	SendSystemEmailNotifications     bool   `json:"send_system_email_notifications" gorm:"default:true"`      // Включить отправку системных уведомлений на почту
-	SendSystemTelegramNotifications  bool   `json:"send_system_telegram_notifications" gorm:"default:true"`   // Включить отправку системных уведомлений в Telegram
-	DebugMode                   bool   `json:"debug_mode" gorm:"default:false"`                          // Debug режим - все письма на debug email
-	DebugEmail                  string `json:"debug_email"`                                               // Email для всех писем в debug режиме
-	MaxRetryAttempts            int    `json:"max_retry_attempts" gorm:"default:3"`
-	BatchSize                   int    `json:"batch_size" gorm:"default:10"`
-	DelayBetweenBatchesMS       int    `json:"delay_between_batches_ms" gorm:"default:1000"`
-	DelayBetweenMessagesMS      int    `json:"delay_between_messages_ms" gorm:"default:100"`  // Задержка между отдельными сообщениями
-	CreatedAt                   int64  `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt                   int64  `json:"updated_at" gorm:"autoUpdateTime"`
+	ID                              uint   `json:"id" gorm:"primaryKey"`
+	SMTPHost                        string `json:"smtp_host" gorm:"default:'smtp.gmail.com'"`
+	SMTPPort                        string `json:"smtp_port" gorm:"default:'587'"`
+	SMTPUsername                    string `json:"smtp_username"`
+	SMTPPassword                    string `json:"smtp_password"`
+	SMTPFrom                        string `json:"smtp_from"`
+	SMTPUseTLS                      bool   `json:"smtp_use_tls" gorm:"default:false"`
+	SMTPUseAuth                     bool   `json:"smtp_use_auth" gorm:"default:true"`
+	SMTPAuthMethod                  string `json:"smtp_auth_method" gorm:"default:'plain'"`
+	TelegramBotToken                string `json:"telegram_bot_token"`        // Токен для обычного бота
+	TelegramSystemBotToken          string `json:"telegram_system_bot_token"` // Токен для системного бота
+	TelegramEnabled                 bool   `json:"telegram_enabled" gorm:"default:false"`
+	TelegramSystemEnabled           bool   `json:"telegram_system_enabled" gorm:"default:false"`
+	SystemEmailRecipient            string `json:"system_email_recipient"`                                 // Email для системных уведомлений
+	SystemTelegramUsername          string `json:"system_telegram_username"`                               // Telegram Username для системных уведомлений (сохраняется для UI)
+	SystemTelegramChatID            string `json:"system_telegram_chat_id"`                                // Telegram Chat ID (используется для отправки)
+	SendSystemEmailNotifications    bool   `json:"send_system_email_notifications" gorm:"default:true"`    // Включить отправку системных уведомлений на почту
+	SendSystemTelegramNotifications bool   `json:"send_system_telegram_notifications" gorm:"default:true"` // Включить отправку системных уведомлений в Telegram
+	DebugMode                       bool   `json:"debug_mode" gorm:"default:false"`                        // Debug режим - все письма на debug email
+	DebugEmail                      string `json:"debug_email"`                                            // Email для всех писем в debug режиме
+	MaxRetryAttempts                int    `json:"max_retry_attempts" gorm:"default:3"`
+	BatchSize                       int    `json:"batch_size" gorm:"default:10"`
+	DelayBetweenBatchesMS           int    `json:"delay_between_batches_ms" gorm:"default:1000"`
+	DelayBetweenMessagesMS          int    `json:"delay_between_messages_ms" gorm:"default:100"` // Задержка между отдельными сообщениями
+	CreatedAt                       int64  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt                       int64  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 // isInternalIP checks if the IP is from internal Docker networks
@@ -130,7 +139,7 @@ func isInternalIP(ip string) bool {
 	if parsedIP == nil {
 		return false
 	}
-	
+
 	// Allow IPv6 localhost
 	if parsedIP.IsLoopback() {
 		return true
@@ -139,7 +148,7 @@ func isInternalIP(ip string) bool {
 	// Define allowed internal networks
 	allowedNetworks := []string{
 		"172.16.0.0/12",  // Docker default networks
-		"10.0.0.0/8",     // Docker internal networks  
+		"10.0.0.0/8",     // Docker internal networks
 		"192.168.0.0/16", // Docker compose networks
 		"127.0.0.0/8",    // localhost range
 	}
@@ -162,7 +171,7 @@ func main() {
 	log.Println("========================================")
 	log.Println("🚀 Notification Service Starting...")
 	log.Println("========================================")
-	
+
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️  No .env file found, using system environment variables")
@@ -179,8 +188,15 @@ func main() {
 	log.Println("✅ Database connected successfully")
 
 	// Create service instance
-	service := &NotificationService{db: db}
-	log.Println("✅ Notification service instance created")
+	maxConcurrent := getEnvAsInt("MAX_CONCURRENT_SENDS", 10)
+	service := &NotificationService{
+		db: db,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		workerSem: make(chan struct{}, maxConcurrent),
+	}
+	log.Printf("✅ Notification service instance created (max concurrent sends: %d)", maxConcurrent)
 
 	// Initialize router
 	router := gin.Default()
@@ -196,17 +212,17 @@ func main() {
 	// Add IP whitelist middleware
 	router.Use(func(c *gin.Context) {
 		clientIP := c.ClientIP()
-		
+
 		// Allow only internal Docker networks
 		allowed := isInternalIP(clientIP)
-		
+
 		if !allowed {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error": "Access denied",
 			})
 			return
 		}
-		
+
 		c.Next()
 	})
 
@@ -223,10 +239,44 @@ func main() {
 	log.Printf("🌐 Starting notification service on port %s", port)
 	log.Println("📧 Ready to process email notifications")
 	log.Println("========================================")
-	
-	if err := router.Run(":" + port); err != nil {
-		log.Fatalf("❌ Failed to start server: %v", err)
+
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: router,
 	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("❌ Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("⏳ Shutting down notification service...")
+
+	// Wait for in-flight goroutines to finish (with timeout)
+	wgDone := make(chan struct{})
+	go func() {
+		service.wg.Wait()
+		close(wgDone)
+	}()
+
+	select {
+	case <-wgDone:
+		log.Println("✅ All in-flight notifications completed")
+	case <-time.After(25 * time.Second):
+		log.Println("⚠️ Timeout waiting for in-flight notifications, proceeding with shutdown")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("❌ Server forced to shutdown: %v", err)
+	}
+	log.Println("✅ Notification service stopped gracefully")
 }
 
 func initDB() (*gorm.DB, error) {
@@ -235,34 +285,34 @@ func initDB() (*gorm.DB, error) {
 	if host == "" {
 		host = "localhost"
 	}
-	
+
 	user := os.Getenv("DB_USER")
 	if user == "" {
 		user = "postgres"
 	}
-	
+
 	password := os.Getenv("DB_PASSWORD")
 	if password == "" {
 		password = "password"
 	}
-	
+
 	dbname := os.Getenv("DB_NAME")
 	if dbname == "" {
 		dbname = "notifications"
 	}
-	
+
 	port := os.Getenv("DB_PORT")
 	if port == "" {
 		port = "5432"
 	}
-	
+
 	sslmode := os.Getenv("DB_SSLMODE")
 	if sslmode == "" {
 		sslmode = "disable"
 	}
 
 	dsn := "host=" + host + " user=" + user + " password=" + password + " dbname=" + dbname + " port=" + port + " sslmode=" + sslmode + " TimeZone=Asia/Tashkent"
-	
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
@@ -280,12 +330,12 @@ func initDB() (*gorm.DB, error) {
 func (ns *NotificationService) setupRoutes(router *gin.Engine) {
 	// Статические файлы
 	router.Static("/static", "./static")
-	
+
 	// Главная страница с интерфейсом настроек
 	router.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/static/config.html")
 	})
-	
+
 	router.GET("/config", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/static/config.html")
 	})
@@ -294,23 +344,23 @@ func (ns *NotificationService) setupRoutes(router *gin.Engine) {
 	{
 		// Batch notifications endpoint
 		api.POST("/notifications/batch", ns.sendBatchNotifications)
-		
+
 		// Single notification endpoint
 		api.POST("/notifications", ns.sendSingleNotification)
-		
+
 		// Get notification status
 		api.GET("/notifications/:id", ns.getNotificationStatus)
-		
+
 		// Get batch status
 		api.GET("/batches/:batch_id", ns.getBatchStatus)
-		
+
 		// Get notifications by batch
 		api.GET("/batches/:batch_id/notifications", ns.getBatchNotifications)
-		
+
 		// Configuration endpoints
 		api.GET("/config", ns.getConfig)
 		api.POST("/config", ns.updateConfig)
-		
+
 		// Health check
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -335,9 +385,9 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 
 	// Create batch record
 	batch := NotificationBatch{
-		ID:          req.BatchID,
-		TotalCount:  len(req.Notifications),
-		Status:      "processing",
+		ID:         req.BatchID,
+		TotalCount: len(req.Notifications),
+		Status:     "processing",
 	}
 
 	if err := ns.db.Create(&batch).Error; err != nil {
@@ -366,8 +416,14 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 
 	log.Printf("✅ Batch %s created with %d notifications, starting processing...", req.BatchID, len(notifications))
 
-	// Start processing in background
-	go ns.processBatch(req.BatchID)
+	// Start processing in background (tracked by WaitGroup)
+	ns.wg.Add(1)
+	go func() {
+		defer ns.wg.Done()
+		ns.workerSem <- struct{}{} // Acquire semaphore slot
+		defer func() { <-ns.workerSem }()
+		ns.processBatch(req.BatchID)
+	}()
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"batch_id": req.BatchID,
@@ -415,8 +471,14 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 
 	log.Printf("✅ Notification #%d created, starting processing...", notification.ID)
 
-	// Process immediately
-	go ns.processNotification(&notification)
+	// Process immediately (tracked by WaitGroup)
+	ns.wg.Add(1)
+	go func() {
+		defer ns.wg.Done()
+		ns.workerSem <- struct{}{} // Acquire semaphore slot
+		defer func() { <-ns.workerSem }()
+		ns.processNotification(&notification)
+	}()
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"id":      notification.ID,
@@ -467,7 +529,7 @@ func (ns *NotificationService) getBatchNotifications(c *gin.Context) {
 
 func (ns *NotificationService) getConfig(c *gin.Context) {
 	var dbConfig NotificationConfig
-	
+
 	// Try to get config from database first
 	result := ns.db.First(&dbConfig)
 	if result.Error != nil {
@@ -499,27 +561,27 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 	}
 
 	config := map[string]interface{}{
-		"smtp_host":                        dbConfig.SMTPHost,
-		"smtp_port":                        dbConfig.SMTPPort,
-		"smtp_username":                    dbConfig.SMTPUsername,
-		"smtp_from":                        dbConfig.SMTPFrom,
-		"smtp_use_tls":                     dbConfig.SMTPUseTLS,
-		"smtp_use_auth":                    dbConfig.SMTPUseAuth,
-		"smtp_auth_method":                 dbConfig.SMTPAuthMethod,
-		"telegram_bot_token":               dbConfig.TelegramBotToken,
-		"telegram_system_bot_token":        dbConfig.TelegramSystemBotToken,
-		"telegram_enabled":                 dbConfig.TelegramEnabled,
-		"telegram_system_enabled":          dbConfig.TelegramSystemEnabled,
-		"system_email_recipient":           dbConfig.SystemEmailRecipient,
-		"system_telegram_username":         dbConfig.SystemTelegramUsername,
-		"send_system_email_notifications":  dbConfig.SendSystemEmailNotifications,
+		"smtp_host":                          dbConfig.SMTPHost,
+		"smtp_port":                          dbConfig.SMTPPort,
+		"smtp_username":                      dbConfig.SMTPUsername,
+		"smtp_from":                          dbConfig.SMTPFrom,
+		"smtp_use_tls":                       dbConfig.SMTPUseTLS,
+		"smtp_use_auth":                      dbConfig.SMTPUseAuth,
+		"smtp_auth_method":                   dbConfig.SMTPAuthMethod,
+		"telegram_bot_token":                 dbConfig.TelegramBotToken,
+		"telegram_system_bot_token":          dbConfig.TelegramSystemBotToken,
+		"telegram_enabled":                   dbConfig.TelegramEnabled,
+		"telegram_system_enabled":            dbConfig.TelegramSystemEnabled,
+		"system_email_recipient":             dbConfig.SystemEmailRecipient,
+		"system_telegram_username":           dbConfig.SystemTelegramUsername,
+		"send_system_email_notifications":    dbConfig.SendSystemEmailNotifications,
 		"send_system_telegram_notifications": dbConfig.SendSystemTelegramNotifications,
-		"debug_mode":                       dbConfig.DebugMode,
-		"debug_email":                      dbConfig.DebugEmail,
-		"max_retry_attempts":               dbConfig.MaxRetryAttempts,
-		"batch_size":                       dbConfig.BatchSize,
-		"delay_between_batches_ms":         dbConfig.DelayBetweenBatchesMS,
-		"delay_between_messages_ms":        dbConfig.DelayBetweenMessagesMS,
+		"debug_mode":                         dbConfig.DebugMode,
+		"debug_email":                        dbConfig.DebugEmail,
+		"max_retry_attempts":                 dbConfig.MaxRetryAttempts,
+		"batch_size":                         dbConfig.BatchSize,
+		"delay_between_batches_ms":           dbConfig.DelayBetweenBatchesMS,
+		"delay_between_messages_ms":          dbConfig.DelayBetweenMessagesMS,
 	}
 	c.JSON(http.StatusOK, config)
 }
@@ -531,92 +593,76 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 		return
 	}
 
-	// Debug: log received config
-	log.Printf("DEBUG: Received config data: %+v", config)
-
 	// Get existing config or create new one
 	var dbConfig NotificationConfig
 	result := ns.db.First(&dbConfig)
 	if result.Error != nil {
-		// Create new config with defaults
 		dbConfig = NotificationConfig{}
 	}
 
-	// Update config fields from the received data
 	updated := []string{}
-	
-	if smtpHost, ok := config["smtp_host"].(string); ok {
-		dbConfig.SMTPHost = smtpHost
-		updated = append(updated, "SMTP_HOST")
+
+	// --- String fields (table-driven) ---
+	stringFields := map[string]*string{
+		"smtp_host":                 &dbConfig.SMTPHost,
+		"smtp_port":                 &dbConfig.SMTPPort,
+		"smtp_username":             &dbConfig.SMTPUsername,
+		"smtp_password":             &dbConfig.SMTPPassword,
+		"smtp_from":                 &dbConfig.SMTPFrom,
+		"smtp_auth_method":          &dbConfig.SMTPAuthMethod,
+		"telegram_bot_token":        &dbConfig.TelegramBotToken,
+		"telegram_system_bot_token": &dbConfig.TelegramSystemBotToken,
+		"system_email_recipient":    &dbConfig.SystemEmailRecipient,
+		"debug_email":               &dbConfig.DebugEmail,
 	}
-	
-	if smtpPort, ok := config["smtp_port"].(string); ok {
-		dbConfig.SMTPPort = smtpPort
-		updated = append(updated, "SMTP_PORT")
+	for key, ptr := range stringFields {
+		if val, ok := config[key].(string); ok {
+			*ptr = val
+			updated = append(updated, strings.ToUpper(key))
+		}
 	}
-	
-	if smtpUsername, ok := config["smtp_username"].(string); ok {
-		dbConfig.SMTPUsername = smtpUsername
-		updated = append(updated, "SMTP_USERNAME")
+
+	// --- Bool fields (explicit exists-check for GORM zero-value safety) ---
+	boolFields := map[string]*bool{
+		"smtp_use_tls":                       &dbConfig.SMTPUseTLS,
+		"smtp_use_auth":                      &dbConfig.SMTPUseAuth,
+		"telegram_enabled":                   &dbConfig.TelegramEnabled,
+		"telegram_system_enabled":            &dbConfig.TelegramSystemEnabled,
+		"send_system_email_notifications":    &dbConfig.SendSystemEmailNotifications,
+		"send_system_telegram_notifications": &dbConfig.SendSystemTelegramNotifications,
+		"debug_mode":                         &dbConfig.DebugMode,
 	}
-	
-	if smtpPassword, ok := config["smtp_password"].(string); ok {
-		dbConfig.SMTPPassword = smtpPassword
-		updated = append(updated, "SMTP_PASSWORD")
+	for key, ptr := range boolFields {
+		if val, exists := config[key]; exists {
+			if boolVal, ok := val.(bool); ok {
+				*ptr = boolVal
+				updated = append(updated, strings.ToUpper(key))
+			} else {
+				log.Printf("WARNING: %s value is not boolean: %v (type: %T)", key, val, val)
+			}
+		}
 	}
-	
-	if smtpFrom, ok := config["smtp_from"].(string); ok {
-		dbConfig.SMTPFrom = smtpFrom
-		updated = append(updated, "SMTP_FROM")
+
+	// --- Int fields (JSON sends numbers as float64) ---
+	intFields := map[string]*int{
+		"max_retry_attempts":        &dbConfig.MaxRetryAttempts,
+		"batch_size":                &dbConfig.BatchSize,
+		"delay_between_batches_ms":  &dbConfig.DelayBetweenBatchesMS,
+		"delay_between_messages_ms": &dbConfig.DelayBetweenMessagesMS,
 	}
-	
-	if smtpUseTLS, ok := config["smtp_use_tls"].(bool); ok {
-		dbConfig.SMTPUseTLS = smtpUseTLS
-		updated = append(updated, "SMTP_USE_TLS")
+	for key, ptr := range intFields {
+		if val, ok := config[key].(float64); ok {
+			*ptr = int(val)
+			updated = append(updated, strings.ToUpper(key))
+		}
 	}
-	
-	if smtpUseAuth, ok := config["smtp_use_auth"].(bool); ok {
-		dbConfig.SMTPUseAuth = smtpUseAuth
-		updated = append(updated, "SMTP_USE_AUTH")
-	}
-	
-	if smtpAuthMethod, ok := config["smtp_auth_method"].(string); ok {
-		dbConfig.SMTPAuthMethod = smtpAuthMethod
-		updated = append(updated, "SMTP_AUTH_METHOD")
-	}
-	
-	if telegramBotToken, ok := config["telegram_bot_token"].(string); ok {
-		dbConfig.TelegramBotToken = telegramBotToken
-		updated = append(updated, "TELEGRAM_BOT_TOKEN")
-	}
-	
-	if telegramSystemBotToken, ok := config["telegram_system_bot_token"].(string); ok {
-		dbConfig.TelegramSystemBotToken = telegramSystemBotToken
-		updated = append(updated, "TELEGRAM_SYSTEM_BOT_TOKEN")
-	}
-	
-	if telegramEnabled, ok := config["telegram_enabled"].(bool); ok {
-		dbConfig.TelegramEnabled = telegramEnabled
-		updated = append(updated, "TELEGRAM_ENABLED")
-	}
-	
-	if telegramSystemEnabled, ok := config["telegram_system_enabled"].(bool); ok {
-		dbConfig.TelegramSystemEnabled = telegramSystemEnabled
-		updated = append(updated, "TELEGRAM_SYSTEM_ENABLED")
-	}
-	
-	if systemEmailRecipient, ok := config["system_email_recipient"].(string); ok {
-		dbConfig.SystemEmailRecipient = systemEmailRecipient
-		updated = append(updated, "SYSTEM_EMAIL_RECIPIENT")
-	}
-	
+
+	// --- Special: Telegram username → Chat ID resolution ---
 	if systemTelegramUsername, ok := config["system_telegram_username"].(string); ok {
-		// Check if username changed
 		usernameChanged := dbConfig.SystemTelegramUsername != systemTelegramUsername
 		dbConfig.SystemTelegramUsername = systemTelegramUsername
 		updated = append(updated, "SYSTEM_TELEGRAM_USERNAME")
-		
-		// If username changed and not empty, try to resolve Chat ID
+
 		if usernameChanged && systemTelegramUsername != "" && dbConfig.TelegramSystemBotToken != "" {
 			log.Printf("📱 Telegram username changed to %s, attempting to resolve Chat ID...", systemTelegramUsername)
 			chatID, err := ns.resolveTelegramChatID(dbConfig.TelegramSystemBotToken, systemTelegramUsername)
@@ -630,84 +676,6 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 			}
 		}
 	}
-	
-	// Handle system notification booleans with explicit key checking
-	if val, exists := config["send_system_email_notifications"]; exists {
-		if sendSystemEmailNotifications, ok := val.(bool); ok {
-			dbConfig.SendSystemEmailNotifications = sendSystemEmailNotifications
-			updated = append(updated, "SEND_SYSTEM_EMAIL_NOTIFICATIONS")
-			log.Printf("DEBUG: Updated SendSystemEmailNotifications to %v", sendSystemEmailNotifications)
-		} else {
-			log.Printf("WARNING: send_system_email_notifications value is not boolean: %v (type: %T)", val, val)
-		}
-	} else {
-		log.Printf("DEBUG: send_system_email_notifications key not found in config")
-	}
-	
-	if val, exists := config["send_system_telegram_notifications"]; exists {
-		if sendSystemTelegramNotifications, ok := val.(bool); ok {
-			dbConfig.SendSystemTelegramNotifications = sendSystemTelegramNotifications
-			updated = append(updated, "SEND_SYSTEM_TELEGRAM_NOTIFICATIONS")
-			log.Printf("DEBUG: Updated SendSystemTelegramNotifications to %v", sendSystemTelegramNotifications)
-		} else {
-			log.Printf("WARNING: send_system_telegram_notifications value is not boolean: %v (type: %T)", val, val)
-		}
-	} else {
-		log.Printf("DEBUG: send_system_telegram_notifications key not found in config")
-	}
-	
-	if maxRetryAttempts, ok := config["max_retry_attempts"].(float64); ok {
-		dbConfig.MaxRetryAttempts = int(maxRetryAttempts)
-		updated = append(updated, "MAX_RETRY_ATTEMPTS")
-	}
-	
-	if batchSize, ok := config["batch_size"].(float64); ok {
-		dbConfig.BatchSize = int(batchSize)
-		updated = append(updated, "BATCH_SIZE")
-	}
-	
-	if delayBetweenMS, ok := config["delay_between_batches_ms"].(float64); ok {
-		dbConfig.DelayBetweenBatchesMS = int(delayBetweenMS)
-		updated = append(updated, "DELAY_BETWEEN_BATCHES_MS")
-	}
-	
-	if delayBetweenMessagesMS, ok := config["delay_between_messages_ms"].(float64); ok {
-		dbConfig.DelayBetweenMessagesMS = int(delayBetweenMessagesMS)
-		updated = append(updated, "DELAY_BETWEEN_MESSAGES_MS")
-	}
-	
-	// Handle debug mode settings
-	log.Printf("DEBUG: Checking debug_mode key in config map...")
-	debugModeVal, debugModeExists := config["debug_mode"]
-	log.Printf("DEBUG: debug_mode exists=%v, value=%v, type=%T", debugModeExists, debugModeVal, debugModeVal)
-	
-	if debugModeExists {
-		if debugMode, ok := debugModeVal.(bool); ok {
-			dbConfig.DebugMode = debugMode
-			updated = append(updated, "DEBUG_MODE")
-			log.Printf("DEBUG: Updated DebugMode to %v", debugMode)
-		} else {
-			log.Printf("WARNING: debug_mode value is not boolean: %v (type: %T)", debugModeVal, debugModeVal)
-		}
-	} else {
-		log.Printf("DEBUG: debug_mode key not found in config")	
-	}
-	
-	log.Printf("DEBUG: Checking debug_email key in config map...")
-	debugEmailVal, debugEmailExists := config["debug_email"]
-	log.Printf("DEBUG: debug_email exists=%v, value=%v, type=%T", debugEmailExists, debugEmailVal, debugEmailVal)
-	
-	if debugEmailExists {
-		if debugEmail, ok := debugEmailVal.(string); ok {
-			dbConfig.DebugEmail = debugEmail
-			updated = append(updated, "DEBUG_EMAIL")
-			log.Printf("DEBUG: Updated DebugEmail to %s", debugEmail)
-		} else {
-			log.Printf("WARNING: debug_email value is not string: %v (type: %T)", debugEmailVal, debugEmailVal)
-		}
-	} else {
-		log.Printf("DEBUG: debug_email key not found in config")
-	}
 
 	// Save config to database
 	var saveErr error
@@ -716,7 +684,7 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	} else {
 		saveErr = ns.db.Save(&dbConfig).Error
 	}
-	
+
 	if saveErr != nil {
 		log.Printf("Failed to save configuration: %v", saveErr)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -725,10 +693,13 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache so new config takes effect immediately
+	ns.invalidateConfigCache()
+
 	log.Printf("Configuration updated successfully. Updated fields: %v", updated)
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Configuration updated successfully",
+		"message":        "Configuration updated successfully",
 		"updated_fields": updated,
 	})
 }
@@ -738,22 +709,21 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 func (ns *NotificationService) resolveTelegramChatID(botToken, username string) (string, error) {
 	// Remove @ prefix if present
 	username = strings.TrimPrefix(username, "@")
-	
+
 	// Request recent updates from Telegram API
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?limit=100", botToken)
-	
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+
+	resp, err := ns.httpClient.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("failed to request Telegram API: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("Telegram API returned status %d: %s", resp.StatusCode, string(body))
 	}
-	
+
 	// Parse response
 	var result struct {
 		Ok     bool `json:"ok"`
@@ -767,15 +737,15 @@ func (ns *NotificationService) resolveTelegramChatID(botToken, username string) 
 			} `json:"message"`
 		} `json:"result"`
 	}
-	
+
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("failed to parse Telegram API response: %v", err)
 	}
-	
+
 	if !result.Ok {
 		return "", fmt.Errorf("Telegram API returned ok=false")
 	}
-	
+
 	// Search for matching username in updates
 	for _, update := range result.Result {
 		chat := update.Message.Chat
@@ -784,7 +754,7 @@ func (ns *NotificationService) resolveTelegramChatID(botToken, username string) 
 			return chatID, nil
 		}
 	}
-	
+
 	return "", fmt.Errorf("chat not found for username @%s (user must send /start to bot first)", username)
 }
 
@@ -795,12 +765,12 @@ func getEnvAsInt(name string, defaultValue int) int {
 	if valueStr == "" {
 		return defaultValue
 	}
-	
+
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
 		return defaultValue
 	}
-	
+
 	return value
 }
 
@@ -817,41 +787,60 @@ func getEnvAsBool(name string, defaultValue bool) bool {
 	if valueStr == "" {
 		return defaultValue
 	}
-	
+
 	value, err := strconv.ParseBool(valueStr)
 	if err != nil {
 		return defaultValue
 	}
-	
+
 	return value
 }
 
-// getConfigFromDB retrieves configuration from database
+// getConfigFromDB retrieves configuration from database with caching (60s TTL)
 func (ns *NotificationService) getConfigFromDB() NotificationConfig {
+	ns.configCacheMu.RLock()
+	if ns.configCache != nil && time.Since(ns.lastConfigFetch) < 60*time.Second {
+		cached := *ns.configCache
+		ns.configCacheMu.RUnlock()
+		return cached
+	}
+	ns.configCacheMu.RUnlock()
+
 	var dbConfig NotificationConfig
-	
 	result := ns.db.First(&dbConfig)
 	if result.Error != nil {
 		// Return default config if not found in database
 		return NotificationConfig{
-			SMTPHost:              getEnvOrDefault("SMTP_HOST", "smtp.gmail.com"),
-			SMTPPort:              getEnvOrDefault("SMTP_PORT", "587"),
-			SMTPUsername:          getEnvOrDefault("SMTP_USERNAME", ""),
-			SMTPPassword:          getEnvOrDefault("SMTP_PASSWORD", ""),
-			SMTPFrom:              getEnvOrDefault("SMTP_FROM", ""),
-			SMTPUseTLS:            getEnvAsBool("SMTP_USE_TLS", true),
-			SMTPUseAuth:           getEnvAsBool("SMTP_USE_AUTH", true),
-			SMTPAuthMethod:        getEnvOrDefault("SMTP_AUTH_METHOD", "plain"),
-			TelegramBotToken:      getEnvOrDefault("TELEGRAM_BOT_TOKEN", ""),
+			SMTPHost:               getEnvOrDefault("SMTP_HOST", "smtp.gmail.com"),
+			SMTPPort:               getEnvOrDefault("SMTP_PORT", "587"),
+			SMTPUsername:           getEnvOrDefault("SMTP_USERNAME", ""),
+			SMTPPassword:           getEnvOrDefault("SMTP_PASSWORD", ""),
+			SMTPFrom:               getEnvOrDefault("SMTP_FROM", ""),
+			SMTPUseTLS:             getEnvAsBool("SMTP_USE_TLS", true),
+			SMTPUseAuth:            getEnvAsBool("SMTP_USE_AUTH", true),
+			SMTPAuthMethod:         getEnvOrDefault("SMTP_AUTH_METHOD", "plain"),
+			TelegramBotToken:       getEnvOrDefault("TELEGRAM_BOT_TOKEN", ""),
 			TelegramSystemBotToken: getEnvOrDefault("TELEGRAM_SYSTEM_BOT_TOKEN", ""),
-			TelegramEnabled:       getEnvAsBool("TELEGRAM_ENABLED", false),
-			TelegramSystemEnabled: getEnvAsBool("TELEGRAM_SYSTEM_ENABLED", false),
-			MaxRetryAttempts:      getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
-			BatchSize:             getEnvAsInt("BATCH_SIZE", 10),
-			DelayBetweenBatchesMS: getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
+			TelegramEnabled:        getEnvAsBool("TELEGRAM_ENABLED", false),
+			TelegramSystemEnabled:  getEnvAsBool("TELEGRAM_SYSTEM_ENABLED", false),
+			MaxRetryAttempts:       getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
+			BatchSize:              getEnvAsInt("BATCH_SIZE", 10),
+			DelayBetweenBatchesMS:  getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
 			DelayBetweenMessagesMS: getEnvAsInt("DELAY_BETWEEN_MESSAGES_MS", 100),
 		}
 	}
-	
+
+	ns.configCacheMu.Lock()
+	ns.configCache = &dbConfig
+	ns.lastConfigFetch = time.Now()
+	ns.configCacheMu.Unlock()
+
 	return dbConfig
+}
+
+// invalidateConfigCache forces the next getConfigFromDB call to fetch from DB
+func (ns *NotificationService) invalidateConfigCache() {
+	ns.configCacheMu.Lock()
+	ns.configCache = nil
+	ns.configCacheMu.Unlock()
 }

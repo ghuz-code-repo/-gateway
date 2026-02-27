@@ -193,7 +193,7 @@ func getCategoryDisplayName(category string) string {
 	if displayName, ok := displayNames[category]; ok {
 		return displayName
 	}
-	return strings.Title(category)
+	return titleCase(category)
 }
 
 // getCategoryIcon returns an icon class for a category (FontAwesome без эмодзи)
@@ -223,69 +223,18 @@ func getCategoryIcon(category string) string {
 }
 
 // GetExternalServiceRoles returns auth-service roles that manage a specific service
-// These are roles that ONLY have external permissions (external=true)
-// Excludes system roles like GOD, admin
+// Uses role_type="external" and managed_service fields for clean filtering
 func GetExternalServiceRoles(serviceKey string) ([]RoleWithUsers, error) {
-	// Get all auth-service roles
+	// Get all auth-service roles with user counts
 	authRoles, err := GetRolesWithUserCount("auth")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get auth roles: %v", err)
 	}
 
-	// Get external permissions for this service
-	authService, err := GetServiceByKey("auth")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get auth service: %v", err)
-	}
-
-	// Build set of external permission names for this service
-	externalPermNames := make(map[string]bool)
-	prefix := fmt.Sprintf("auth.%s.", serviceKey)
-	for _, perm := range authService.AvailablePermissions {
-		if perm.External && strings.HasPrefix(perm.Name, prefix) {
-			externalPermNames[perm.Name] = true
-		}
-	}
-
-	// System roles to exclude (they have auth.* wildcard or are general admin roles)
-	systemRoleNames := map[string]bool{
-		"GOD":   true,
-		"god":   true,
-		"admin": true,
-		"Admin": true,
-		"ADMIN": true,
-	}
-
-	// Filter roles that ONLY have external permissions for this service
+	// Filter roles using role_type and managed_service fields
 	var externalRoles []RoleWithUsers
 	for _, role := range authRoles {
-		// Skip system roles
-		if systemRoleNames[role.Name] {
-			continue
-		}
-
-		// Check if role has wildcard auth.* permission (system role)
-		hasWildcard := false
-		for _, perm := range role.Permissions {
-			if perm == "auth.*" {
-				hasWildcard = true
-				break
-			}
-		}
-		if hasWildcard {
-			continue
-		}
-
-		// Check if role has at least one external permission for this service
-		hasExternalPerm := false
-		for _, perm := range role.Permissions {
-			if externalPermNames[perm] {
-				hasExternalPerm = true
-				break
-			}
-		}
-
-		if hasExternalPerm {
+		if role.IsExternal() && role.ManagedService == serviceKey {
 			externalRoles = append(externalRoles, role)
 		}
 	}
@@ -365,9 +314,9 @@ func GetExternalServicePermissions(serviceKey string) ([]PermissionCategory, err
 }
 
 // GetExternalRolesForService returns auth-service roles that grant access to the specified service
-// These are roles in auth-service that have permissions matching auth.<serviceKey>.*
+// Uses the role_type="external" and managed_service fields for clean filtering
 func GetExternalRolesForService(serviceKey string) ([]Role, error) {
-	// Get all roles from auth-service (key is "auth", not "auth-service")
+	// Get all roles from auth-service
 	authRoles, err := GetRolesByService("auth")
 	if err != nil {
 		log.Printf("ERROR: GetExternalRolesForService - failed to get auth roles: %v", err)
@@ -375,47 +324,10 @@ func GetExternalRolesForService(serviceKey string) ([]Role, error) {
 	}
 	log.Printf("DEBUG: GetExternalRolesForService - found %d roles in auth service", len(authRoles))
 
-	prefix := fmt.Sprintf("auth.%s.", serviceKey)
-
-	// System roles to exclude
-	systemRoleNames := map[string]bool{
-		"GOD":   true,
-		"god":   true,
-		"admin": true,
-		"Admin": true,
-		"ADMIN": true,
-	}
-
-	// Filter roles that have external permissions for this service
+	// Filter roles using role_type and managed_service fields
 	var externalRoles []Role
 	for _, role := range authRoles {
-		// Skip system roles
-		if systemRoleNames[role.Name] {
-			continue
-		}
-
-		// Skip roles with wildcard auth.* permission (full admin)
-		hasWildcard := false
-		for _, perm := range role.Permissions {
-			if perm == "auth.*" {
-				hasWildcard = true
-				break
-			}
-		}
-		if hasWildcard {
-			continue
-		}
-
-		// Check if role has at least one permission for this service
-		hasExternalPerm := false
-		for _, perm := range role.Permissions {
-			if strings.HasPrefix(perm, prefix) {
-				hasExternalPerm = true
-				break
-			}
-		}
-
-		if hasExternalPerm {
+		if role.IsExternal() && role.ManagedService == serviceKey {
 			externalRoles = append(externalRoles, role)
 		}
 	}

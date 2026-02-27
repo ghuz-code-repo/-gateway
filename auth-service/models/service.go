@@ -76,7 +76,7 @@ func (s *Service) GetPermissionsByCategory() []PermissionCategory {
 		perms := categoryMap[catName]
 		result = append(result, PermissionCategory{
 			Name:        catName,
-			DisplayName: strings.Title(catName),
+			DisplayName: titleCase(catName),
 			Permissions: perms,
 		})
 	}
@@ -228,7 +228,7 @@ func CreateServiceLegacy(key, name, description string, permissions []string) (*
 	for i, perm := range permissions {
 		availablePermissions[i] = PermissionDef{
 			Name:        perm,
-			DisplayName: strings.Title(perm),
+			DisplayName: titleCase(perm),
 			Description: fmt.Sprintf("Permission to %s", perm),
 		}
 	}
@@ -378,7 +378,7 @@ func UpdateServiceLegacy(id primitive.ObjectID, key, name, description string, p
 	for i, perm := range permissions {
 		availablePermissions[i] = PermissionDef{
 			Name:        perm,
-			DisplayName: strings.Title(perm),
+			DisplayName: titleCase(perm),
 			Description: fmt.Sprintf("Permission to %s", perm),
 		}
 	}
@@ -474,23 +474,7 @@ func SoftDeleteService(serviceKey string) error {
 	}
 	log.Printf("INFO: Deleted %d user role assignments for service '%s'", assignmentResult.DeletedCount, serviceKey)
 
-	// 4. Soft delete all permissions for this service
-	permResult, err := permsCol.UpdateMany(
-		ctx,
-		bson.M{"service": serviceKey, "deleted_at": bson.M{"$exists": false}},
-		bson.M{
-			"$set": bson.M{
-				"deleted_at": now,
-			},
-		},
-	)
-	if err != nil {
-		log.Printf("ERROR: Failed to soft delete permissions for service '%s': %v", serviceKey, err)
-		return fmt.Errorf("failed to soft delete service permissions: %w", err)
-	}
-	log.Printf("INFO: Soft deleted %d permissions for service '%s'", permResult.ModifiedCount, serviceKey)
-
-	// 5. Remove serviceKey from allowed_services in all user documents
+	// 4. Remove serviceKey from allowed_services in all user documents
 	docResult, err := usersCol.UpdateMany(
 		ctx,
 		bson.M{"documents.allowed_services": serviceKey},
@@ -545,15 +529,7 @@ func HardDeleteService(serviceKey string) error {
 	}
 	log.Printf("INFO: Deleted %d user role assignments for service '%s'", assignmentResult.DeletedCount, serviceKey)
 
-	// 4. Delete all permissions for this service
-	permResult, err := permsCol.DeleteMany(ctx, bson.M{"service": serviceKey})
-	if err != nil {
-		log.Printf("ERROR: Failed to delete permissions for service '%s': %v", serviceKey, err)
-		return fmt.Errorf("failed to delete service permissions: %w", err)
-	}
-	log.Printf("INFO: Deleted %d permissions for service '%s'", permResult.DeletedCount, serviceKey)
-
-	// 5. Delete import logs for this service
+	// 4. Delete import logs for this service
 	importLogsCol := db.Collection("import_logs")
 	logResult, err := importLogsCol.DeleteMany(ctx, bson.M{"service_key": serviceKey})
 	if err != nil {
@@ -635,20 +611,6 @@ func RestoreService(serviceKey string) error {
 	}
 	log.Printf("INFO: Restored %d roles for service '%s'", roleResult.ModifiedCount, serviceKey)
 
-	// 4. Restore all permissions for this service
-	permResult, err := permsCol.UpdateMany(
-		ctx,
-		bson.M{"service": serviceKey, "deleted_at": bson.M{"$exists": true}},
-		bson.M{
-			"$unset": bson.M{"deleted_at": ""},
-		},
-	)
-	if err != nil {
-		log.Printf("ERROR: Failed to restore permissions for service '%s': %v", serviceKey, err)
-		return fmt.Errorf("failed to restore service permissions: %w", err)
-	}
-	log.Printf("INFO: Restored %d permissions for service '%s'", permResult.ModifiedCount, serviceKey)
-
 	// Note: We do NOT restore user_service_roles assignments automatically
 	// These should be reassigned manually by administrators after restoration
 	log.Printf("INFO: Note - User role assignments were not restored and must be reassigned manually")
@@ -719,7 +681,7 @@ func AddPermissionToServiceLegacy(serviceKey string, permission string) error {
 	// Add to both new and legacy fields
 	permissionDef := PermissionDef{
 		Name:        permission,
-		DisplayName: strings.Title(permission),
+		DisplayName: titleCase(permission),
 		Description: fmt.Sprintf("Permission to %s", permission),
 	}
 
@@ -814,48 +776,37 @@ func ValidateRolePermissions(serviceKey string, permissions []string) (bool, []s
 
 // GetUserServicePermissions returns all permissions a user has for a specific service
 func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
-	user, err := GetUserByID(userID)
+	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid user ID: %v", err)
 	}
 
 	// Admin users have all permissions
-	for _, roleName := range user.Roles {
-		if roleName == "admin" {
-			service, err := GetServiceByKey(serviceKey)
-			if err != nil {
-				return []string{}, nil // Return empty if service not found
-			}
-
-			// Return all active permissions for admin
-			allPerms := make([]string, 0)
-			for _, perm := range service.AvailablePermissions {
-				if perm.DeletedAt.IsZero() {
-					allPerms = append(allPerms, perm.Name)
-				}
-			}
-
-			// Also include legacy permissions
-			for _, perm := range service.Permissions {
-				allPerms = append(allPerms, perm)
-			}
-
-			// Remove duplicates
-			permMap := make(map[string]bool)
-			uniquePerms := make([]string, 0)
-			for _, perm := range allPerms {
-				if !permMap[perm] {
-					permMap[perm] = true
-					uniquePerms = append(uniquePerms, perm)
-				}
-			}
-
-			return uniquePerms, nil
+	if IsSystemAdmin(objID) {
+		service, err := GetServiceByKey(serviceKey)
+		if err != nil {
+			return []string{}, nil // Return empty if service not found
 		}
+
+		// Return all active permissions for admin
+		permMap := make(map[string]bool)
+		for _, perm := range service.AvailablePermissions {
+			if perm.DeletedAt.IsZero() {
+				permMap[perm.Name] = true
+			}
+		}
+		for _, perm := range service.Permissions {
+			permMap[perm] = true
+		}
+
+		uniquePerms := make([]string, 0, len(permMap))
+		for perm := range permMap {
+			uniquePerms = append(uniquePerms, perm)
+		}
+		return uniquePerms, nil
 	}
 
-	// For regular users, collect permissions from service-specific roles
-	// First, get user's service-specific roles from user_service_roles collection
+	// For regular users, collect permissions from user_service_roles collection
 	serviceRoleNames, err := GetUserServiceRolesFromCollection(userID, serviceKey)
 	if err != nil {
 		log.Printf("DEBUG GetUserServicePermissions: error getting service roles: %v", err)
@@ -873,23 +824,11 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 
 	permissionSet := make(map[string]bool)
 
-	// Check service-specific roles (user_service_roles)
+	// Collect permissions from user's assigned service roles
 	for _, roleName := range serviceRoleNames {
 		for _, role := range roles {
 			if role.Name == roleName {
 				log.Printf("DEBUG GetUserServicePermissions: found matching role '%s' with %d permissions", roleName, len(role.Permissions))
-				for _, perm := range role.Permissions {
-					permissionSet[perm] = true
-				}
-			}
-		}
-	}
-
-	// Also check global roles (for backward compatibility)
-	for _, roleName := range user.Roles {
-		for _, role := range roles {
-			if role.Name == roleName {
-				log.Printf("DEBUG GetUserServicePermissions: found matching global role '%s' with %d permissions", roleName, len(role.Permissions))
 				for _, perm := range role.Permissions {
 					permissionSet[perm] = true
 				}
@@ -909,46 +848,9 @@ func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 }
 
 // GetUserServiceRoles returns all role names a user has for a specific service
+// Uses user_service_roles collection as the authoritative source
 func GetUserServiceRoles(userID, serviceKey string) ([]string, error) {
-	user, err := GetUserByID(userID)
-	if err != nil {
-		return nil, err
-	}
-
-	// For admin users, return admin role if it exists in the service
-	for _, roleName := range user.Roles {
-		if roleName == "admin" {
-			// Check if admin role exists for this service
-			_, err := GetRoleByServiceAndName(serviceKey, "admin")
-			if err == nil {
-				return []string{"admin"}, nil
-			}
-			// If no admin role for this service, return empty
-			return []string{}, nil
-		}
-	}
-
-	// Get all roles for the service
-	serviceRoles, err := GetRolesByService(serviceKey)
-	if err != nil {
-		return []string{}, nil
-	}
-
-	// Filter user roles to only include roles from this service
-	userServiceRoles := make([]string, 0)
-	serviceRoleMap := make(map[string]bool)
-
-	for _, role := range serviceRoles {
-		serviceRoleMap[role.Name] = true
-	}
-
-	for _, roleName := range user.Roles {
-		if serviceRoleMap[roleName] {
-			userServiceRoles = append(userServiceRoles, roleName)
-		}
-	}
-
-	return userServiceRoles, nil
+	return GetUserServiceRolesFromCollection(userID, serviceKey)
 }
 
 // GetUserServiceRolesFromCollection returns all role names a user has for a specific service from user_service_roles collection

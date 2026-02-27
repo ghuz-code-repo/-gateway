@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"auth-service/models"
+
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -53,8 +54,6 @@ func ServiceExportHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get users data"})
 		return
 	}
-
-	log.Printf("DEBUG SERVICE EXPORT: Found %d users for service %s", len(users), serviceKey)
 
 	// Create Excel file
 	file := excelize.NewFile()
@@ -170,22 +169,22 @@ func ServiceImportHandler(c *gin.Context) {
 	// Redirect back to service page with success message
 	successMessage := fmt.Sprintf("Импорт завершен: %d обработано, %d создано, %d добавлено в сервис, %d ролей обновлено",
 		result.ProcessedRows, len(result.CreatedUsers), len(result.AddedToService), len(result.UpdatedRoles))
-	
+
 	if len(result.Errors) > 0 {
 		successMessage += fmt.Sprintf(", %d ошибок", len(result.Errors))
 	}
-	
+
 	// Store success message in session or as query parameter
-	redirectURL := fmt.Sprintf("/services/%s?import_success=%s", serviceKey, 
+	redirectURL := fmt.Sprintf("/services/%s?import_success=%s", serviceKey,
 		url.QueryEscape(successMessage))
-	
+
 	c.Redirect(http.StatusFound, redirectURL)
 }
 
 // createServiceUsersSheet creates an Excel sheet with users for a specific service
 func createServiceUsersSheet(file *excelize.File, users []models.UserImportExport, service *models.Service) error {
 	sheetName := "Users"
-	
+
 	// Delete default sheet and create new one
 	file.DeleteSheet("Sheet1")
 	index, _ := file.NewSheet(sheetName)
@@ -212,13 +211,13 @@ func createServiceUsersSheet(file *excelize.File, users []models.UserImportExpor
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"CCCCCC"}, Pattern: 1},
 	})
-	
+
 	file.SetCellStyle(sheetName, "A1", fmt.Sprintf("%s1", getColumnName(len(allHeaders))), headerStyle)
 
 	// Fill user data
 	for i, user := range users {
 		row := i + 2
-		
+
 		// Basic user data
 		file.SetCellValue(sheetName, fmt.Sprintf("A%d", row), user.ID)
 		file.SetCellValue(sheetName, fmt.Sprintf("B%d", row), user.Username)
@@ -254,11 +253,11 @@ func createServiceUsersSheet(file *excelize.File, users []models.UserImportExpor
 func processServiceExcelImport(file multipart.File, adminUserID primitive.ObjectID, service *models.Service) (*models.ServiceImportResult, error) {
 	// Create result structure
 	result := &models.ServiceImportResult{
-		ProcessedRows:    0,
-		CreatedUsers:     []models.UserImportExport{},
-		AddedToService:   []models.UserImportExport{},
-		UpdatedRoles:     []models.UserImportExport{},
-		Errors:          []models.ImportError{},
+		ProcessedRows:  0,
+		CreatedUsers:   []models.UserImportExport{},
+		AddedToService: []models.UserImportExport{},
+		UpdatedRoles:   []models.UserImportExport{},
+		Errors:         []models.ImportError{},
 	}
 
 	// Open Excel file from multipart.File
@@ -318,21 +317,16 @@ func processServiceExcelImport(file multipart.File, adminUserID primitive.Object
 		}
 	}
 
-	log.Printf("DEBUG SERVICE IMPORT: Service role column for %s found at index: %d", service.Key, serviceRoleColumn)
-
 	// Initialize processed rows counter
 	result.ProcessedRows = 0
 
 	// Process each data row
 	for rowIndex, row := range rows[1:] {
 		actualRowNum := rowIndex + 2 // Excel row number (1-based + header)
-		
-		log.Printf("DEBUG EXCEL ROW %d: Raw data: %v", actualRowNum, row)
-		
+
 		// Parse user data from row
 		importUser, parseErrors := parseServiceUserFromRow(row, columnMap, serviceRoleColumn, service.Key)
 		if len(parseErrors) > 0 {
-			log.Printf("DEBUG EXCEL ROW %d: Parse errors: %v", actualRowNum, parseErrors)
 			for _, parseError := range parseErrors {
 				parseError.Row = actualRowNum
 				result.Errors = append(result.Errors, parseError)
@@ -342,11 +336,8 @@ func processServiceExcelImport(file multipart.File, adminUserID primitive.Object
 
 		// Skip empty rows
 		if importUser.Username == "" && importUser.Email == "" {
-			log.Printf("DEBUG EXCEL ROW %d: Skipping empty row (no username and no email)", actualRowNum)
 			continue // Don't count empty rows
 		}
-
-		log.Printf("DEBUG EXCEL ROW %d: Processing user with username='%s', email='%s'", actualRowNum, importUser.Username, importUser.Email)
 
 		// Count only rows that we actually try to process
 		result.ProcessedRows++
@@ -394,15 +385,10 @@ func parseServiceUserFromRow(row []string, columnMap map[string]int, serviceRole
 	user.Department = getCellValue(columnMap["department"])
 	user.Position = getCellValue(columnMap["position"])
 
-	log.Printf("DEBUG PARSE: Parsed user - Username: '%s', Email: '%s', FirstName: '%s', LastName: '%s'", 
-		user.Username, user.Email, user.FirstName, user.LastName)
-
 	// Parse password
 	if pwdCol, exists := columnMap["password"]; exists {
 		user.Password = getCellValue(pwdCol)
 	}
-	
-	log.Printf("DEBUG PARSE: Password field - exists: %v, value: '%s'", columnMap["password"], user.Password)
 
 	// Parse banned status
 	if bannedCol, exists := columnMap["banned"]; exists {
@@ -441,14 +427,14 @@ func parseServiceUserFromRow(row []string, columnMap map[string]int, serviceRole
 func processServiceUser(importUser models.UserImportExport, adminUserID primitive.ObjectID, service *models.Service, rowNum int, result *models.ServiceImportResult) error {
 	// Check if user exists in the system
 	var existingUser *models.User
-	
+
 	if importUser.ID != "" {
 		// Try to find by ID first
 		if objectID, err := primitive.ObjectIDFromHex(importUser.ID); err == nil {
 			existingUser, _ = models.GetUserByID(objectID.Hex())
 		}
 	}
-	
+
 	// If not found by ID, try by username or email
 	if existingUser == nil {
 		if importUser.Username != "" {
@@ -461,24 +447,22 @@ func processServiceUser(importUser models.UserImportExport, adminUserID primitiv
 
 	if existingUser == nil {
 		// User doesn't exist in system - create new user
-		log.Printf("DEBUG SERVICE IMPORT: User %s does not exist, creating new user", importUser.Username)
 		return createNewServiceUser(importUser, adminUserID, service, result)
 	} else {
 		// User exists - add to service or update roles
-		log.Printf("DEBUG SERVICE IMPORT: User %s already exists, checking service roles", existingUser.Username)
-		
+
 		// Check if service roles are specified for this user
 		if serviceRoles, exists := importUser.ServiceRoles[service.Key]; exists && serviceRoles != "" {
 			roles := strings.Split(serviceRoles, ",")
 			rolesAdded := false
-			
+
 			// Check if user already has roles in this service
 			existingRoles, err := models.GetUserServiceRolesFromCollection(existingUser.ID.Hex(), service.Key)
 			if err != nil {
 				log.Printf("WARNING: Failed to get existing roles for user %s: %v", existingUser.Username, err)
 				existingRoles = []string{}
 			}
-			
+
 			for _, role := range roles {
 				role = strings.TrimSpace(role)
 				if role != "" {
@@ -490,29 +474,27 @@ func processServiceUser(importUser models.UserImportExport, adminUserID primitiv
 							break
 						}
 					}
-					
+
 					if hasRole {
-						log.Printf("DEBUG SERVICE IMPORT: User %s already has role %s in service %s", existingUser.Username, role, service.Key)
 						continue
 					}
-					
+
 					userServiceRole := models.UserServiceRole{
 						UserID:     existingUser.ID,
 						ServiceKey: service.Key,
 						RoleName:   role,
 						IsActive:   true,
 					}
-					
+
 					err := models.CreateUserServiceRole(userServiceRole)
 					if err != nil {
 						log.Printf("WARNING: Failed to create service role %s for existing user %s: %v", role, existingUser.Username, err)
 					} else {
-						log.Printf("DEBUG SERVICE IMPORT: Added NEW service role %s to existing user %s", role, existingUser.Username)
 						rolesAdded = true
 					}
 				}
 			}
-			
+
 			// Only add to result if new roles were actually added
 			if rolesAdded {
 				// Convert for result
@@ -530,13 +512,11 @@ func processServiceUser(importUser models.UserImportExport, adminUserID primitiv
 					Banned:       strconv.FormatBool(existingUser.IsBanned),
 					ServiceRoles: importUser.ServiceRoles,
 				}
-				
+
 				result.AddedToService = append(result.AddedToService, exportUser)
-			} else {
-				log.Printf("DEBUG SERVICE IMPORT: No new roles added for user %s - all roles already exist", existingUser.Username)
 			}
 		}
-		
+
 		return nil
 	}
 }
@@ -556,35 +536,30 @@ func createNewServiceUser(importUser models.UserImportExport, adminUserID primit
 		} else {
 			return fmt.Errorf("invalid email format: cannot extract username")
 		}
-		log.Printf("DEBUG SERVICE IMPORT: Auto-generated username '%s' from email", importUser.Username)
 	}
 
-	// Auto-generate complex password if not provided
+	// Auto-generate secure password if not provided
 	if importUser.Password == "" {
-		importUser.Password = generateComplexPassword()
-		log.Printf("DEBUG SERVICE IMPORT: Auto-generated complex password for user %s", importUser.Username)
+		importUser.Password = models.GenerateSecurePassword()
 	}
 
-	log.Printf("DEBUG SERVICE IMPORT: Creating new user %s with email %s", importUser.Username, importUser.Email)
-	log.Printf("DEBUG SERVICE IMPORT: User data - LastName: '%s', FirstName: '%s', Password: '%s'", importUser.LastName, importUser.FirstName, importUser.Password)
+	log.Printf("Creating new service user %s with email %s", importUser.Username, importUser.Email)
 
 	// Create user using CreateUserWithNames function with all fields
 	userID, err := models.CreateUserWithNames(
-		importUser.Username, 
-		importUser.Email, 
-		importUser.Password, 
+		importUser.Username,
+		importUser.Email,
+		importUser.Password,
 		importUser.LastName,
-		importUser.FirstName, 
-		importUser.MiddleName, 
-		importUser.Suffix, 
+		importUser.FirstName,
+		importUser.MiddleName,
+		importUser.Suffix,
 		[]string{}, // No system roles for now
 	)
 	if err != nil {
 		log.Printf("ERROR SERVICE IMPORT: Failed to create user %s: %v", importUser.Username, err)
 		return fmt.Errorf("failed to create user: %v", err)
 	}
-
-	log.Printf("DEBUG SERVICE IMPORT: User created with ID %s", userID.Hex())
 
 	// Update additional profile fields if provided
 	if importUser.Phone != "" || importUser.Position != "" || importUser.Department != "" {
@@ -601,8 +576,6 @@ func createNewServiceUser(importUser models.UserImportExport, adminUserID primit
 		)
 		if err != nil {
 			log.Printf("WARNING: Failed to update user profile: %v", err)
-		} else {
-			log.Printf("DEBUG SERVICE IMPORT: Updated profile for user %s", importUser.Username)
 		}
 	}
 
@@ -610,7 +583,6 @@ func createNewServiceUser(importUser models.UserImportExport, adminUserID primit
 	if importUser.Banned != "" {
 		if banned, err := strconv.ParseBool(importUser.Banned); err == nil && banned {
 			// TODO: Implement ban functionality if needed
-			log.Printf("DEBUG SERVICE IMPORT: User %s should be banned (not implemented)", importUser.Username)
 		}
 	}
 
@@ -626,12 +598,10 @@ func createNewServiceUser(importUser models.UserImportExport, adminUserID primit
 					RoleName:   role,
 					IsActive:   true,
 				}
-				
+
 				err := models.CreateUserServiceRole(userServiceRole)
 				if err != nil {
 					log.Printf("WARNING: Failed to create service role %s for user %s: %v", role, importUser.Username, err)
-				} else {
-					log.Printf("DEBUG SERVICE IMPORT: Created service role %s for user %s", role, importUser.Username)
 				}
 			}
 		}
@@ -660,56 +630,51 @@ func createNewServiceUser(importUser models.UserImportExport, adminUserID primit
 	}
 
 	result.CreatedUsers = append(result.CreatedUsers, exportUser)
-	log.Printf("DEBUG SERVICE IMPORT: Successfully created user %s with all data", user.Username)
-	
+
 	return nil
 }
 
 // Note: addUserToService and updateServiceUserRoles functions removed for simplicity
 // TODO: Implement proper service-specific role management
 
-// GetUsersForServiceExport retrieves users for service export
+// GetUsersForServiceExport retrieves users for service export using batch queries.
 func GetUsersForServiceExport(serviceKey string) ([]models.UserImportExport, error) {
-	log.Printf("DEBUG SERVICE EXPORT: Getting users for service %s", serviceKey)
-
-	// Get user IDs who have active roles in this specific service using direct MongoDB query
-	userIDs, err := getUserIDsWithServiceRoles(serviceKey)
+	// 1. Get distinct user IDs with roles in this service (single aggregation)
+	userIDs, err := models.GetDistinctUserIDsByServiceKey(serviceKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user IDs for service: %v", err)
 	}
 
 	if len(userIDs) == 0 {
-		log.Printf("DEBUG SERVICE EXPORT: No users found for service %s", serviceKey)
 		return []models.UserImportExport{}, nil
 	}
 
-	var exportUsers []models.UserImportExport
+	// 2. Batch-load all users in one query
+	users, err := models.GetUsersByIDs(userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch-load users: %v", err)
+	}
 
-	// Get user details for each user ID
-	for _, userID := range userIDs {
-		user, err := models.GetUserByID(userID.Hex())
-		if err != nil {
-			log.Printf("WARNING: Failed to get user %s: %v", userID.Hex(), err)
+	// 3. Batch-load all service roles for these users in one query
+	rolesMap, err := models.GetUserServiceRolesByUserIDs(userIDs, serviceKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch-load roles: %v", err)
+	}
+
+	// 4. Assemble export data
+	exportUsers := make([]models.UserImportExport, 0, len(users))
+	for _, user := range users {
+		roles := rolesMap[user.ID]
+		if len(roles) == 0 {
 			continue
 		}
 
-		// Get service roles for this user
-		userServiceRoles, err := models.GetUserServiceRolesFromCollection(user.ID.Hex(), serviceKey)
-		if err != nil {
-			log.Printf("WARNING: Failed to get service roles for user %s: %v", user.Username, err)
-			continue
+		roleNames := make([]string, 0, len(roles))
+		for _, r := range roles {
+			roleNames = append(roleNames, r.RoleName)
 		}
 
-		// Skip users with no active roles in this service
-		if len(userServiceRoles) == 0 {
-			continue
-		}
-
-		// Join roles with comma
-		serviceRolesStr := strings.Join(userServiceRoles, ",")
-
-		// Convert to export format
-		exportUser := models.UserImportExport{
+		exportUsers = append(exportUsers, models.UserImportExport{
 			ID:         user.ID.Hex(),
 			Username:   user.Username,
 			Email:      user.Email,
@@ -722,38 +687,13 @@ func GetUsersForServiceExport(serviceKey string) ([]models.UserImportExport, err
 			Position:   user.Position,
 			Banned:     strconv.FormatBool(user.IsBanned),
 			ServiceRoles: map[string]string{
-				serviceKey: serviceRolesStr,
+				serviceKey: strings.Join(roleNames, ","),
 			},
-		}
-
-		exportUsers = append(exportUsers, exportUser)
-		log.Printf("DEBUG SERVICE EXPORT: Found user %s with roles: %s", user.Username, serviceRolesStr)
+		})
 	}
 
-	log.Printf("DEBUG SERVICE EXPORT: Found %d users for service %s", len(exportUsers), serviceKey)
+	log.Printf("Service export: %d users for service %s", len(exportUsers), serviceKey)
 	return exportUsers, nil
-}
-
-// getUserIDsWithServiceRoles gets unique user IDs who have active roles in the specified service
-func getUserIDsWithServiceRoles(serviceKey string) ([]primitive.ObjectID, error) {
-	// Get all users and check which ones have roles in this service
-	allUsers, err := models.GetAllUsers()
-	if err != nil {
-		return nil, err
-	}
-
-	var userIDs []primitive.ObjectID
-	for _, user := range allUsers {
-		roles, err := models.GetUserServiceRolesFromCollection(user.ID.Hex(), serviceKey)
-		if err != nil {
-			continue
-		}
-		if len(roles) > 0 {
-			userIDs = append(userIDs, user.ID)
-		}
-	}
-
-	return userIDs, nil
 }
 
 // Helper functions
@@ -766,19 +706,19 @@ func isValidEmail(email string) bool {
 	if len(email) < 3 || len(email) > 254 {
 		return false
 	}
-	
+
 	// Check for @ symbol
 	atIndex := strings.Index(email, "@")
 	if atIndex <= 0 || atIndex >= len(email)-1 {
 		return false
 	}
-	
+
 	// Check for at least one dot after @
 	domain := email[atIndex+1:]
 	if !strings.Contains(domain, ".") {
 		return false
 	}
-	
+
 	// Basic character validation
 	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_@"
 	for _, char := range email {
@@ -786,7 +726,7 @@ func isValidEmail(email string) bool {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -880,7 +820,7 @@ func ServiceImportPageHandler(c *gin.Context) {
 
 	// Check for success message
 	successMsg := c.Query("success")
-	
+
 	c.HTML(http.StatusOK, "service_import.html", gin.H{
 		"title":   "Импорт пользователей",
 		"service": service,
@@ -892,7 +832,7 @@ func ServiceImportPageHandler(c *gin.Context) {
 // createServiceTemplateSheet creates an empty Excel template for service user imports
 func createServiceTemplateSheet(file *excelize.File, service *models.Service) error {
 	sheetName := "Users"
-	
+
 	// Delete default sheet and create new one
 	file.DeleteSheet("Sheet1")
 	index, _ := file.NewSheet(sheetName)
@@ -919,7 +859,7 @@ func createServiceTemplateSheet(file *excelize.File, service *models.Service) er
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"CCCCCC"}, Pattern: 1},
 	})
-	
+
 	file.SetCellStyle(sheetName, "A1", fmt.Sprintf("%s1", getColumnName(len(allHeaders))), headerStyle)
 
 	// Add example row with instructions
@@ -942,7 +882,7 @@ func createServiceTemplateSheet(file *excelize.File, service *models.Service) er
 	exampleStyle, _ := file.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Italic: true, Color: "666666"},
 	})
-	
+
 	file.SetCellStyle(sheetName, fmt.Sprintf("A%d", exampleRow), fmt.Sprintf("%s%d", getColumnName(len(allHeaders)), exampleRow), exampleStyle)
 
 	// Auto-adjust column widths

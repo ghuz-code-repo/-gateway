@@ -21,8 +21,8 @@ func SetupAllRoutes(router *gin.Engine) {
 	// Set up profile routes
 	SetupProfileRoutes(router)
 
-	// API endpoints for internal service communication (no auth required)
-	api := router.Group("/api")
+	// API endpoints for internal service communication (protected by API key)
+	api := router.Group("/api", internalAPIKeyRequired())
 	{
 		api.GET("/test", testAPIHandler)
 		api.GET("/sync/permissions", getAuthServicePermissionsHandler) // Auth-service own permissions endpoint
@@ -52,9 +52,10 @@ func SetupAllRoutes(router *gin.Engine) {
 			registry.GET("/services/:serviceKey", getServiceInstancesHandler)
 		}
 
-		// Services Health API (for admin panel UI)
-		api.GET("/services/health", getServicesHealthHandler)
 	}
+
+	// Services Health API — accessible by authenticated users (used by dashboard UI)
+	router.GET("/api/services/health", authRequired(), getServicesHealthHandler)
 
 	// Start health check monitor in background
 	startHealthCheckMonitor()

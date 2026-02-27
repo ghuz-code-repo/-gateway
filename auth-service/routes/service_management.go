@@ -1272,13 +1272,15 @@ func createExternalRoleHandler(c *gin.Context) {
 
 	// Create the role in auth-service (service_key = "auth")
 	role := models.ServiceRole{
-		ID:          primitive.NewObjectID(),
-		ServiceKey:  "auth", // Role lives in auth-service
-		Name:        input.Name,
-		Description: input.Description,
-		Permissions: input.Permissions,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:             primitive.NewObjectID(),
+		ServiceKey:     "auth", // Role lives in auth-service
+		Name:           input.Name,
+		Description:    input.Description,
+		Permissions:    input.Permissions,
+		RoleType:       models.RoleTypeExternal,
+		ManagedService: serviceKey,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
 	if err := models.CreateServiceRole(&role); err != nil {
@@ -1348,6 +1350,8 @@ func updateExternalRoleHandler(c *gin.Context) {
 	}
 	existingRole.Description = input.Description
 	existingRole.Permissions = input.Permissions
+	existingRole.RoleType = models.RoleTypeExternal
+	existingRole.ManagedService = serviceKey
 	existingRole.UpdatedAt = time.Now()
 
 	if err := models.UpdateServiceRole(existingRole); err != nil {

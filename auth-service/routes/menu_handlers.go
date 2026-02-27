@@ -2,7 +2,7 @@ package routes
 
 import (
 	"auth-service/models"
-	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -34,43 +34,29 @@ func menuHandler(c *gin.Context) {
 	isAdmin := hasAnyAuthPermission(user, "auth.*")
 
 	if isAdmin {
-		fmt.Println("Пользователь является администратором. Добавление всех сервисов.")
+		log.Println("Пользователь является администратором. Добавление всех сервисов.")
 		// Admin users can access all services
 		services, err := models.GetAllServices()
 		if err != nil {
-			fmt.Printf("Ошибка получения сервисов для админа: %v\n", err)
+			log.Printf("Ошибка получения сервисов для админа: %v\n", err)
 		} else {
 			for _, service := range services {
 				accessibleServices = append(accessibleServices, service.Key)
 			}
 		}
 	} else {
-		// For regular users, get services where they have roles
+		// For regular users, get services where they have roles (authoritative source)
 		userAccessibleServices, err := models.GetUserAccessibleServices(user.ID)
 		if err != nil {
-			fmt.Printf("Ошибка получения доступных сервисов для пользователя %s: %v\n", user.Username, err)
+			log.Printf("Ошибка получения доступных сервисов для пользователя %s: %v\n", user.Username, err)
 		} else {
 			accessibleServices = userAccessibleServices
-		}
-
-		// Also include services from old role system for backward compatibility
-		roles, err := models.GetAllRoles()
-		if err == nil {
-			for _, userRole := range user.Roles {
-				for _, role := range roles {
-					if role.Name == userRole && role.ServiceKey != "" {
-						if !contains(accessibleServices, role.ServiceKey) {
-							accessibleServices = append(accessibleServices, role.ServiceKey)
-						}
-					}
-				}
-			}
 		}
 	}
 
 	// Debug output
-	fmt.Printf("Доступные сервисы для пользователя %s: %v\n", user.Username, accessibleServices)
-	fmt.Printf("Пользователь %s является админом: %v\n", user.Username, isAdmin)
+	log.Printf("Доступные сервисы для пользователя %s: %v\n", user.Username, accessibleServices)
+	log.Printf("Пользователь %s является админом: %v\n", user.Username, isAdmin)
 
 	// Create a slice of service infos with display names
 	serviceInfos := []gin.H{}
@@ -97,7 +83,7 @@ func menuHandler(c *gin.Context) {
 		serviceInfo["canManage"] = canManageService
 
 		// Debug logging for access control
-		fmt.Printf("[MENU DEBUG] Service=%s User=%s isAdmin=%v hasServiceManager=%v hasExternalRole=%v hasAnyRole=%v canManage=%v\n",
+		log.Printf("[MENU DEBUG] Service=%s User=%s isAdmin=%v hasServiceManager=%v hasExternalRole=%v hasAnyRole=%v canManage=%v\n",
 			serviceKey, user.Username, isAdmin, hasServiceManager, hasExternalRole, hasAnyServiceRole, canManageService) // Show service card if: system admin OR has any role in service (including admin) OR has external role
 		showServiceCard := isAdmin || hasAnyServiceRole || hasExternalRole
 
@@ -106,10 +92,10 @@ func menuHandler(c *gin.Context) {
 			service, err := models.GetServiceByKey(serviceKey)
 			if err == nil && service != nil {
 				serviceInfo["serviceKey"] = service.Key
-				fmt.Printf("Добавлен serviceKey для %s: %s (isSystemAdmin: %v, isServiceManager: %v, canManage: %v)\n",
+				log.Printf("Добавлен serviceKey для %s: %s (isSystemAdmin: %v, isServiceManager: %v, canManage: %v)\n",
 					serviceKey, service.Key, isAdmin, hasServiceManager, canManageService)
 			} else {
-				fmt.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
+				log.Printf("Ошибка получения сервиса для %s: %v\n", serviceKey, err)
 			}
 
 			serviceInfos = append(serviceInfos, serviceInfo)
@@ -119,7 +105,7 @@ func menuHandler(c *gin.Context) {
 	// Check if user has permission to view system settings (must be system admin)
 	// NEW: Check if user can view system settings
 	canViewSystemSettings := hasAuthPermission(user, "auth.settings.view")
-	fmt.Printf("User %s can view system settings: %v\n", user.Username, canViewSystemSettings)
+	log.Printf("User %s can view system settings: %v\n", user.Username, canViewSystemSettings)
 
 	c.HTML(http.StatusOK, "menu.html", gin.H{
 		"username":              user.Username,
@@ -130,22 +116,15 @@ func menuHandler(c *gin.Context) {
 		"serviceInfos":          serviceInfos,       // New structure with display names
 		"isAdmin":               hasAnyAuthPermission(user, "auth.*"),
 		"canViewSystemSettings": canViewSystemSettings,
-		"role":                  user.Roles,
 	})
 }
 
 // getServiceDisplayName returns a user-friendly name for a service
 func getServiceDisplayName(serviceKey string) string {
-	// Try to get the display name from services collection
+	// Get the display name from services collection (authoritative source)
 	service, err := models.GetServiceByKey(serviceKey)
 	if err == nil && service != nil && service.Name != "" {
 		return service.Name
-	}
-
-	// Fallback to permissions collection for backward compatibility
-	permission, err := models.GetPermissionByService(serviceKey)
-	if err == nil && permission.DisplayName != "" {
-		return permission.DisplayName
 	}
 
 	// Default to the original service key if not found
@@ -179,13 +158,18 @@ func getServiceDescription(serviceKey string) string {
 
 // getIconForService returns an appropriate Font Awesome icon for each service
 func getIconForService(service string) string {
-	// Get icon from database if available
-	permission, err := models.GetPermissionByService(service)
-	if err == nil && permission.Icon != "" {
-		return permission.Icon
+	// Default icon mapping for known services
+	iconMap := map[string]string{
+		"client-service":   "users",
+		"referal":          "gift",
+		"microservices-v2": "server",
+		"admin-service":    "cog",
+		"AppartmentFinder": "building",
+		"auth":             "shield-alt",
 	}
-
-	// Default icon if no specific icon is defined
+	if icon, ok := iconMap[service]; ok {
+		return icon
+	}
 	return "link"
 }
 

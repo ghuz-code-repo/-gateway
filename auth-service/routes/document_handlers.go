@@ -40,7 +40,7 @@ func getAvailableServicesHandler(c *gin.Context) {
 	log.Printf("Request path: %s", c.Request.URL.Path)
 	log.Printf("Request headers: %v", c.Request.Header)
 	log.Printf("Client IP: %s", c.ClientIP())
-	
+
 	services, err := models.GetAllServices()
 	if err != nil {
 		log.Printf("Error fetching services: %v", err)
@@ -62,7 +62,7 @@ func getAvailableServicesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, serviceOptions)
 }
 
-// getMyDocumentsHandler returns all documents for the current user  
+// getMyDocumentsHandler returns all documents for the current user
 func getMyDocumentsHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	log.Printf("Getting documents for user: %s (username: %s)", user.ID.Hex(), user.Username)
@@ -102,9 +102,9 @@ func getMyDocumentsHandler(c *gin.Context) {
 func getUserDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	documentID := c.Param("id")
-	
+
 	log.Printf("Getting document %s for user: %s", documentID, user.ID.Hex())
-	
+
 	// Get updated user data to get documents
 	updatedUser, err := models.GetUserByID(user.ID.Hex())
 	if err != nil {
@@ -144,11 +144,11 @@ func getUserDocumentHandler(c *gin.Context) {
 // Placeholder implementations for complex document operations
 func uploadDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
-	
+
 	log.Printf("Uploading document for user: %s", user.ID.Hex())
 
 	// Parse multipart form
-	err := c.Request.ParseMultipartForm(99 << 20) // 99 MB max
+	err := c.Request.ParseMultipartForm(10 << 20) // 10 MB max
 	if err != nil {
 		log.Printf("Error parsing multipart form: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка обработки формы"})
@@ -158,12 +158,12 @@ func uploadDocumentHandler(c *gin.Context) {
 	// Get form fields
 	documentType := c.PostForm("document_type")
 	title := c.PostForm("title")
-	
+
 	if documentType == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Тип документа обязателен"})
 		return
 	}
-	
+
 	if title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Название документа обязательно"})
 		return
@@ -177,7 +177,7 @@ func uploadDocumentHandler(c *gin.Context) {
 		Status:       "draft",
 		Attachments:  []models.DocumentAttachment{},
 	}
-	
+
 	// Add document to user
 	if err := models.AddUserDocumentNew(user.ID, newDoc); err != nil {
 		log.Printf("Error adding document: %v", err)
@@ -187,16 +187,16 @@ func uploadDocumentHandler(c *gin.Context) {
 
 	log.Printf("Document uploaded successfully for user %s: %s", user.Username, title)
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Документ успешно загружен",
+		"message":       "Документ успешно загружен",
 		"document_type": documentType,
-		"title": title,
+		"title":         title,
 	})
 }
 
 func deleteDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	documentID := c.Param("id")
-	
+
 	log.Printf("Deleting document (profile) %s for user: %s", documentID, user.ID.Hex())
 
 	// Parse document index
@@ -222,14 +222,14 @@ func deleteDocumentHandler(c *gin.Context) {
 
 	// Remove document
 	updatedUser.Documents = append(updatedUser.Documents[:docIndex], updatedUser.Documents[docIndex+1:]...)
-	
+
 	// Update user in database
 	if err := models.UpdateUserDocuments(user.ID, updatedUser.Documents); err != nil {
 		log.Printf("Error updating user documents: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении документа"})
 		return
 	}
-	
+
 	log.Printf("Document deleted successfully from profile for user %s", user.Username)
 	c.JSON(http.StatusOK, gin.H{"message": "Документ успешно удален"})
 }
@@ -237,7 +237,7 @@ func deleteDocumentHandler(c *gin.Context) {
 func downloadDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	documentID := c.Param("id")
-	
+
 	log.Printf("Downloading document %s for user: %s", documentID, user.ID.Hex())
 
 	// Parse document index
@@ -262,17 +262,17 @@ func downloadDocumentHandler(c *gin.Context) {
 	}
 
 	doc := updatedUser.Documents[docIndex]
-	
+
 	// Return document info as JSON (could be modified to return actual files)
 	c.JSON(http.StatusOK, gin.H{
 		"document": gin.H{
-			"id": docIndex,
-			"title": doc.Title,
-			"type": doc.DocumentType,
-			"fields": doc.Fields,
+			"id":          docIndex,
+			"title":       doc.Title,
+			"type":        doc.DocumentType,
+			"fields":      doc.Fields,
 			"attachments": doc.Attachments,
-			"created_at": doc.CreatedAt,
-			"updated_at": doc.UpdatedAt,
+			"created_at":  doc.CreatedAt,
+			"updated_at":  doc.UpdatedAt,
 		},
 	})
 }
@@ -280,7 +280,7 @@ func downloadDocumentHandler(c *gin.Context) {
 func getDocumentAttachmentsHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	documentID := c.Param("id")
-	
+
 	log.Printf("Getting attachments for document %s, user: %s", documentID, user.ID.Hex())
 
 	// Parse document index
@@ -307,7 +307,7 @@ func getDocumentAttachmentsHandler(c *gin.Context) {
 	// Get document attachments
 	doc := updatedUser.Documents[docIndex]
 	var attachments []map[string]interface{}
-	
+
 	for _, attachment := range doc.Attachments {
 		attachmentResponse := map[string]interface{}{
 			"id":            attachment.ID.Hex(),
@@ -326,26 +326,26 @@ func getDocumentAttachmentsHandler(c *gin.Context) {
 
 func createUserDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
-	
+
 	var request struct {
 		DocumentType    string                 `json:"document_type"`
 		Title           string                 `json:"title"`
 		Fields          map[string]interface{} `json:"fields"`
 		AllowedServices []string               `json:"allowed_services"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&request); err != nil {
 		log.Printf("Error binding JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат данных"})
 		return
 	}
-	
+
 	// Validate required fields
 	if request.DocumentType == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Тип документа обязателен"})
 		return
 	}
-	
+
 	if request.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Название документа обязательно"})
 		return
@@ -371,12 +371,12 @@ func createUserDocumentHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении списка сервисов"})
 			return
 		}
-		
+
 		for _, service := range services {
 			finalAllowedServices = append(finalAllowedServices, service.Key)
 		}
-		
-		log.Printf("Auto-assigning all services to first %s document for user %s: %v", 
+
+		log.Printf("Auto-assigning all services to first %s document for user %s: %v",
 			request.DocumentType, user.Username, finalAllowedServices)
 	} else {
 		finalAllowedServices = request.AllowedServices
@@ -399,7 +399,7 @@ func createUserDocumentHandler(c *gin.Context) {
 	// Resolve conflicts: remove services from other documents of the same type
 	// REMOVED: Uniqueness constraint - now allowing multiple documents of same type per service
 	log.Printf("Creating document of type '%s' for user %s with services: %v", request.DocumentType, user.Username, finalAllowedServices)
-	
+
 	// Create new document
 	newDoc := models.UserDocument{
 		DocumentType:    request.DocumentType,
@@ -409,14 +409,14 @@ func createUserDocumentHandler(c *gin.Context) {
 		Status:          "draft",
 		Attachments:     []models.DocumentAttachment{},
 	}
-	
+
 	if newDoc.Fields == nil {
 		newDoc.Fields = make(map[string]interface{})
 	}
 
 	// Add the new document to the user's documents
 	updatedUser.Documents = append(updatedUser.Documents, newDoc)
-	
+
 	// Save all updated documents (including the new one and any modified existing ones)
 	err = models.UpdateUserDocuments(updatedUser.ID, updatedUser.Documents)
 	if err != nil {
@@ -430,18 +430,18 @@ func createUserDocumentHandler(c *gin.Context) {
 
 	log.Printf("Document created successfully for user %s: %s", user.Username, request.Title)
 	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"message": "Документ успешно создан",
+		"success":       true,
+		"message":       "Документ успешно создан",
 		"document_type": request.DocumentType,
-		"title": request.Title,
-		"document_id": documentId,
+		"title":         request.Title,
+		"document_id":   documentId,
 	})
 }
 
 func updateUserDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	documentID := c.Param("id")
-	
+
 	log.Printf("Updating document %s for user: %s", documentID, user.ID.Hex())
 
 	// Parse document index
@@ -485,18 +485,18 @@ func updateUserDocumentHandler(c *gin.Context) {
 	if len(updateData.Fields) > 0 {
 		updatedUser.Documents[docIndex].Fields = updateData.Fields
 	}
-	
+
 	// Update allowed services if provided (removed uniqueness enforcement)
 	if updateData.AllowedServices != nil {
 		log.Printf("Updating allowed services for document type '%s': %v", updatedUser.Documents[docIndex].DocumentType, updateData.AllowedServices)
-		
+
 		// Set the allowed services for the current document
 		updatedUser.Documents[docIndex].AllowedServices = updateData.AllowedServices
 	}
-	
+
 	// Always update timestamp
 	updatedUser.Documents[docIndex].UpdatedAt = time.Now()
-	
+
 	// Save updated documents
 	err = models.UpdateUserDocuments(user.ID, updatedUser.Documents)
 	if err != nil {
@@ -514,7 +514,7 @@ func updateUserDocumentHandler(c *gin.Context) {
 func deleteUserDocumentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	documentID := c.Param("id")
-	
+
 	log.Printf("Deleting document %s for user: %s (username: %s)", documentID, user.ID.Hex(), user.Username)
 
 	// Parse document index
@@ -556,7 +556,7 @@ func deleteUserDocumentHandler(c *gin.Context) {
 
 	// Remove document from slice
 	updatedUser.Documents = append(updatedUser.Documents[:docIndex], updatedUser.Documents[docIndex+1:]...)
-	
+
 	// Update user documents in database
 	if err := models.UpdateUserDocuments(user.ID, updatedUser.Documents); err != nil {
 		log.Printf("ERROR: Failed to update user after document deletion: %v", err)
@@ -571,7 +571,7 @@ func deleteUserDocumentHandler(c *gin.Context) {
 func addDocumentAttachmentHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	documentID := c.Param("id")
-	
+
 	log.Printf("Adding attachment to document %s for user: %s", documentID, user.ID.Hex())
 
 	// Parse document index
@@ -596,20 +596,17 @@ func addDocumentAttachmentHandler(c *gin.Context) {
 	}
 
 	// Debug: Log all form fields
-	log.Printf("Request Method: %s", c.Request.Method)
-	log.Printf("Content-Type: %s", c.Request.Header.Get("Content-Type"))
-	
+
 	// Parse multipart form first
-	err = c.Request.ParseMultipartForm(99 << 20) // 99 MB max
+	err = c.Request.ParseMultipartForm(10 << 20) // 10 MB max
 	if err != nil {
 		log.Printf("Error parsing multipart form: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка обработки формы"})
 		return
 	}
-	
+
 	// Log all form fields
 	if c.Request.MultipartForm != nil {
-		log.Printf("Form fields: %v", c.Request.MultipartForm.Value)
 		log.Printf("Form files: %v", c.Request.MultipartForm.File)
 	}
 
@@ -627,21 +624,38 @@ func addDocumentAttachmentHandler(c *gin.Context) {
 	}
 	defer file.Close()
 
+	// Validate file extension
+	allowedExts := map[string]bool{
+		".pdf": true, ".jpg": true, ".jpeg": true, ".png": true,
+		".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
+		".gif": true, ".webp": true,
+	}
+	fileExt := strings.ToLower(filepath.Ext(header.Filename))
+	if !allowedExts[fileExt] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимый тип файла. Разрешены: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX, GIF, WEBP"})
+		return
+	}
+
+	// Validate file size (10 MB max per file)
+	if header.Size > 10*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Размер файла превышает 10 МБ"})
+		return
+	}
+
 	log.Printf("Uploading file: %s, size: %d", header.Filename, header.Size)
 
 	// Create directory structure
 	doc := updatedUser.Documents[docIndex]
 	userDir := fmt.Sprintf("/root/data/%s", user.ID.Hex())
 	docDir := filepath.Join(userDir, "documents", doc.DocumentType)
-	
+
 	if err := os.MkdirAll(docDir, 0755); err != nil {
 		log.Printf("Error creating directory: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания директории"})
 		return
 	}
 
-	// Generate unique filename
-	fileExt := filepath.Ext(header.Filename)
+	// Generate unique filename (fileExt already validated above)
 	baseName := strings.TrimSuffix(header.Filename, fileExt)
 	timestamp := time.Now().Unix()
 	uniqueFilename := fmt.Sprintf("%s_%d%s", baseName, timestamp, fileExt)
@@ -685,7 +699,7 @@ func addDocumentAttachmentHandler(c *gin.Context) {
 	}
 
 	log.Printf("Successfully added attachment: %s", uniqueFilename)
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Файл успешно загружен",
@@ -740,7 +754,7 @@ func removeDocumentAttachmentHandler(c *gin.Context) {
 	var attachmentPath string
 	var attachmentIndex = -1
 	doc := updatedUser.Documents[docIndex]
-	
+
 	for i, attachment := range doc.Attachments {
 		if attachment.ID.Hex() == attachmentID {
 			attachmentPath = attachment.FilePath
@@ -782,7 +796,7 @@ func removeDocumentAttachmentHandler(c *gin.Context) {
 	}
 
 	log.Printf("Successfully removed attachment: %s", attachmentID)
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Вложение успешно удалено",
@@ -828,7 +842,7 @@ func downloadDocumentAttachmentHandler(c *gin.Context) {
 	// Find attachment
 	var attachment *models.DocumentAttachment
 	doc := updatedUser.Documents[docIndex]
-	
+
 	for i := range doc.Attachments {
 		if doc.Attachments[i].ID.Hex() == attachmentID {
 			attachment = &doc.Attachments[i]
@@ -843,7 +857,7 @@ func downloadDocumentAttachmentHandler(c *gin.Context) {
 	}
 
 	// DEBUG: Log attachment details for download
-	log.Printf("Found attachment: ID=%s, FileName=%s, OriginalName=%s, FilePath=%s", 
+	log.Printf("Found attachment: ID=%s, FileName=%s, OriginalName=%s, FilePath=%s",
 		attachment.ID.Hex(), attachment.FileName, attachment.OriginalName, attachment.FilePath)
 
 	// Check if FilePath is empty
@@ -856,11 +870,11 @@ func downloadDocumentAttachmentHandler(c *gin.Context) {
 	// Check if file exists with fallback paths
 	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
 		log.Printf("File not found: %s", attachment.FilePath)
-		
+
 		// Try alternative paths
 		workingDir, _ := os.Getwd()
 		log.Printf("Current working directory: %s", workingDir)
-		
+
 		// Try relative path
 		relativePath := filepath.Join("./", attachment.FilePath)
 		if _, err := os.Stat(relativePath); err == nil {
@@ -928,7 +942,7 @@ func previewDocumentAttachmentHandler(c *gin.Context) {
 	// Find attachment
 	var attachment *models.DocumentAttachment
 	doc := updatedUser.Documents[docIndex]
-	
+
 	for i := range doc.Attachments {
 		if doc.Attachments[i].ID.Hex() == attachmentID {
 			attachment = &doc.Attachments[i]
@@ -952,11 +966,11 @@ func previewDocumentAttachmentHandler(c *gin.Context) {
 	// Set headers for inline display (preview)
 	c.Header("Content-Type", attachment.ContentType)
 	c.Header("Content-Length", fmt.Sprintf("%d", attachment.Size))
-	
+
 	// For images, PDFs and other previewable content, display inline
-	if strings.HasPrefix(attachment.ContentType, "image/") || 
-	   attachment.ContentType == "application/pdf" ||
-	   strings.HasPrefix(attachment.ContentType, "text/") {
+	if strings.HasPrefix(attachment.ContentType, "image/") ||
+		attachment.ContentType == "application/pdf" ||
+		strings.HasPrefix(attachment.ContentType, "text/") {
 		c.Header("Content-Disposition", "inline")
 	} else {
 		// For other file types, still allow inline but browser will decide
