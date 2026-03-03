@@ -10,6 +10,7 @@ package routes
 // but should be migrated to the appropriate specialized files.
 
 import (
+	"auth-service/models"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -21,15 +22,66 @@ func migrationStatusHandler(c *gin.Context) {
 }
 
 func runMigrationHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Migration endpoints not implemented yet"})
+	// Run ADR-001 schema migration
+	result, err := models.MigrateToADR001Schema()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+			"result":  result,
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"result":  result,
+	})
 }
 
 func validateMigrationHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Migration endpoints not implemented yet"})
+	err := models.ValidateMigration()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Validation passed",
+	})
 }
 
 func rollbackMigrationHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Migration endpoints not implemented yet"})
+	err := models.RollbackMigration()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Rollback completed",
+	})
+}
+
+func cleanupOrphanedDataHandler(c *gin.Context) {
+	result, err := models.CleanupOrphanedUserServiceRoles()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+			"result":  result,
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"result":  result,
+	})
 }
 
 // Legacy role management - should be moved to separate file

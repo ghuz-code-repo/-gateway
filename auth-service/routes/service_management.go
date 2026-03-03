@@ -36,19 +36,37 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 		return
 	}
 
-	// Filter services where user has service-manager role (NOT admin)
+	// Filter services where user has service-manager role OR external role managing that service
 	var managedServices []models.Service
 	userServiceRoles, err := models.GetUserServiceRolesByUserID(user.ID)
 	if err == nil {
+		// Collect managed service keys from external auth roles
+		externalManagedKeys := make(map[string]bool)
+		for _, role := range userServiceRoles {
+			if role.ServiceKey == "auth" && role.IsActive {
+				// Check if this auth role is an external role with managed_service
+				sr, err := models.GetServiceRoleByName("auth", role.RoleName)
+				if err == nil && sr != nil && sr.RoleType == "external" && sr.ManagedService != "" {
+					externalManagedKeys[sr.ManagedService] = true
+				}
+			}
+		}
+
 		for _, service := range allServices {
+			// Check direct service-manager role
 			for _, role := range userServiceRoles {
 				if role.ServiceKey == service.Key &&
 					role.RoleName == "service-manager" &&
 					role.IsActive {
 					managedServices = append(managedServices, service)
-					break
+					goto nextService
 				}
 			}
+			// Check external role managing this service
+			if externalManagedKeys[service.Key] {
+				managedServices = append(managedServices, service)
+			}
+		nextService:
 		}
 	}
 
@@ -423,6 +441,12 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 // deleteServiceHandler performs soft delete of a service (system admin only)
 // The service is marked as deleted but can be restored
 func deleteServiceHandler(c *gin.Context) {
+	// SECURITY: Only system admins can delete services
+	if !c.GetBool("isSystemAdmin") {
+		c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "Удаление сервиса доступно только системным администраторам"})
+		return
+	}
+
 	serviceKey := c.Param("serviceKey")
 
 	// Verify service exists
@@ -753,16 +777,26 @@ func getServiceUsersHandler(c *gin.Context) {
 
 func addUserToServiceHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
+	currentUser := c.MustGet("user").(*models.User)
 
-	// Check permission
-	if !requireServicePermission(c, models.PermServiceUsersAdd) {
+	// Check permission: system admin, service manager, auth external permission, or service-level permission
+	isSystemAdmin := c.GetBool("isSystemAdmin")
+	isServiceManager := c.GetBool("isServiceManager")
+	servicePermPrefix := fmt.Sprintf("auth.%s.", serviceKey)
+	hasAuthPerm := models.HasAuthPermission(currentUser.ID, servicePermPrefix+"users.add") ||
+		models.HasAuthPermission(currentUser.ID, servicePermPrefix+"users.*")
+	hasServicePerm := models.HasServicePermission(currentUser.ID, serviceKey, models.PermServiceUsersAdd)
+
+	if !isSystemAdmin && !isServiceManager && !hasAuthPerm && !hasServicePerm {
 		c.JSON(http.StatusForbidden, gin.H{"error": "У вас нет прав на добавление пользователей в этот сервис"})
 		return
 	}
 
 	var req struct {
 		Identifier string   `json:"identifier"`
-		FullName   string   `json:"full_name"`
+		LastName   string   `json:"last_name"`
+		FirstName  string   `json:"first_name"`
+		FullName   string   `json:"full_name"` // legacy, kept for backward compatibility
 		ServiceKey string   `json:"service_key"`
 		Roles      []string `json:"roles"`
 	}
@@ -790,10 +824,11 @@ func addUserToServiceHandler(c *gin.Context) {
 	}
 
 	// Find user by identifier or create new one
-	user, err := models.GetUserByEmailOrUsername(req.Identifier)
-	if err != nil || user == nil {
-		// If user not found and we have full name, create new user
-		if req.FullName != "" {
+	targetUser, err := models.GetUserByEmailOrUsername(req.Identifier)
+	if err != nil || targetUser == nil {
+		// If user not found and we have name fields, create new user
+		hasName := req.LastName != "" || req.FirstName != "" || req.FullName != ""
+		if hasName {
 			// Check if identifier is email format
 			isEmail := len(req.Identifier) > 0 && req.Identifier[0] != '@' &&
 				len(req.Identifier) > 3 &&
@@ -809,15 +844,21 @@ func addUserToServiceHandler(c *gin.Context) {
 				email = ""
 			}
 
-			// Create new user with temporary password
-			userID, err := models.CreateUser(username, email, "temporary123", req.FullName, []string{})
+			var userID primitive.ObjectID
+			if req.LastName != "" || req.FirstName != "" {
+				// New path: create with separate name fields
+				userID, err = models.CreateUserWithNames(username, email, "temporary123", req.LastName, req.FirstName, "", "", []string{})
+			} else {
+				// Legacy path: full_name only
+				userID, err = models.CreateUser(username, email, "temporary123", req.FullName, []string{})
+			}
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new user: " + err.Error()})
 				return
 			}
 
 			// Get the created user
-			user, err = models.GetUserByObjectID(userID)
+			targetUser, err = models.GetUserByObjectID(userID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve created user"})
 				return
@@ -828,16 +869,9 @@ func addUserToServiceHandler(c *gin.Context) {
 		}
 	}
 
-	// Get current user for assignedBy
-	currentUser := c.MustGet("user").(*models.User)
-	if currentUser == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
 	// Assign roles to user
 	for _, roleName := range req.Roles {
-		err := models.AssignUserToServiceRole(user.ID, service.Key, roleName, currentUser.ID)
+		err := models.AssignUserToServiceRole(targetUser.ID, service.Key, roleName, currentUser.ID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role: " + roleName})
 			return
@@ -847,10 +881,10 @@ func addUserToServiceHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User added to service successfully",
 		"user": gin.H{
-			"id":       user.ID.Hex(),
-			"username": user.Username,
-			"email":    user.Email,
-			"fullName": user.FullName,
+			"id":       targetUser.ID.Hex(),
+			"username": targetUser.Username,
+			"email":    targetUser.Email,
+			"fullName": targetUser.FullName,
 		},
 		"assignedRoles": req.Roles,
 	})
@@ -997,6 +1031,10 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 
 // checkUserExistsHandler checks if a user exists by username or email
 func checkUserExistsHandler(c *gin.Context) {
+	// Prevent browser from caching this response — data can change at any time
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Header("Pragma", "no-cache")
+
 	identifier := c.Query("identifier")
 	serviceKey := c.Query("serviceKey")
 
@@ -1258,6 +1296,17 @@ func createExternalRoleHandler(c *gin.Context) {
 
 	log.Printf("INFO: createExternalRoleHandler - creating role '%s' for service '%s' with %d permissions", input.Name, serviceKey, len(input.Permissions))
 
+	// Validate that external role name doesn't conflict with existing internal auth-service roles
+	// This prevents ambiguity when GetRoleByServiceAndName("auth", name) is called
+	existingRole, err := models.GetRoleByServiceAndName("auth", input.Name)
+	if err == nil && existingRole != nil && existingRole.IsInternal() {
+		log.Printf("ERROR: createExternalRoleHandler - name '%s' conflicts with internal auth-service role", input.Name)
+		c.JSON(http.StatusConflict, gin.H{
+			"error": fmt.Sprintf("Имя '%s' уже используется внутренней ролью auth-сервиса. Выберите другое имя.", input.Name),
+		})
+		return
+	}
+
 	// Validate permissions - they should be auth.<serviceKey>.* format
 	for _, perm := range input.Permissions {
 		expectedPrefix := fmt.Sprintf("auth.%s.", serviceKey)
@@ -1394,10 +1443,8 @@ func deleteExternalRoleHandler(c *gin.Context) {
 		return
 	}
 
-	// Also remove role assignments from users
-	if err := models.RemoveRoleFromAllUsers("auth", roleName); err != nil {
-		log.Printf("Warning: Failed to remove role assignments: %v", err)
-	}
+	// Note: DeleteServiceRole already cascade-deletes user role assignments,
+	// so no need to call RemoveRoleFromAllUsers separately.
 
 	log.Printf("Deleted external role '%s'", roleName)
 	c.JSON(http.StatusOK, gin.H{
@@ -1407,6 +1454,87 @@ func deleteExternalRoleHandler(c *gin.Context) {
 }
 
 // ========== AUTH ROLES API HANDLERS ==========
+
+// getExternalRoleHandler returns external role data for the UI (authenticated, no API key needed)
+func getExternalRoleHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	roleName := c.Param("roleName")
+
+	log.Printf("DEBUG: getExternalRoleHandler called for service=%s, role=%s", serviceKey, roleName)
+
+	// Find the role in auth-service
+	role, err := models.GetServiceRoleByName("auth", roleName)
+	if err != nil {
+		log.Printf("ERROR: getExternalRoleHandler - role '%s' not found: %v", roleName, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
+		return
+	}
+
+	// Verify it's actually an external role for this service
+	if role.RoleType != models.RoleTypeExternal || role.ManagedService != serviceKey {
+		log.Printf("ERROR: getExternalRoleHandler - role '%s' is not an external role for service '%s'", roleName, serviceKey)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Внешняя роль не найдена для данного сервиса"})
+		return
+	}
+
+	// Get users with this role
+	users, err := models.GetUsersByServiceRole("auth", roleName)
+	userCount := 0
+	if err == nil {
+		userCount = len(users)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":              role.ID.Hex(),
+		"name":            role.Name,
+		"description":     role.Description,
+		"permissions":     role.Permissions,
+		"role_type":       role.RoleType,
+		"managed_service": role.ManagedService,
+		"user_count":      userCount,
+		"created_at":      role.CreatedAt,
+		"updated_at":      role.UpdatedAt,
+	})
+}
+
+// getExternalRoleUsersHandler returns users who have a specific external role (UI-accessible, no API key needed)
+func getExternalRoleUsersHandler(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	roleName := c.Param("roleName")
+
+	log.Printf("DEBUG: getExternalRoleUsersHandler called for service=%s, role=%s", serviceKey, roleName)
+
+	// Verify the role exists and is an external role for this service
+	role, err := models.GetServiceRoleByName("auth", roleName)
+	if err != nil || role.RoleType != models.RoleTypeExternal || role.ManagedService != serviceKey {
+		log.Printf("ERROR: getExternalRoleUsersHandler - role '%s' not found or not external for service '%s'", roleName, serviceKey)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Внешняя роль не найдена для данного сервиса"})
+		return
+	}
+
+	users, err := models.GetUsersByServiceRole("auth", roleName)
+	if err != nil {
+		log.Printf("ERROR: getExternalRoleUsersHandler - error getting users for role %s: %v", roleName, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка загрузки пользователей"})
+		return
+	}
+
+	var result []gin.H
+	for _, user := range users {
+		result = append(result, gin.H{
+			"id":        user.ID.Hex(),
+			"username":  user.Username,
+			"email":     user.Email,
+			"full_name": user.GetFullName(),
+		})
+	}
+
+	if result == nil {
+		result = []gin.H{}
+	}
+
+	c.JSON(http.StatusOK, result)
+}
 
 // getAuthRoleByNameHandler returns a role from auth-service by name
 func getAuthRoleByNameHandler(c *gin.Context) {
