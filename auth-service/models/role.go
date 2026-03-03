@@ -343,17 +343,18 @@ func RemovePermissionFromRole(id primitive.ObjectID, permission string) error {
 }
 
 // ServiceRole represents a role specifically for service management
+// BSON tags are aligned with Role struct to avoid field mismatch in the shared service_roles collection.
 type ServiceRole struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ServiceKey     string             `bson:"service_key" json:"service_key" validate:"required"`
+	ServiceKey     string             `bson:"service" json:"service_key" validate:"required"`
 	Name           string             `bson:"name" json:"name" validate:"required"`
 	DisplayName    string             `bson:"display_name" json:"display_name"`
 	Description    string             `bson:"description" json:"description"`
 	Permissions    []string           `bson:"permissions" json:"permissions"`
 	RoleType       string             `bson:"role_type" json:"role_type"`
 	ManagedService string             `bson:"managed_service,omitempty" json:"managed_service,omitempty"`
-	CreatedAt      time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt      time.Time          `bson:"updated_at" json:"updated_at"`
+	CreatedAt      time.Time          `bson:"createdAt" json:"created_at"`
+	UpdatedAt      time.Time          `bson:"updatedAt" json:"updated_at"`
 }
 
 // GetServiceRoleByID retrieves a service role by its ID
@@ -419,10 +420,13 @@ func CreateServiceRole(role *ServiceRole) error {
 	ctx := context.Background()
 
 	// Check if role with same name already exists in the service
+	// Search by both "service" (canonical) and "service_key" (legacy) fields
 	var existing ServiceRole
 	err := serviceRolesCol.FindOne(ctx, bson.M{
-		"service_key": role.ServiceKey,
-		"name":        role.Name,
+		"$or": []bson.M{
+			{"service": role.ServiceKey, "name": role.Name},
+			{"service_key": role.ServiceKey, "name": role.Name},
+		},
 	}).Decode(&existing)
 	if err == nil {
 		return fmt.Errorf("role '%s' already exists in service '%s'", role.Name, role.ServiceKey)
@@ -474,10 +478,13 @@ func UpdateServiceRole(role *ServiceRole) error {
 		bson.M{"_id": role.ID},
 		bson.M{
 			"$set": bson.M{
-				"name":        role.Name,
-				"description": role.Description,
-				"permissions": role.Permissions,
-				"updated_at":  role.UpdatedAt,
+				"service":         role.ServiceKey,
+				"name":            role.Name,
+				"description":     role.Description,
+				"permissions":     role.Permissions,
+				"role_type":       role.RoleType,
+				"managed_service": role.ManagedService,
+				"updatedAt":       role.UpdatedAt,
 			},
 		},
 	)

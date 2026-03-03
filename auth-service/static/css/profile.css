@@ -37,21 +37,23 @@
 
 /* Profile Container */
 .profile-container {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 0 20px;
 }
 
 .profile-header {
     background: var(--card-background-color);
-    border-radius: 12px;
-    padding: 30px;
-    margin-bottom: 30px;
+    border-radius: 0;
+    padding: 16px 30px;
+    margin-bottom: 0;
     display: flex;
     align-items: center;
-    gap: 30px;
-    box-shadow: var(--shadow-light);
-    border: 1px solid var(--light-border-color);
+    gap: 20px;
+    box-shadow: none;
+    border: none;
+    border-bottom: 1px solid var(--light-border-color);
+    flex-shrink: 0;
 }
 
 .avatar-section {
@@ -60,10 +62,10 @@
 
 .avatar {
     position: relative;
-    width: 120px;
-    height: 120px;
-    margin-bottom: 20px;
-    border-radius: 12px;
+    width: 70px;
+    height: 70px;
+    margin-bottom: 0;
+    border-radius: 10px;
     overflow: hidden;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -85,7 +87,7 @@
 
 .avatar i,
 .avatar #defaultAvatar {
-    font-size: 60px;
+    font-size: 36px;
     color: var(--lighter-text-color);
     display: flex;
     align-items: center;
@@ -141,19 +143,22 @@
 
 .user-info {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 .user-info h1 {
-    margin: 0 0 8px 0;
+    margin: 0 0 4px 0;
     color: var(--text-color);
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 600;
 }
 
 .user-email {
     color: var(--light-text-color);
-    font-size: 16px;
-    margin: 0 0 8px 0;
+    font-size: 14px;
+    margin: 0;
 }
 
 .user-role {
@@ -230,10 +235,9 @@
 .tab-content {
     background: var(--card-background-color);
     padding: 10px;
-    border-radius: 0 0 12px 12px;
+    /* border-radius: 12px 3px 3px 0; */
     box-shadow: var(--shadow-light);
     border: 1px solid var(--light-border-color);
-    border-top: none;
     display: none;
 }
 
@@ -1401,7 +1405,6 @@
     display: flex;
     gap: 15px;
     justify-content: flex-end;
-    margin-top: 30px;
     padding-top: 20px;
     border-top: 1px solid var(--light-border-color);
 }

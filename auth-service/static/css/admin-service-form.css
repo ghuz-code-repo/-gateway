@@ -31,7 +31,7 @@ body {
 .admin-content {
     flex: 1;
     /* Занимает всё оставшееся пространство */
-    overflow-y: auto;
+    overflow-y: hidden;
     /* Скролл только здесь при необходимости */
     overflow-x: hidden;
     padding: 20px;
@@ -78,7 +78,6 @@ body {
 /* Enhanced Form Styles for User Forms */
 .enhanced-user-form {
     max-width: 1200px;
-    margin: 20px auto;
     padding: 0;
     background: transparent;
     border-radius: 12px;
@@ -96,7 +95,7 @@ body {
 
 .enhanced-user-form .form-section {
     background: transparent;
-    padding: 30px;
+    /* padding: 30px; */
     border-radius: 0;
     border: none;
     border-bottom: 1px solid var(--border-color);
@@ -126,7 +125,7 @@ body {
 
 .enhanced-user-form .form-grid {
     display: grid;
-    gap: 25px;
+    gap: 5px;
     align-items: start;
 }
 
@@ -508,7 +507,7 @@ body {
     overflow-x: hidden;
     /* Убираем горизонтальный скролл */
     background-color: var(--card-background-color);
-    border-radius: 0 0 8px 8px;
+    /* border-radius: 12px 3px 3px 0; */
     padding: 20px;
     box-sizing: border-box;
     display: none;

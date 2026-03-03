@@ -284,6 +284,10 @@
             const hasResults = Object.values(categories).some(cat => cat.matches.length > 0);
             
             if (!hasResults) {
+                // Убираем заголовки категорий от предыдущего поиска
+                const usersGrid = document.getElementById('usersGrid');
+                const existingHeaders = usersGrid.querySelectorAll('.search-category-header');
+                existingHeaders.forEach(header => header.remove());
                 showNoUsersFoundMessage();
             } else {
                 hideNoUsersFoundMessage();

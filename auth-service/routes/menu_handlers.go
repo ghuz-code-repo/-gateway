@@ -184,17 +184,18 @@ func systemSettingsHandler(c *gin.Context) {
 		return
 	}
 
-	// All admins (GOD, admin, system.admin) have full access to all settings
+	// Compute capabilities based on actual permissions
+	isGod := hasAuthPermission(user, "auth.*")
 	c.HTML(http.StatusOK, "settings.html", gin.H{
 		"username":               user.Username,
 		"full_name":              user.GetFullName(),
 		"short_name":             user.GetShortName(),
 		"user":                   user,
-		"canManageUsers":         true,
-		"canManageServices":      true,
-		"canManageRoles":         true,
-		"canViewLogs":            true,
-		"canManageNotifications": true,
+		"canManageUsers":         isGod || hasAuthPermission(user, "auth.users.view") || hasAuthPermission(user, "auth.users.edit"),
+		"canManageServices":      isGod || hasAuthPermission(user, "auth.services.view") || hasAuthPermission(user, "auth.services.edit"),
+		"canManageRoles":         isGod || hasAuthPermission(user, "auth.roles.view") || hasAuthPermission(user, "auth.roles.edit"),
+		"canViewLogs":            isGod || hasAuthPermission(user, "auth.logs.view") || hasAuthPermission(user, "auth.logs.system.view"),
+		"canManageNotifications": isGod || hasAuthPermission(user, "auth.notifications.receive"),
 	})
 }
 

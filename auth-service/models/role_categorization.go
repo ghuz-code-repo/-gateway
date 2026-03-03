@@ -43,12 +43,20 @@ func GetAuthServiceInternalRoles() ([]RoleWithUsers, error) {
 // GetInternalServiceRoles returns internal roles defined within a service
 // These are roles for end-users of the service (NOT for managing the service from auth)
 func GetInternalServiceRoles(serviceKey string) ([]RoleWithUsers, error) {
-	// For now, services don't have their own internal roles
-	// They use auth-service roles
-	// This function is a placeholder for future when services have their own role systems
+	// Get all roles for the service, then filter to internal only
+	allRoles, err := GetRolesWithUserCount(serviceKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get roles for service %s: %v", serviceKey, err)
+	}
 
-	// Return empty for now
-	return []RoleWithUsers{}, nil
+	var internalRoles []RoleWithUsers
+	for _, role := range allRoles {
+		if role.IsInternal() {
+			internalRoles = append(internalRoles, role)
+		}
+	}
+
+	return internalRoles, nil
 }
 
 // GetUserRolesByCategory categorizes a user's roles into auth-service, external, and internal

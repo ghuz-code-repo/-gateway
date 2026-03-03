@@ -5,22 +5,120 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/admin-service-form.css">
+    <link rel="stylesheet" href="/static/css/user-form.css">
     <link rel="stylesheet" href="/static/css/profile.css">
     <link rel="stylesheet" href="/static/css/smart-phone-input.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <style>
-      body {
-        visibility: hidden;
-        opacity: 0;
-        transition: opacity .05s ease-in-out;
-      }
+        body {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity .05s ease-in-out;
+            overflow: hidden !important;
+            height: 100vh !important;
+        }
+        
+        body .admin-page-container {
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* Tabbed Interface Styles */
+        .tabs-container {
+            margin-top: 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+        
+        .tabs-nav {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid rgba(196, 166, 104, 0.2);
+            margin-bottom: 0;
+            flex-shrink: 0;
+            padding: 0 30px;
+            background: var(--card-background-color);
+        }
+        
+        .tab-btn {
+            padding: 1rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .tab-btn:hover {
+            color: var(--accent-gold);
+            background: rgba(196, 166, 104, 0.05);
+        }
+        
+        .tab-btn.active {
+            color: var(--accent-gold);
+        }
+        
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent-gold);
+        }
+        
+        .tab-btn .badge {
+            background: rgba(196, 166, 104, 0.2);
+            color: var(--accent-gold);
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 1rem 30px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .tab-content.active {
+            display: block;
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-role {
+            color: var(--light-text-color);
+            font-size: 13px;
+            margin: 0;
+            line-height: 1.4;
+        }
     </style>
 </head>
 <body>
     <script>
         (function() {
-            // Cookie function
             function getCookie(name) {
                 const nameEQ = name + "=";
                 const ca = document.cookie.split(';');
@@ -31,30 +129,20 @@
                 }
                 return null;
             }
-            
-            // Определение системной темы
             function getSystemTheme() {
                 if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                     return 'dark';
                 }
                 return 'light';
             }
-
             const cookieTheme = getCookie('gh_theme');
-            let theme;
-            
-            if (cookieTheme) {
-                // Используем сохраненную тему пользователя
-                theme = cookieTheme;
-            } else {
-                // Первый визит - используем системную тему
-                theme = getSystemTheme();
-            }
-            
+            const theme = cookieTheme ? cookieTheme : getSystemTheme();
             if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
                 document.documentElement.classList.add('dark-theme');
             } else {
                 document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
             }
             requestAnimationFrame(() => {
                 document.body.style.visibility = 'visible';
@@ -62,149 +150,202 @@
             });
         })();
     </script>
+    
     <div id="particles-js"></div>
     {{ template "header" . }}
-
-    <div class="container">
-        <!-- Breadcrumb navigation -->
-        <nav class="breadcrumb-nav">
-            <a href="/menu" class="breadcrumb-link">
-                <i class="fas fa-home"></i>
-                Главная
-            </a>
-            <span class="breadcrumb-separator">/</span>
-            <span class="breadcrumb-current">Профиль</span>
-        </nav>
-
-        <div class="profile-container">
-            <div class="profile-header">
-                <div class="avatar-section">
-                    <div class="avatar" id="avatarContainer">
-                        {{ if .user.AvatarPath }}
-                            <img src="{{ .user.AvatarPath }}?v={{ .timestamp }}" alt="Аватар" id="avatarImage">
-                        {{ else }}
-                            <i class="fas fa-user-circle" id="defaultAvatar"></i>
-                        {{ end }}
-                        <div class="avatar-overlay" id="avatarOverlay">
-                            <i class="fas fa-plus"></i>
-                        </div>
-                    </div>
-                    <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+    
+    <div class="admin-page-container">
+        <div class="admin-content">
+            <div class="profile-container">
+                <div class="enhanced-user-form">
+                <div class="page-title-section">
+                    <h1>{{ .title }}</h1>
                 </div>
-                <div class="user-info">
-                    <h1>{{ .user.GetFullName }}</h1>
-                    <p class="user-email">{{ .user.Email }}</p>
-                    <p class="user-role">
-                        {{ if .userRoles }}
-                            {{ range $serviceIndex, $serviceRole := .userRoles }}
-                                {{ if $serviceIndex }} | {{ end }}
-                                {{ $serviceRole.ServiceName }}:
-                                {{ range $roleIndex, $role := $serviceRole.Roles }}
-                                    {{ if $roleIndex }}, {{ end }}
-                                    {{ if eq $role "admin" }}Администратор{{ else if eq $role "user" }}Пользователь{{ else }}{{ $role }}{{ end }}
-                                {{ end }}
+                
+                <!-- User Header с аватаром -->
+                <div class="profile-header">
+                    <div class="avatar-section">
+                        <div class="avatar" id="avatarContainer">
+                            {{ if .user.AvatarPath }}
+                                <img src="{{ .user.AvatarPath }}?v={{ .timestamp }}" alt="Аватар" id="avatarImage">
+                            {{ else }}
+                                <i class="fas fa-user-circle" id="defaultAvatar"></i>
                             {{ end }}
-                        {{ else }}
-                            Пользователь
-                        {{ end }}
-                    </p>
+                            <div class="avatar-overlay" id="avatarOverlay">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                        </div>
+                        <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="user-info">
+                        <h1>{{ .user.GetFullName }}</h1>
+                        <p class="user-email">{{ .user.Email }}</p>
+                        <p class="user-role">
+                            {{ if .userRoles }}
+                                {{ range $serviceIndex, $serviceRole := .userRoles }}
+                                    {{ if $serviceIndex }} | {{ end }}
+                                    {{ $serviceRole.ServiceName }}:
+                                    {{ range $roleIndex, $role := $serviceRole.Roles }}
+                                        {{ if $roleIndex }}, {{ end }}
+                                        {{ if eq $role "admin" }}Администратор{{ else if eq $role "user" }}Пользователь{{ else }}{{ $role }}{{ end }}
+                                    {{ end }}
+                                {{ end }}
+                            {{ else }}
+                                Пользователь
+                            {{ end }}
+                        </p>
+                    </div>
                 </div>
-            </div>
-
-            <div class="tabs">
-                <button class="tab-button active" data-tab="personal-info">
-                    <i class="fas fa-user"></i>
-                    Личная информация
-                </button>
-                <button class="tab-button" data-tab="documents">
-                    <i class="fas fa-file-alt"></i>
-                    Документы
-                </button>
-                <button class="tab-button" data-tab="security">
-                    <i class="fas fa-shield-alt"></i>
-                    Безопасность
-                </button>
-            </div>
-
-            <div id="personal-info" class="tab-content active">
-                <h2>Персональная информация</h2>
-                <form class="profile-form" id="profileForm">
-                    <div class="form-group">
-                        <label for="lastName">Фамилия *</label>
-                        <input type="text" id="lastName" name="lastName" value="{{ .user.LastName }}" required>
+                
+                <!-- Tabbed Interface -->
+                <div class="tabs-container">
+                    <div class="tabs-nav">
+                        <button type="button" class="tab-btn active" data-tab="personal-info">
+                            <i class="fas fa-user"></i>
+                            Личная информация
+                        </button>
+                        <button type="button" class="tab-btn" data-tab="documents">
+                            <i class="fas fa-file-alt"></i>
+                            Документы
+                        </button>
+                        <button type="button" class="tab-btn" data-tab="security">
+                            <i class="fas fa-shield-alt"></i>
+                            Безопасность
+                        </button>
                     </div>
-                    <div class="form-group">
-                        <label for="firstName">Имя *</label>
-                        <input type="text" id="firstName" name="firstName" value="{{ .user.FirstName }}" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="middleName">Отчество</label>
-                        <input type="text" id="middleName" name="middleName" value="{{ .user.MiddleName }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="suffix">Суффикс</label>
-                        <input type="text" id="suffix" name="suffix" value="{{ .user.Suffix }}" placeholder="Jr., Sr., III и т.д.">
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" value="{{ .user.Email }}" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="phone">Телефон</label>
-                        <div class="smart-phone-input">
-                            <input type="tel" id="phone" name="phone" value="{{ .user.Phone }}" placeholder="+998">
+                    
+                        <!-- Tab: Personal Info -->
+                        <div class="tab-content active" id="tab-personal-info">
+                            <div class="form-sections">
+                                <div class="form-section">
+                                    <h3 class="section-title">
+                                        <i class="fas fa-id-card"></i>
+                                        Персональная информация
+                                    </h3>
+                                    
+                                    <form class="profile-form" id="profileForm">
+                                        <div class="form-grid">
+                                            <div class="form-group">
+                                                <label for="lastName" class="required">Фамилия</label>
+                                                <input type="text" id="lastName" name="lastName" value="{{ .user.LastName }}" required>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="firstName" class="required">Имя</label>
+                                                <input type="text" id="firstName" name="firstName" value="{{ .user.FirstName }}" required>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="middleName">Отчество</label>
+                                                <input type="text" id="middleName" name="middleName" value="{{ .user.MiddleName }}">
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="suffix">Суффикс</label>
+                                                <input type="text" id="suffix" name="suffix" value="{{ .user.Suffix }}" placeholder="Jr., Sr., III и т.д.">
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="email" class="required">Email</label>
+                                                <input type="email" id="email" name="email" value="{{ .user.Email }}" required>
+                                                <span class="help-text">Может быть использован для входа в систему</span>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="phone">Телефон</label>
+                                                <div class="smart-phone-input">
+                                                    <input type="tel" id="phone" name="phone" value="{{ .user.Phone }}" placeholder="+998 12 345 67 89">
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="position">Должность</label>
+                                                <input type="text" id="position" name="position" value="{{ .user.Position }}">
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="department">Отдел</label>
+                                                <input type="text" id="department" name="department" value="{{ .user.Department }}">
+                                            </div>
+                                        </div>
+                                        
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab: Documents -->
+                        <div class="tab-content" id="tab-documents">
+                            <div class="form-sections">
+                                <div class="form-section">
+                                    <div class="documents-header">
+                                        <h3 class="section-title">
+                                            <i class="fas fa-file-alt"></i>
+                                            Мои документы
+                                        </h3>
+                                        <button type="button" class="btn btn-primary" id="addDocumentBtn" data-modal="documentModal">
+                                            <i class="fas fa-plus"></i>
+                                            Добавить документ
+                                        </button>
+                                    </div>
+                                    <div class="documents-grid" id="documentsGrid">
+                                        <!-- Документы будут загружены через JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab: Security -->
+                        <div class="tab-content" id="tab-security">
+                            <div class="form-sections">
+                                <div class="form-section">
+                                    <h3 class="section-title">
+                                        <i class="fas fa-shield-alt"></i>
+                                        Смена пароля
+                                    </h3>
+                                    
+                                    <form class="profile-form" id="passwordForm">
+                                        <div class="form-grid">
+                                            <div class="form-group">
+                                                <label for="currentPassword" class="required">Текущий пароль</label>
+                                                <input type="password" id="currentPassword" name="currentPassword" required>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="newPassword" class="required">Новый пароль</label>
+                                                <input type="password" id="newPassword" name="newPassword" required>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="confirmPassword" class="required">Подтвердите новый пароль</label>
+                                                <input type="password" id="confirmPassword" name="confirmPassword" required>
+                                            </div>
+                                        </div>
+                                        
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    
+                    <!-- Fixed footer -->
+                    <div class="form-actions" id="profileFooter">
+                        <div class="left-actions"></div>
+                        <div class="right-actions">
+                            <button type="button" class="btn btn-primary" id="footerSaveProfile" onclick="document.getElementById('profileForm').requestSubmit()">
+                                <i class="fas fa-save"></i>
+                                Сохранить изменения
+                            </button>
+                            <button type="button" class="btn btn-primary" id="footerChangePassword" style="display:none" onclick="document.getElementById('passwordForm').requestSubmit()">
+                                <i class="fas fa-key"></i>
+                                Изменить пароль
+                            </button>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="position">Должность</label>
-                        <input type="text" id="position" name="position" value="{{ .user.Position }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="department">Отдел</label>
-                        <input type="text" id="department" name="department" value="{{ .user.Department }}">
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i>
-                        Сохранить изменения
-                    </button>
-                </form>
-            </div>
-
-            <div id="documents" class="tab-content">
-                <div class="documents-header">
-                    <h2>Мои документы</h2>
-                    <button class="btn btn-primary" id="addDocumentBtn" data-modal="documentModal">
-                        <i class="fas fa-plus"></i>
-                        Добавить документ
-                    </button>
                 </div>
-                <div class="documents-grid" id="documentsGrid">
-                    <!-- Документы будут загружены через JavaScript -->
-                </div>
-            </div>
-
-            <div id="security" class="tab-content">
-                <h2>Безопасность</h2>
-                <form class="profile-form" id="passwordForm">
-                    <div class="form-group">
-                        <label for="currentPassword">Текущий пароль</label>
-                        <input type="password" id="currentPassword" name="currentPassword" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="newPassword">Новый пароль</label>
-                        <input type="password" id="newPassword" name="newPassword" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="confirmPassword">Подтвердите новый пароль</label>
-                        <input type="password" id="confirmPassword" name="confirmPassword" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-key"></i>
-                        Изменить пароль
-                    </button>
-                </form>
             </div>
         </div>
+    </div>
+    </div>
     </div>
 
     <!-- Модальное окно для добавления документа -->
@@ -235,16 +376,11 @@
                     <small class="form-help">Выберите сервисы, где этот документ может использоваться.</small>
                 </div>
                 <div id="documentFields" class="document-fields">
-                    <!-- Поля документа будут загружены динамически -->
                 </div>
-                <!-- Единая секция управления файлами для создания -->
                 <div class="form-group">
                     <label>Файлы документа (необязательно)</label>
                     <div id="newDocumentFilesArea" class="unified-files-area">
-                        <!-- Новые файлы будут отображаться здесь -->
                         <div id="newFilesContainer" class="files-container">
-                            <!-- Файлы будут добавлены динамически -->
-                            <!-- Кнопка + будет добавлена сюда JavaScript'ом -->
                         </div>
                         <div id="newEmptyState" class="empty-files-state">
                             <i class="fas fa-cloud-upload-alt"></i>
@@ -281,7 +417,6 @@
                     <small class="form-help">Тип документа нельзя изменить после создания</small>
                 </div>
                 
-                <!-- Выбор сервисов для документа -->
                 <div class="form-group">
                     <label for="editAllowedServicesSelect">Использовать документ в сервисах <span class="required">*</span></label>
                     <div class="custom-multiselect" id="editAllowedServicesMultiselect">
@@ -296,13 +431,10 @@
                     <small class="form-help">Выберите сервисы, где этот документ может быть использован.</small>
                 </div>
                 <div id="editDocumentFields" class="document-fields">
-                    <!-- Поля документа будут загружены динамически -->
                 </div>
                 
-                <!-- Единая секция управления файлами -->
                 <div class="form-group">
                     <label>Файлы документа</label>
-                    <!-- Панель массовых операций -->
                     <div id="bulkActionsPanel" class="bulk-actions-panel" style="display: none;">
                         <div class="bulk-actions-controls">
                             <label class="select-all-label">
@@ -318,10 +450,7 @@
                         </div>
                     </div>
                     <div id="editDocumentFilesArea" class="unified-files-area">
-                        <!-- Загруженные и новые файлы будут отображаться здесь -->
                         <div id="editFilesContainer" class="files-container">
-                            <!-- Файлы будут загружены динамически -->
-                            <!-- Кнопка + будет добавлена сюда JavaScript'ом -->
                         </div>
                         <div id="editEmptyState" class="empty-files-state">
                             <i class="fas fa-cloud-upload-alt"></i>
@@ -426,7 +555,6 @@
     </script>
 
     <!-- Particles.js -->
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
     <script src="/static/js/particles-config.js"></script>
     
     <!-- Theme switcher and layout adjustments -->
@@ -440,70 +568,76 @@
     <script src="/static/js/phone-config.js"></script>
     <script src="/static/js/smart-phone-input.js"></script>
     
+    <!-- Tab switching logic -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (this.classList.contains('disabled')) return;
+                
+                tabBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+                const tabId = 'tab-' + this.getAttribute('data-tab');
+                const targetTab = document.getElementById(tabId);
+                if (targetTab) targetTab.classList.add('active');
+                
+                // Toggle footer buttons based on active tab
+                const footer = document.getElementById('profileFooter');
+                const saveBtn = document.getElementById('footerSaveProfile');
+                const passBtn = document.getElementById('footerChangePassword');
+                const tabName = this.getAttribute('data-tab');
+                if (tabName === 'documents') {
+                    footer.style.display = 'none';
+                } else {
+                    footer.style.display = '';
+                    saveBtn.style.display = tabName === 'personal-info' ? '' : 'none';
+                    passBtn.style.display = tabName === 'security' ? '' : 'none';
+                }
+            });
+        });
+    });
+    </script>
+    
     <!-- Initialize Smart Phone Input and Avatar Crop -->
     <script>
-        // Initialize after all scripts are loaded
         window.addEventListener('load', function() {
-            console.log('Window loaded, initializing components...');
-            
-            // Initialize Smart Phone Input FIRST (независимо от AvatarCrop)
+            // Initialize Smart Phone Input
             const phoneInput = document.getElementById('phone');
-            console.log('phoneInput element:', phoneInput);
-            console.log('window.SmartPhoneInput:', window.SmartPhoneInput);
-            console.log('window.PhoneConfig:', window.PhoneConfig);
-            
             if (phoneInput && window.SmartPhoneInput && window.PhoneConfig) {
-                console.log('Initializing SmartPhoneInput...');
                 try {
                     window.smartPhoneInstance = new SmartPhoneInput(phoneInput, {
                         enableGeolocation: true,
                         showUnsupportedNotification: true
                     });
-                    console.log('SmartPhoneInput initialized successfully');
                 } catch (error) {
                     console.error('SmartPhoneInput initialization error:', error);
                 }
-            } else {
-                console.warn('SmartPhoneInput: Missing dependencies or phone input element');
-                console.warn('- phoneInput:', phoneInput);
-                console.warn('- SmartPhoneInput class:', window.SmartPhoneInput);
-                console.warn('- PhoneConfig:', window.PhoneConfig);
             }
             
-            // Check if AvatarCrop is already initialized
-            if (window.avatarCropInstance) {
-                console.log('AvatarCrop already initialized, skipping...');
-                return;
-            }
+            // Initialize AvatarCrop
+            if (window.avatarCropInstance) return;
             
-            // Initialize AvatarCrop if elements exist
             const avatarContainer = document.getElementById('avatarContainer');
             const avatarInput = document.getElementById('avatarInput');
             const cropModal = document.getElementById('cropModal');
             
-            console.log('Avatar elements check:');
-            console.log('- avatarContainer:', avatarContainer);
-            console.log('- avatarInput:', avatarInput);
-            console.log('- cropModal:', cropModal);
-            
             if (avatarContainer && avatarInput && cropModal) {
                 try {
-                    console.log('Initializing AvatarCrop from template...');
                     const avatarCrop = new AvatarCrop();
-                    window.avatarCrop = avatarCrop; // Make it globally accessible for debugging
-                    console.log('AvatarCrop initialized successfully');
+                    window.avatarCrop = avatarCrop;
                 } catch (error) {
                     console.error('AvatarCrop initialization error:', error);
                 }
-            } else {
-                console.warn('AvatarCrop: Some elements not found, skipping initialization');
             }
         });
     </script>
     <script>
     particlesJS('particles-js', {
         "particles": {
-            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
             "color": { "value": "#c4a668" },
             "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
             "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },

@@ -127,6 +127,16 @@ func showUserFormHandler(c *gin.Context) {
 func createUserHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 
+	// SECURITY: Check permission to create users
+	if !hasAuthPermission(user, "auth.users.create") && !hasAuthPermission(user, "auth.*") {
+		if c.Request.Method == "GET" {
+			c.Redirect(http.StatusFound, "/access-denied")
+			return
+		}
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для создания пользователей"})
+		return
+	}
+
 	if c.Request.Method == "GET" {
 		roles, _ := models.GetSystemRoles()
 		c.HTML(http.StatusOK, "user_form.html", gin.H{
@@ -201,19 +211,27 @@ func createUserHandler(c *gin.Context) {
 
 	// Assign service roles
 	// First, assign system admin role if needed
+	// SECURITY: Only system admins can grant system admin
 	if systemAdmin == "true" {
-		adminRole := models.UserServiceRole{
-			UserID:     userID,
-			ServiceKey: "auth",
-			RoleName:   "admin",
-			AssignedAt: time.Now(),
-			AssignedBy: user.ID,
-			IsActive:   true,
-		}
-		if err := models.CreateUserServiceRole(adminRole); err != nil {
-			log.Printf("Warning: Failed to assign admin role to user %s: %v", userID.Hex(), err)
+		if !models.IsSystemAdmin(user.ID) {
+			log.Printf("SECURITY: User %s attempted to grant system admin to new user %s without permission", user.Username, userID.Hex())
+		} else {
+			adminRole := models.UserServiceRole{
+				UserID:     userID,
+				ServiceKey: "auth",
+				RoleName:   "admin",
+				AssignedAt: time.Now(),
+				AssignedBy: user.ID,
+				IsActive:   true,
+			}
+			if err := models.CreateUserServiceRole(adminRole); err != nil {
+				log.Printf("Warning: Failed to assign admin role to user %s: %v", userID.Hex(), err)
+			}
 		}
 	}
+
+	// SECURITY: Check permission to assign roles
+	canAssignRoles := hasAuthPermission(user, "auth.users.assign_roles") || hasAuthPermission(user, "auth.*")
 
 	// Then assign selected service roles
 	for _, serviceRole := range serviceRoles {
@@ -221,6 +239,18 @@ func createUserHandler(c *gin.Context) {
 		if len(parts) == 2 {
 			serviceKey := parts[0]
 			roleName := parts[1]
+
+			// SECURITY: Check per-service role assignment permission
+			if !canAssignRoles {
+				if serviceKey == "auth" {
+					log.Printf("SECURITY: User %s cannot assign auth roles without auth.users.assign_roles", user.Username)
+					continue
+				}
+				if !hasAuthPermission(user, "auth."+serviceKey+".roles.assign") && !hasAuthPermission(user, "auth."+serviceKey+".*") {
+					log.Printf("SECURITY: User %s cannot assign roles for service %s", user.Username, serviceKey)
+					continue
+				}
+			}
 
 			userServiceRole := models.UserServiceRole{
 				UserID:     userID,
@@ -359,6 +389,12 @@ func updateUserHandler(c *gin.Context) {
 	// Get current user for logging
 	currentUser := c.MustGet("user").(*models.User)
 
+	// SECURITY: Check permission to edit users
+	if !hasAuthPermission(currentUser, "auth.users.edit") && !hasAuthPermission(currentUser, "auth.*") {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для редактирования пользователей"})
+		return
+	}
+
 	// Extract form data
 	username := c.PostForm("username")
 	email := c.PostForm("email")
@@ -466,21 +502,29 @@ func updateUserHandler(c *gin.Context) {
 	assignedCount := 0
 
 	// Assign system admin role via user_service_roles if needed
+	// SECURITY: Only system admins (GOD/admin) can grant system admin
 	if systemAdmin == "true" {
-		adminRole := models.UserServiceRole{
-			UserID:     objectID,
-			ServiceKey: "auth",
-			RoleName:   "admin",
-			AssignedAt: time.Now(),
-			AssignedBy: currentUser.ID,
-			IsActive:   true,
-		}
-		if err := models.CreateUserServiceRole(adminRole); err != nil {
-			log.Printf("Warning: Failed to assign admin role to user %s: %v", objectID.Hex(), err)
+		if !models.IsSystemAdmin(currentUser.ID) {
+			log.Printf("SECURITY: User %s attempted to grant system admin to user %s without permission", currentUser.Username, objectID.Hex())
 		} else {
-			assignedCount++
+			adminRole := models.UserServiceRole{
+				UserID:     objectID,
+				ServiceKey: "auth",
+				RoleName:   "admin",
+				AssignedAt: time.Now(),
+				AssignedBy: currentUser.ID,
+				IsActive:   true,
+			}
+			if err := models.CreateUserServiceRole(adminRole); err != nil {
+				log.Printf("Warning: Failed to assign admin role to user %s: %v", objectID.Hex(), err)
+			} else {
+				assignedCount++
+			}
 		}
 	}
+
+	// SECURITY: Check permission to assign roles
+	canAssignRoles := hasAuthPermission(currentUser, "auth.users.assign_roles") || hasAuthPermission(currentUser, "auth.*")
 
 	for _, serviceRole := range serviceRoles {
 		log.Printf("DEBUG: Processing service role: %s", serviceRole)
@@ -502,6 +546,18 @@ func updateUserHandler(c *gin.Context) {
 		}
 
 		if serviceKey != "" && roleName != "" {
+			// SECURITY: Check per-service role assignment permission
+			if !canAssignRoles {
+				// For non-global role assigners, check service-specific permission
+				if serviceKey == "auth" {
+					log.Printf("SECURITY: User %s cannot assign auth roles without auth.users.assign_roles", currentUser.Username)
+					continue
+				}
+				if !hasAuthPermission(currentUser, "auth."+serviceKey+".roles.assign") && !hasAuthPermission(currentUser, "auth."+serviceKey+".*") {
+					log.Printf("SECURITY: User %s cannot assign roles for service %s", currentUser.Username, serviceKey)
+					continue
+				}
+			}
 
 			log.Printf("DEBUG: Assigning role %s:%s to user %s", serviceKey, roleName, objectID.Hex())
 
@@ -812,6 +868,13 @@ func usersManagementHandler(c *gin.Context) {
 
 // sendPasswordResetHandler sends password reset token to user's email (admin only)
 func sendPasswordResetHandler(c *gin.Context) {
+	// SECURITY: Check permission to reset passwords
+	currentUser := c.MustGet("user").(*models.User)
+	if !hasAuthPermission(currentUser, "auth.users.reset_password") && !hasAuthPermission(currentUser, "auth.*") {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для сброса пароля"})
+		return
+	}
+
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {

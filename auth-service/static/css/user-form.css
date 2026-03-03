@@ -2,28 +2,51 @@
 
 /* Note: body visibility is controlled via inline styles in HTML template */
 
+/* Override parent containers when enhanced-user-form is present */
+.admin-page-container:has(.enhanced-user-form) {
+    flex: 1;
+    overflow: hidden;
+}
+
+.admin-content:has(.enhanced-user-form) {
+    width: 100%;
+    max-width: 100%;
+}
+
+.profile-container:has(.enhanced-user-form) {
+    width: 100%;
+    max-width: 100%;
+    padding: 0 40px;
+    display: flex;
+    justify-content: center;
+}
+
 .enhanced-user-form {
-    max-width: 1400px;
+    max-width: 1200px;
     width: 100%;
     /* margin: 0 auto; */
-    padding: 30px;
+    padding: 0;
     background: var(--card-background-color);
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    /* overflow: auto; */
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 100px);
+    overflow: hidden;
 }
 
 .page-title-section {
-    margin-bottom: 30px;
+    margin-bottom: 0;
     border-bottom: 2px solid var(--primary-color);
-    padding-bottom: 15px;
+    padding: 20px 30px 12px;
     text-align: center;
+    flex-shrink: 0;
 }
 
 .page-title-section h1 {
     color: var(--text-color);
-    font-size: 28px;
-    margin: 0;
+    font-size: 24px;
+    margin: 0 0 8px 0;
 }
 
 .flash-message {
@@ -48,12 +71,12 @@
 .form-sections {
     display: flex;
     flex-direction: column;
-    gap: 30px;
+    gap: 20px;
 }
 
 .form-section {
     background: var(--section-background);
-    padding: 25px;
+    padding: 5px, 0px;
     border-radius: 10px;
     border: 1px solid var(--border-color);
 }
@@ -455,8 +478,12 @@
     justify-content: space-between;
     align-items: center;
     gap: 15px;
-    padding-top: 30px;
+    padding: 16px 30px;
     border-top: 2px solid var(--border-color);
+    flex-shrink: 0;
+    margin-top: auto;
+    background: var(--card-background-color);
+    border-radius: 0 0 12px 12px;
 }
 
 .form-actions .left-actions {

@@ -14,13 +14,9 @@ function adjustContainerPadding() {
     const containers = document.querySelectorAll('.container');
 
     if (header && containers.length > 0) {
-        const headerHeight = header.offsetHeight;
-        containers.forEach(container => {
-            // Only adjust if it's not part of the single-page admin interface
-            if (!container.closest('.admin-page-container')) {
-                container.style.paddingTop = headerHeight + 20 + 'px';
-            }
-        });
+        // Header is no longer position:fixed, so padding adjustment is not needed
+        // Keeping the function for backward compatibility but skipping the adjustment
+        return;
     }
 }
 

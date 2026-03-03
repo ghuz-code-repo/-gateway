@@ -74,7 +74,8 @@ func SetupAuthRoutes(router *gin.Engine) {
 	router.POST("/login", RateLimitMiddleware(), loginHandler) // Rate limiting for login
 	router.GET("/logout", logoutHandler)
 	router.GET("/verify", verifyHandler)
-	router.GET("/verify-admin", verifyAdminHandler) // Admin-only verification
+	router.GET("/verify-admin", verifyAdminHandler)            // Admin-only verification
+	router.GET("/verify-logs-access", verifyLogsAccessHandler) // Logs access verification for nginx auth_request
 	router.GET("/access-denied", accessDeniedHandler)
 
 	// Password recovery routes
@@ -163,7 +164,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 	// Service-specific management (service admin or system admin)
 	router.GET("/services/:serviceKey", serviceAdminAuthRequired(), getServiceHandlerWithAccess)
 	router.POST("/services/:serviceKey", serviceAdminAuthRequired(), updateServiceHandlerWithAccess)
-	router.POST("/services/:serviceKey/delete", serviceAdminAuthRequired(), deleteServiceHandler)   // Soft delete
+	router.POST("/services/:serviceKey/delete", adminAuthRequired(), deleteServiceHandler)          // Soft delete (system admin only)
 	router.POST("/services/:serviceKey/restore", adminAuthRequired(), restoreServiceHandler)        // Restore soft-deleted service (system admin only)
 	router.POST("/services/:serviceKey/hard-delete", adminAuthRequired(), hardDeleteServiceHandler) // Permanent delete (system admin only)
 	router.POST("/services/:serviceKey/permissions", serviceAdminAuthRequired(), addServicePermissionHandler)
@@ -179,6 +180,8 @@ func SetupAdminRoutes(router *gin.Engine) {
 	router.POST("/services/:serviceKey/assign-role", serviceAdminAuthRequired(), assignUserToServiceRoleHandler)
 
 	// External roles management (roles in auth-service that control access to external services)
+	router.GET("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), getExternalRoleHandler)
+	router.GET("/services/:serviceKey/external-roles/:roleName/users", serviceAdminAuthRequired(), getExternalRoleUsersHandler)
 	router.POST("/services/:serviceKey/external-roles", serviceAdminAuthRequired(), createExternalRoleHandler)
 	router.PUT("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), updateExternalRoleHandler)
 	router.DELETE("/services/:serviceKey/external-roles/:roleName", serviceAdminAuthRequired(), deleteExternalRoleHandler)
@@ -203,8 +206,17 @@ func SetupAdminRoutes(router *gin.Engine) {
 	migration.Use(adminAuthRequired())
 	{
 		migration.GET("/", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "Migration endpoints not implemented yet"})
+			c.JSON(200, gin.H{"status": "Migration endpoints available", "endpoints": []string{
+				"POST /migration/run - Run ADR-001 schema migration",
+				"POST /migration/validate - Validate migration",
+				"POST /migration/rollback - Rollback migration",
+				"POST /migration/cleanup - Cleanup orphaned user_service_roles",
+			}})
 		})
+		migration.POST("/run", runMigrationHandler)
+		migration.POST("/validate", validateMigrationHandler)
+		migration.POST("/rollback", rollbackMigrationHandler)
+		migration.POST("/cleanup", cleanupOrphanedDataHandler)
 	}
 }
 
