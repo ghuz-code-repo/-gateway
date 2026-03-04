@@ -58,6 +58,10 @@ func registerServiceInstanceHandler(c *gin.Context) {
 }
 
 // unregisterServiceInstanceHandler handles DELETE /api/registry/unregister/:serviceKey
+// NOTE: We intentionally do NOT regenerate nginx config on deregister.
+// The service route should persist so that nginx returns 502 (bad gateway)
+// instead of 404 when a service is temporarily down. This prevents
+// container restarts from breaking nginx routing for all services.
 func unregisterServiceInstanceHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
 	containerName := c.Query("container_name")
@@ -74,10 +78,9 @@ func unregisterServiceInstanceHandler(c *gin.Context) {
 		return
 	}
 
-	// Trigger nginx config regeneration
-	if err := regenerateNginxConfig(); err != nil {
-		log.Printf("Warning: Failed to regenerate nginx config: %v", err)
-	}
+	// Do NOT regenerate nginx config here — keep the service route alive
+	// so users see 502 instead of 404 during restarts.
+	log.Printf("Service instance deregistered: %s (%s). Nginx config NOT changed (route persists).", serviceKey, containerName)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Service instance unregistered successfully"})
 }
@@ -160,13 +163,13 @@ func startHealthCheckMonitor() {
 
 // ServiceHealthStatus represents the health status of a service
 type ServiceHealthStatus struct {
-	ServiceKey      string    `json:"service_key"`
-	ServiceName     string    `json:"service_name"`
-	ExternalPrefix  string    `json:"external_prefix"`
-	Status          string    `json:"status"`           // "healthy", "unhealthy", "offline"
-	LastHeartbeat   time.Time `json:"last_heartbeat"`
-	HasActiveInstance bool    `json:"has_active_instance"`
-	HealthCheckURL  string    `json:"health_check_url,omitempty"`
+	ServiceKey        string    `json:"service_key"`
+	ServiceName       string    `json:"service_name"`
+	ExternalPrefix    string    `json:"external_prefix"`
+	Status            string    `json:"status"` // "healthy", "unhealthy", "offline"
+	LastHeartbeat     time.Time `json:"last_heartbeat"`
+	HasActiveInstance bool      `json:"has_active_instance"`
+	HealthCheckURL    string    `json:"health_check_url,omitempty"`
 }
 
 // getServicesHealthHandler handles GET /api/services/health
@@ -201,7 +204,7 @@ func getServicesHealthHandler(c *gin.Context) {
 
 		// Build external prefix from service key
 		externalPrefix := "/" + service.Key
-		
+
 		status := ServiceHealthStatus{
 			ServiceKey:        service.Key,
 			ServiceName:       service.Name,
@@ -219,7 +222,7 @@ func getServicesHealthHandler(c *gin.Context) {
 
 			// Determine status based on instance status and last heartbeat
 			timeSinceHeartbeat := time.Since(instance.LastHeartbeat)
-			
+
 			if instance.Status == "active" && timeSinceHeartbeat < 1*time.Minute {
 				status.Status = "healthy" // Green
 			} else if instance.Status == "active" && timeSinceHeartbeat < 2*time.Minute {

@@ -15,15 +15,15 @@ import (
 // ServiceInstance represents a running instance of a service
 type ServiceInstance struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ServiceKey      string             `bson:"service_key" json:"service_key" validate:"required"` // Links to Service.Key
-	ContainerName   string             `bson:"container_name" json:"container_name"`               // Docker container name
+	ServiceKey      string             `bson:"service_key" json:"service_key" validate:"required"`   // Links to Service.Key
+	ContainerName   string             `bson:"container_name" json:"container_name"`                 // Docker container name
 	InternalURL     string             `bson:"internal_url" json:"internal_url" validate:"required"` // e.g., "http://referal:80"
-	ExternalPrefix  string             `bson:"external_prefix" json:"external_prefix"`             // e.g., "/referal" (from Service.Key)
-	HealthCheckPath string             `bson:"health_check_path" json:"health_check_path"`         // e.g., "/health"
-	Status          string             `bson:"status" json:"status"`                               // "active", "unhealthy", "stopped"
+	ExternalPrefix  string             `bson:"external_prefix" json:"external_prefix"`               // e.g., "/referal" (from Service.Key)
+	HealthCheckPath string             `bson:"health_check_path" json:"health_check_path"`           // e.g., "/health"
+	Status          string             `bson:"status" json:"status"`                                 // "active", "unhealthy", "stopped"
 	RegisteredAt    time.Time          `bson:"registered_at" json:"registered_at"`
 	LastHeartbeat   time.Time          `bson:"last_heartbeat" json:"last_heartbeat"`
-	Metadata        map[string]string  `bson:"metadata,omitempty" json:"metadata,omitempty"`       // Additional service info
+	Metadata        map[string]string  `bson:"metadata,omitempty" json:"metadata,omitempty"` // Additional service info
 }
 
 // RegisterServiceInstance registers a new service instance in the registry
@@ -165,6 +165,29 @@ func GetActiveServiceInstances() ([]ServiceInstance, error) {
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch active instances: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var instances []ServiceInstance
+	if err = cursor.All(ctx, &instances); err != nil {
+		return nil, fmt.Errorf("failed to decode instances: %v", err)
+	}
+
+	return instances, nil
+}
+
+// GetAllServiceInstances returns ALL service instances regardless of status.
+// Used by nginx config generation to keep routes alive even for unhealthy services.
+func GetAllServiceInstances() ([]ServiceInstance, error) {
+	collection := db.Collection("service_instances")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	opts := options.Find().SetSort(bson.D{{Key: "service_key", Value: 1}})
+
+	cursor, err := collection.Find(ctx, bson.M{}, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch all instances: %v", err)
 	}
 	defer cursor.Close(ctx)
 

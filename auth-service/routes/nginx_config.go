@@ -154,7 +154,7 @@ func GenerateServiceConfig(instance models.ServiceInstance) (string, error) {
 	// SafeServiceKey: Replace hyphens with underscores for nginx variable names
 	safeKey := instance.ServiceKey
 	safeKey = replaceHyphensWithUnderscores(safeKey)
-	
+
 	data := struct {
 		models.ServiceInstance
 		SafeServiceKey string
@@ -207,41 +207,49 @@ func GenerateMasterConfig(activeServices []models.ServiceInstance) (string, erro
 	return buf.String(), nil
 }
 
-// GetActiveServicesForNginx fetches all active service instances
+// GetActiveServicesForNginx fetches all services that should have nginx routes.
+// CRITICAL: This returns ALL registered services (not just those with a live heartbeat)
+// to prevent nginx 404s when a service temporarily loses heartbeat or restarts.
+// A service route should only be removed when the service is explicitly deleted.
 func GetActiveServicesForNginx() ([]models.ServiceInstance, error) {
-	// Get ALL active services from database (not deleted)
+	// Get ALL non-deleted services from database
 	services, err := models.GetAllServices()
 	if err != nil {
 		log.Printf("Warning: Could not fetch services from DB: %v. Using empty list.", err)
 		return []models.ServiceInstance{}, nil
 	}
 
-	// Get active service instances (runtime status)
-	instancesMap := make(map[string]*models.ServiceInstance)
-	instances, err := models.GetActiveServiceInstances()
+	// Get service instances (any status) for their connection details
+	allInstances, err := models.GetAllServiceInstances()
 	if err != nil {
-		log.Printf("Warning: Could not fetch active instances: %v", err)
-	} else {
-		for i := range instances {
-			instancesMap[instances[i].ServiceKey] = &instances[i]
+		log.Printf("Warning: Could not fetch service instances: %v", err)
+		allInstances = []models.ServiceInstance{}
+	}
+
+	// Build instance map — prefer active, but keep any instance as fallback
+	instancesMap := make(map[string]*models.ServiceInstance)
+	for i := range allInstances {
+		existing, exists := instancesMap[allInstances[i].ServiceKey]
+		if !exists || existing.Status != "active" {
+			instancesMap[allInstances[i].ServiceKey] = &allInstances[i]
 		}
 	}
 
-	// Build list: only include services that have active instances
-	var activeServices []models.ServiceInstance
+	// Build nginx routes for ALL non-deleted services that have ever registered
+	var nginxServices []models.ServiceInstance
 	for _, service := range services {
 		if service.Status == "deleted" {
-			continue // Skip deleted services
+			continue
 		}
 
-		instance, hasInstance := instancesMap[service.Key]
-		if hasInstance && instance.Status == "active" {
-			// Service is active - include in config
-			activeServices = append(activeServices, *instance)
+		if instance, hasInstance := instancesMap[service.Key]; hasInstance {
+			// Use registered instance details (internal URL, health path, etc.)
+			nginxServices = append(nginxServices, *instance)
 		}
+		// If no instance ever registered, we can't create a route (no internal URL known)
 	}
 
-	return activeServices, nil
+	return nginxServices, nil
 }
 
 // WriteServiceConfig writes individual service config file
@@ -341,7 +349,7 @@ func InitializeNginxConfig() error {
 
 	// Create initial empty config
 	log.Printf("Creating initial nginx config at: %s", masterConfigPath)
-	
+
 	// Get active services (should be empty on first run)
 	activeServices, err := GetActiveServicesForNginx()
 	if err != nil {
