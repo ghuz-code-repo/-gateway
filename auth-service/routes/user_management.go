@@ -235,36 +235,48 @@ func createUserHandler(c *gin.Context) {
 
 	// Then assign selected service roles
 	for _, serviceRole := range serviceRoles {
-		parts := strings.Split(serviceRole, "-")
-		if len(parts) == 2 {
-			serviceKey := parts[0]
-			roleName := parts[1]
-
-			// SECURITY: Check per-service role assignment permission
-			if !canAssignRoles {
-				if serviceKey == "auth" {
-					log.Printf("SECURITY: User %s cannot assign auth roles without auth.users.assign_roles", user.Username)
-					continue
-				}
-				if !hasAuthPermission(user, "auth."+serviceKey+".roles.assign") && !hasAuthPermission(user, "auth."+serviceKey+".*") {
-					log.Printf("SECURITY: User %s cannot assign roles for service %s", user.Username, serviceKey)
-					continue
-				}
+		// Parse "serviceKey:roleName" format (colon separator is safe for keys with dashes)
+		var serviceKey, roleName string
+		if strings.Contains(serviceRole, ":") {
+			parts := strings.SplitN(serviceRole, ":", 2)
+			if len(parts) == 2 {
+				serviceKey = parts[0]
+				roleName = parts[1]
 			}
+		} else {
+			log.Printf("WARNING: Legacy dash-separated role format: %s — skipping (use colon separator)", serviceRole)
+			continue
+		}
 
-			userServiceRole := models.UserServiceRole{
-				UserID:     userID,
-				ServiceKey: serviceKey,
-				RoleName:   roleName,
-				AssignedAt: time.Now(),
-				AssignedBy: user.ID,
-				IsActive:   true,
-			}
+		if serviceKey == "" || roleName == "" {
+			log.Printf("WARNING: Invalid service role format: %s", serviceRole)
+			continue
+		}
 
-			if err := models.CreateUserServiceRole(userServiceRole); err != nil {
-				log.Printf("Warning: Failed to assign service role %s:%s to user %s: %v",
-					serviceKey, roleName, userID.Hex(), err)
+		// SECURITY: Check per-service role assignment permission
+		if !canAssignRoles {
+			if serviceKey == "auth" {
+				log.Printf("SECURITY: User %s cannot assign auth roles without auth.users.assign_roles", user.Username)
+				continue
 			}
+			if !hasAuthPermission(user, "auth."+serviceKey+".roles.assign") && !hasAuthPermission(user, "auth."+serviceKey+".*") {
+				log.Printf("SECURITY: User %s cannot assign roles for service %s", user.Username, serviceKey)
+				continue
+			}
+		}
+
+		userServiceRole := models.UserServiceRole{
+			UserID:     userID,
+			ServiceKey: serviceKey,
+			RoleName:   roleName,
+			AssignedAt: time.Now(),
+			AssignedBy: user.ID,
+			IsActive:   true,
+		}
+
+		if err := models.CreateUserServiceRole(userServiceRole); err != nil {
+			log.Printf("Warning: Failed to assign service role %s:%s to user %s: %v",
+				serviceKey, roleName, userID.Hex(), err)
 		}
 	}
 
@@ -528,7 +540,7 @@ func updateUserHandler(c *gin.Context) {
 
 	for _, serviceRole := range serviceRoles {
 		log.Printf("DEBUG: Processing service role: %s", serviceRole)
-		// Support both formats: "serviceKey:roleName" (new) and "serviceKey-roleName" (legacy)
+		// Support both formats: "serviceKey:roleName" (new) and "serviceKey-roleName" (legacy, broken for keys with dashes)
 		var serviceKey, roleName string
 		if strings.Contains(serviceRole, ":") {
 			parts := strings.SplitN(serviceRole, ":", 2)
@@ -537,7 +549,8 @@ func updateUserHandler(c *gin.Context) {
 				roleName = parts[1]
 			}
 		} else {
-			// Legacy format with dash - use SplitN to handle roles with dashes in name
+			log.Printf("WARNING: Legacy dash-separated role format: %s — may be broken for service keys with dashes", serviceRole)
+			// Legacy format with dash - use SplitN (broken for keys like "client-service")
 			parts := strings.SplitN(serviceRole, "-", 2)
 			if len(parts) == 2 {
 				serviceKey = parts[0]
@@ -1078,20 +1091,48 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 	}
 	log.Printf("DEBUG: Got %d services", len(allServices))
 
-	// Separate auth-service roles from external services
+	// Separate auth-service internal roles from working services
+	// Auth service key in DB is "auth", not "auth-service"
 	var authServiceRoles []models.Role
-	var externalServices []models.ServiceWithRoles
+	var workingServices []models.ServiceWithRolesGrouped
+
+	// Collect external roles from auth service grouped by managed_service
+	externalRolesByManagedService := make(map[string][]models.Role)
 	for _, svc := range allServices {
-		if svc.Key == "auth-service" {
-			authServiceRoles = svc.Roles
-		} else {
-			externalServices = append(externalServices, svc)
+		if svc.Key == "auth" {
+			for _, role := range svc.Roles {
+				if role.IsExternal() && role.ManagedService != "" {
+					externalRolesByManagedService[role.ManagedService] = append(
+						externalRolesByManagedService[role.ManagedService], role)
+				} else {
+					authServiceRoles = append(authServiceRoles, role)
+				}
+			}
 		}
 	}
 
-	// Build per-service permission map for external roles
+	// Build working services (non-auth) with their internal roles + external roles from auth
+	for _, svc := range allServices {
+		if svc.Key == "auth" {
+			continue
+		}
+		grouped := models.ServiceWithRolesGrouped{
+			Service:       svc.Service,
+			InternalRoles: svc.Roles,
+			ExternalRoles: externalRolesByManagedService[svc.Key],
+		}
+		if grouped.InternalRoles == nil {
+			grouped.InternalRoles = []models.Role{}
+		}
+		if grouped.ExternalRoles == nil {
+			grouped.ExternalRoles = []models.Role{}
+		}
+		workingServices = append(workingServices, grouped)
+	}
+
+	// Build per-service permission map for working services
 	servicePermissions := make(map[string]map[string]bool)
-	for _, svc := range externalServices {
+	for _, svc := range workingServices {
 		perms := make(map[string]bool)
 		// Check if user can view/manage roles for this specific service
 		canViewServiceRoles := isGodUser ||
@@ -1172,7 +1213,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 			"canManageSystemAdmin": canManageSystemAdmin,
 			// Service-specific data
 			"authServiceRoles":   authServiceRoles,
-			"externalServices":   externalServices,
+			"workingServices":    workingServices,
 			"servicePermissions": servicePermissions,
 			// Counts for badges
 			"documentCount": documentCount,
@@ -1206,7 +1247,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 			"canManageSystemAdmin": canManageSystemAdmin,
 			// Service-specific data
 			"authServiceRoles":   authServiceRoles,
-			"externalServices":   externalServices,
+			"workingServices":    workingServices,
 			"servicePermissions": servicePermissions,
 			// Counts for badges
 			"documentCount": 0,

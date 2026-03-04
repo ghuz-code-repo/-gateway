@@ -1991,6 +1991,14 @@ type ServiceWithRoles struct {
 	Roles []Role `json:"roles"`
 }
 
+// ServiceWithRolesGrouped represents a working service with its own internal roles
+// plus external roles from auth-service that manage this service.
+type ServiceWithRolesGrouped struct {
+	Service
+	InternalRoles []Role `json:"internal_roles"` // Roles defined in this service's own scope
+	ExternalRoles []Role `json:"external_roles"` // External roles from auth that manage this service
+}
+
 // GetAllServicesWithRolesForTemplate returns all services with their roles in template-friendly format
 // Excludes the "system" service as system roles are handled separately.
 // Uses batch loading of all roles to avoid N+1 queries.
