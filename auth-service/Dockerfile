@@ -10,6 +10,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Ensure go.sum is in sync with imports (safety net)
+RUN go mod tidy
+
 # Build the application (no CGO needed for MongoDB/Redis)
 RUN CGO_ENABLED=0 GOOS=linux go build -a -o auth-service .
 
