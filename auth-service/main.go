@@ -137,6 +137,10 @@ func main() {
 	// Create an admin user if it doesn't exist
 	models.EnsureAdminExists()
 
+	// Ensure critical roles (GOD, admin) exist with correct permissions,
+	// migrate system/admin → auth/GOD, and fix legacy data formats.
+	models.EnsureCriticalRolesIntegrity()
+
 	// ADR-001: Perform migration to new schema
 	log.Println("Checking for ADR-001 schema migration...")
 	migrationResult, err := models.MigrateToADR001Schema()

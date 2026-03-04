@@ -134,9 +134,14 @@ func GetUserServiceRolesByUserIDAndService(userID primitive.ObjectID, serviceKey
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Search by both "service_key" (new format) and "service" (legacy format)
+	// to handle documents that haven't been migrated yet.
 	filter := bson.M{
-		"user_id":     userID,
-		"service_key": serviceKey,
+		"user_id": userID,
+		"$or": []bson.M{
+			{"service_key": serviceKey},
+			{"service": serviceKey},
+		},
 	}
 
 	cursor, err := userServiceRolesCol.Find(ctx, filter)
