@@ -1,0 +1,9 @@
+# Override for local test runs - exposes MongoDB on localhost:27017
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.test.yml up -d mongo
+services:
+  mongo:
+    networks:
+      - data_network
+      - service_network
+    ports:
+      - "27017:27017"

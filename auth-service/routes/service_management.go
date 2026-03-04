@@ -477,6 +477,15 @@ func deleteServiceHandler(c *gin.Context) {
 func restoreServiceHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
 
+	// Only system admin can restore services
+	isSystemAdmin := c.GetBool("isSystemAdmin")
+	if !isSystemAdmin {
+		c.HTML(http.StatusForbidden, "error.html", gin.H{
+			"error": "Только системный администратор может восстанавливать сервисы",
+		})
+		return
+	}
+
 	// Perform restore
 	err := models.RestoreService(serviceKey)
 	if err != nil {
@@ -747,16 +756,10 @@ func assignUserToServiceRoleHandler(c *gin.Context) {
 }
 
 func getServiceUsersHandler(c *gin.Context) {
-	serviceID := c.Param("id")
+	serviceKey := c.Param("serviceKey")
 
 	// Validate service exists
-	serviceObjectID, err := primitive.ObjectIDFromHex(serviceID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID сервиса"})
-		return
-	}
-
-	service, err := models.GetServiceByID(serviceObjectID)
+	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
@@ -793,12 +796,13 @@ func addUserToServiceHandler(c *gin.Context) {
 	}
 
 	var req struct {
-		Identifier string   `json:"identifier"`
-		LastName   string   `json:"last_name"`
-		FirstName  string   `json:"first_name"`
-		FullName   string   `json:"full_name"` // legacy, kept for backward compatibility
-		ServiceKey string   `json:"service_key"`
-		Roles      []string `json:"roles"`
+		Identifier        string   `json:"identifier"`
+		LastName          string   `json:"last_name"`
+		FirstName         string   `json:"first_name"`
+		FullName          string   `json:"full_name"` // legacy, kept for backward compatibility
+		ServiceKey        string   `json:"service_key"`
+		Roles             []string `json:"roles"`
+		ExternalRoleNames []string `json:"externalRoleNames"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -811,7 +815,7 @@ func addUserToServiceHandler(c *gin.Context) {
 		return
 	}
 
-	if len(req.Roles) == 0 {
+	if len(req.Roles) == 0 && len(req.ExternalRoleNames) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one role must be specified"})
 		return
 	}
@@ -869,11 +873,21 @@ func addUserToServiceHandler(c *gin.Context) {
 		}
 	}
 
-	// Assign roles to user
+	// Assign internal service roles
 	for _, roleName := range req.Roles {
 		err := models.AssignUserToServiceRole(targetUser.ID, service.Key, roleName, currentUser.ID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role: " + roleName})
+			return
+		}
+	}
+
+	// Assign external roles (auth-service roles that grant access to this service)
+	for _, extRoleName := range req.ExternalRoleNames {
+		err := models.AssignUserToServiceRole(targetUser.ID, "auth", extRoleName, currentUser.ID)
+		if err != nil {
+			log.Printf("Warning: Failed to assign external role '%s' to user %s: %v", extRoleName, targetUser.ID.Hex(), err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign external role: " + extRoleName})
 			return
 		}
 	}
@@ -886,7 +900,8 @@ func addUserToServiceHandler(c *gin.Context) {
 			"email":    targetUser.Email,
 			"fullName": targetUser.FullName,
 		},
-		"assignedRoles": req.Roles,
+		"assignedRoles":         req.Roles,
+		"assignedExternalRoles": req.ExternalRoleNames,
 	})
 }
 
@@ -975,19 +990,24 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 	}
 
 	// Handle external roles (roles in auth-service that grant access to this service)
-	if len(req.ExternalRoleNames) > 0 || len(currentAssignments) > 0 {
+	// SECURITY: Only process external roles if the request explicitly includes them
+	// This prevents lower-privilege admins from accidentally wiping external roles
+	// when they can't even see the external roles checkboxes in the UI
+	if req.ExternalRoleNames != nil {
+		// Get external roles defined for this service (lookup once, not in loop)
+		externalRolesForService, _ := models.GetExternalRolesForService(service.Key)
+		externalRoleNamesSet := make(map[string]bool)
+		for _, extRole := range externalRolesForService {
+			externalRoleNamesSet[extRole.Name] = true
+		}
+
 		// Get current external roles for this user in auth service
 		currentExternalRoles := make(map[string]bool)
 		if currentAssignments != nil {
 			for _, assignment := range currentAssignments {
 				if assignment.ServiceKey == "auth" && assignment.IsActive {
-					// Check if this is an external role for our service
-					externalRoles, _ := models.GetExternalRolesForService(service.Key)
-					for _, extRole := range externalRoles {
-						if extRole.Name == assignment.RoleName {
-							currentExternalRoles[assignment.RoleName] = true
-							break
-						}
+					if externalRoleNamesSet[assignment.RoleName] {
+						currentExternalRoles[assignment.RoleName] = true
 					}
 				}
 			}
@@ -1275,9 +1295,14 @@ func createExternalRoleHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 	serviceKey := c.Param("serviceKey")
 
-	// Check permission - need auth.external_roles.create or system admin
+	// Check permission - need system admin, service manager, or specific permission
 	isSystemAdmin := c.GetBool("isSystemAdmin")
-	if !isSystemAdmin && !models.HasAuthPermission(user.ID, "auth.external_roles.create") {
+	isServiceManager := c.GetBool("isServiceManager")
+	servicePermPrefix := fmt.Sprintf("auth.%s.", serviceKey)
+	if !isSystemAdmin && !isServiceManager &&
+		!models.HasAuthPermission(user.ID, "auth.external_roles.create") &&
+		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.create") &&
+		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Нет разрешения на создание внешних ролей"})
 		return
 	}
@@ -1357,9 +1382,16 @@ func updateExternalRoleHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
 	roleName := c.Param("roleName")
 
-	// Check permission - need auth.external_roles.edit or system admin
+	log.Printf("DEBUG updateExternalRoleHandler: serviceKey=%s, roleName=%s, user=%s", serviceKey, roleName, user.Username)
+
+	// Check permission - need system admin, service manager, or specific permission
 	isSystemAdmin := c.GetBool("isSystemAdmin")
-	if !isSystemAdmin && !models.HasAuthPermission(user.ID, "auth.external_roles.edit") {
+	isServiceManager := c.GetBool("isServiceManager")
+	servicePermPrefix := fmt.Sprintf("auth.%s.", serviceKey)
+	if !isSystemAdmin && !isServiceManager &&
+		!models.HasAuthPermission(user.ID, "auth.external_roles.edit") &&
+		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.edit") &&
+		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Нет разрешения на редактирование внешних ролей"})
 		return
 	}
@@ -1371,16 +1403,23 @@ func updateExternalRoleHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
+		log.Printf("ERROR updateExternalRoleHandler: JSON parse error: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
 
+	log.Printf("DEBUG updateExternalRoleHandler: input name=%s, desc=%s, perms=%d", input.Name, input.Description, len(input.Permissions))
+
 	// Get existing role
 	existingRole, err := models.GetServiceRoleByName("auth", roleName)
 	if err != nil {
+		log.Printf("ERROR updateExternalRoleHandler: role '%s' not found in auth service: %v", roleName, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
 		return
 	}
+
+	log.Printf("DEBUG updateExternalRoleHandler: existing role found, ID=%s, currentName=%s, serviceKey=%s",
+		existingRole.ID.Hex(), existingRole.Name, existingRole.ServiceKey)
 
 	// Validate permissions
 	for _, perm := range input.Permissions {
@@ -1388,6 +1427,19 @@ func updateExternalRoleHandler(c *gin.Context) {
 		if !strings.HasPrefix(perm, expectedPrefix) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Invalid permission '%s'. External role permissions must start with '%s'", perm, expectedPrefix),
+			})
+			return
+		}
+	}
+
+	// Check for name conflict if name is being changed
+	if input.Name != "" && input.Name != existingRole.Name {
+		conflicting, err := models.GetServiceRoleByName("auth", input.Name)
+		if err == nil && conflicting != nil {
+			log.Printf("ERROR updateExternalRoleHandler: name conflict - role '%s' already exists (ID=%s)",
+				input.Name, conflicting.ID.Hex())
+			c.JSON(http.StatusConflict, gin.H{
+				"error": fmt.Sprintf("Роль с именем '%s' уже существует", input.Name),
 			})
 			return
 		}
@@ -1404,8 +1456,9 @@ func updateExternalRoleHandler(c *gin.Context) {
 	existingRole.UpdatedAt = time.Now()
 
 	if err := models.UpdateServiceRole(existingRole); err != nil {
-		log.Printf("Error updating external role: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update role"})
+		log.Printf("ERROR updateExternalRoleHandler: UpdateServiceRole failed for role '%s' (ID=%s): %v",
+			roleName, existingRole.ID.Hex(), err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update role: " + err.Error()})
 		return
 	}
 
@@ -1420,11 +1473,17 @@ func updateExternalRoleHandler(c *gin.Context) {
 // deleteExternalRoleHandler deletes an external role
 func deleteExternalRoleHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
+	serviceKey := c.Param("serviceKey")
 	roleName := c.Param("roleName")
 
-	// Check permission - need auth.external_roles.delete or system admin
+	// Check permission - need system admin, service manager, or specific permission
 	isSystemAdmin := c.GetBool("isSystemAdmin")
-	if !isSystemAdmin && !models.HasAuthPermission(user.ID, "auth.external_roles.delete") {
+	isServiceManager := c.GetBool("isServiceManager")
+	servicePermPrefix := fmt.Sprintf("auth.%s.", serviceKey)
+	if !isSystemAdmin && !isServiceManager &&
+		!models.HasAuthPermission(user.ID, "auth.external_roles.delete") &&
+		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.delete") &&
+		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Нет разрешения на удаление внешних ролей"})
 		return
 	}
