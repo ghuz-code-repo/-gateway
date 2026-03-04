@@ -2,9 +2,11 @@ package routes
 
 import (
 	"auth-service/models"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -275,6 +277,16 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 				c.Next()
 				return
 			}
+
+			// Check if user has auth-level permissions for this service (e.g. auth.<serviceKey>.*)
+			if checkAuthPermissionsForService(user.ID, service.Key) {
+				c.Set("isSystemAdmin", false)
+				c.Set("isServiceManager", false)
+				c.Set("hasAuthPermissionAccess", true)
+				c.Set("serviceKey", service.Key)
+				c.Next()
+				return
+			}
 		}
 
 		// Handle service routes by key (new excel import/export routes)
@@ -316,6 +328,16 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 				c.Next()
 				return
 			}
+
+			// Check if user has auth-level permissions for this service (e.g. auth.<serviceKey>.*)
+			if checkAuthPermissionsForService(user.ID, service.Key) {
+				c.Set("isSystemAdmin", false)
+				c.Set("isServiceManager", false)
+				c.Set("hasAuthPermissionAccess", true)
+				c.Set("serviceKey", service.Key)
+				c.Next()
+				return
+			}
 		}
 
 		// No access
@@ -325,6 +347,28 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		})
 		c.Abort()
 	}
+}
+
+// checkAuthPermissionsForService checks if a user has any auth-level permission
+// for a given service. This allows users with permissions like auth.<serviceKey>.*
+// or auth.<serviceKey>.roles.create to pass through the middleware.
+func checkAuthPermissionsForService(userID primitive.ObjectID, serviceKey string) bool {
+	prefix := fmt.Sprintf("auth.%s.", serviceKey)
+	permissions, err := models.GetUserAuthPermissions(userID)
+	if err != nil {
+		return false
+	}
+	for _, perm := range permissions {
+		// Exact prefix match: auth.<serviceKey>.anything
+		if strings.HasPrefix(perm, prefix) {
+			return true
+		}
+		// Wildcard: auth.* matches everything
+		if perm == "auth.*" {
+			return true
+		}
+	}
+	return false
 }
 
 // getUserRolesCached returns user's service roles, fetching once per request via gin.Context cache.

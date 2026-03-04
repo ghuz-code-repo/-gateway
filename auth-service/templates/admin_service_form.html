@@ -1243,6 +1243,7 @@
             const lastName = formData.get('lastName');
             const firstName = formData.get('firstName');
             const roles = formData.getAll('roles');
+            const externalRoles = formData.getAll('external_roles');
             
             if (!identifier) {
                 showNotification('Укажите email или логин пользователя', 'error');
@@ -1272,7 +1273,7 @@
                 }
             }
             
-            if (roles.length === 0) {
+            if (roles.length === 0 && externalRoles.length === 0) {
                 showNotification('Выберите хотя бы одну роль', 'error');
                 return;
             }
@@ -1283,13 +1284,21 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        identifier: identifier,
-                        last_name: lastName ? lastName.trim() : '',
-                        first_name: firstName ? firstName.trim() : '',
-                        service_key: serviceKey,
-                        roles: roles
-                    })
+                    body: JSON.stringify((() => {
+                        const body = {
+                            identifier: identifier,
+                            last_name: lastName ? lastName.trim() : '',
+                            first_name: firstName ? firstName.trim() : '',
+                            service_key: serviceKey,
+                            roles: roles
+                        };
+                        // Only include external roles if checkboxes are available in the form
+                        const hasExternalCheckboxes = form.querySelectorAll('input[name="external_roles"]').length > 0;
+                        if (hasExternalCheckboxes) {
+                            body.externalRoleNames = externalRoles;
+                        }
+                        return body;
+                    })())
                 });
                 
                 const result = await response.json();
@@ -1472,10 +1481,15 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        roleNames: roles,
-                        externalRoleNames: externalRoles
-                    })
+                    body: JSON.stringify((() => {
+                        const body = { roleNames: roles };
+                        // Only include external roles if checkboxes are available in the form
+                        const hasExternalCheckboxes = form.querySelectorAll('input[name="external_roles"]').length > 0;
+                        if (hasExternalCheckboxes) {
+                            body.externalRoleNames = externalRoles;
+                        }
+                        return body;
+                    })())
                 });
                 
                 const result = await response.json();
