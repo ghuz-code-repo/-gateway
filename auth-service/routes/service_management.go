@@ -297,6 +297,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 	canAssignRoles := isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"users.assign_roles") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.assign") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.assign") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"users.*")
 	canImportUsers := isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"users.import") ||
@@ -362,7 +363,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 	}
 	log.Printf("DEBUG: Template data for service %s - serviceRoles count: %d, externalRoles count: %d", service.Key, len(serviceRoles), len(externalRoles))
 	log.Printf("DEBUG: Permissions check - isSystemAdmin: %v, isServiceManager: %v, hasExternalRoleAccess: %v", isSystemAdmin, isServiceManager, hasExternalRoleAccess)
-	log.Printf("DEBUG: Role permissions - canCreateRoles: %v, canEditRoles: %v, canDeleteRoles: %v", canCreateRoles, canEditRoles, canDeleteRoles)
+	log.Printf("DEBUG: Role permissions - canCreateRoles: %v, canEditRoles: %v, canDeleteRoles: %v, canViewRoles: %v, canAssignRoles: %v", canCreateRoles, canEditRoles, canDeleteRoles, canViewRoles, canAssignRoles)
 	log.Printf("DEBUG: User permissions - canViewUsers: %v, canAddUsers: %v, canEditUsers: %v, canDeleteUsers: %v", canViewUsers, canAddUsers, canEditUsers, canDeleteUsers)
 
 	// Add import success message if present
