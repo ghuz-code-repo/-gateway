@@ -1444,12 +1444,15 @@ func updateExternalRoleHandler(c *gin.Context) {
 	if input.Name != "" && input.Name != existingRole.Name {
 		conflicting, err := models.GetServiceRoleByName("auth", input.Name)
 		if err == nil && conflicting != nil {
-			log.Printf("ERROR updateExternalRoleHandler: name conflict - role '%s' already exists (ID=%s)",
-				input.Name, conflicting.ID.Hex())
-			c.JSON(http.StatusConflict, gin.H{
-				"error": fmt.Sprintf("Роль с именем '%s' уже существует", input.Name),
-			})
-			return
+			// Only block if the conflicting role is internal or manages the same service
+			if conflicting.ManagedService == "" || conflicting.ManagedService == serviceKey {
+				log.Printf("ERROR updateExternalRoleHandler: name conflict - role '%s' already exists (ID=%s)",
+					input.Name, conflicting.ID.Hex())
+				c.JSON(http.StatusConflict, gin.H{
+					"error": fmt.Sprintf("Роль с именем '%s' уже существует", input.Name),
+				})
+				return
+			}
 		}
 	}
 
