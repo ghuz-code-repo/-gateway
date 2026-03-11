@@ -340,23 +340,28 @@ func InitDB(uri, dbName string) error {
 		log.Printf("Warning: Failed to create username index: %v", err)
 	}
 	// Create compound index for roles (service, name) for uniqueness and fast lookup
-	// First, try to drop old name-only index if it exists (it prevents same-name roles in different services)
-	_, dropErr := serviceRolesCol.Indexes().DropOne(ctx, "name_1")
-	if dropErr != nil {
-		log.Printf("Info: Could not drop old name_1 index (may not exist): %v", dropErr)
-	} else {
-		log.Printf("Info: Successfully dropped old name_1 index from service_roles")
+	// Drop old indexes that may conflict
+	for _, oldIdx := range []string{"name_1", "service_1_name_1"} {
+		_, dropErr := serviceRolesCol.Indexes().DropOne(ctx, oldIdx)
+		if dropErr != nil {
+			log.Printf("Info: Could not drop old %s index (may not exist): %v", oldIdx, dropErr)
+		} else {
+			log.Printf("Info: Successfully dropped old %s index from service_roles", oldIdx)
+		}
 	}
 
+	// Create compound unique index (service, name, managed_service)
+	// This allows same role name in different managed services (e.g. external roles)
 	_, err = serviceRolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "service", Value: 1},
 			{Key: "name", Value: 1},
+			{Key: "managed_service", Value: 1},
 		},
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
-		log.Printf("Warning: Failed to create role compound index (service, name): %v", err)
+		log.Printf("Warning: Failed to create role compound index (service, name, managed_service): %v", err)
 	}
 
 	// Create unique index for services collection on key field

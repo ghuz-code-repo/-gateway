@@ -424,14 +424,25 @@ func CreateServiceRole(role *ServiceRole) error {
 	ctx := context.Background()
 
 	// Check if role with same name already exists in the service
-	// Search by both "service" (canonical) and "service_key" (legacy) fields
-	var existing ServiceRole
-	err := serviceRolesCol.FindOne(ctx, bson.M{
+	// For external roles, also check managed_service to allow same name across different managed services
+	filter := bson.M{
 		"$or": []bson.M{
 			{"service": role.ServiceKey, "name": role.Name},
 			{"service_key": role.ServiceKey, "name": role.Name},
 		},
-	}).Decode(&existing)
+	}
+	if role.ManagedService != "" {
+		// External role: uniqueness is (service, name, managed_service)
+		filter = bson.M{
+			"$or": []bson.M{
+				{"service": role.ServiceKey, "name": role.Name, "managed_service": role.ManagedService},
+				{"service_key": role.ServiceKey, "name": role.Name, "managed_service": role.ManagedService},
+			},
+		}
+	}
+
+	var existing ServiceRole
+	err := serviceRolesCol.FindOne(ctx, filter).Decode(&existing)
 	if err == nil {
 		return fmt.Errorf("role '%s' already exists in service '%s'", role.Name, role.ServiceKey)
 	}

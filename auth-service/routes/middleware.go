@@ -222,12 +222,15 @@ func serviceAdminAuthRequired() gin.HandlerFunc {
 		serviceID := c.Param("id")
 		serviceKey := c.Param("serviceKey")
 
-		log.Printf("Middleware: serviceID='%s', serviceKey='%s', path='%s'", serviceID, serviceKey, c.Request.URL.Path)
-
-		// If no serviceID in URL params, check query params
+		// If no serviceID/serviceKey in URL params, check query params
 		if serviceID == "" {
 			serviceID = c.Query("serviceId")
 		}
+		if serviceKey == "" {
+			serviceKey = c.Query("serviceKey")
+		}
+
+		log.Printf("Middleware: serviceID='%s', serviceKey='%s', path='%s'", serviceID, serviceKey, c.Request.URL.Path)
 
 		// Handle service routes by ID (existing services management routes)
 		if serviceID != "" {
