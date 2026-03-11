@@ -75,7 +75,26 @@ func GetUserRolesByCategory(userID primitive.ObjectID) (*UserRolesByCategory, er
 
 	for _, userRole := range allRoles {
 		// Get role details
-		roleDetails, err := GetRoleByServiceAndName(userRole.ServiceKey, userRole.RoleName)
+		// For external roles with managed_service, use precise lookup to avoid collisions
+		var roleDetails *Role
+		var err error
+		if userRole.ServiceKey == "auth" && userRole.ManagedService != "" {
+			var sr *ServiceRole
+			sr, err = GetExternalRoleByNameAndService(userRole.RoleName, userRole.ManagedService)
+			if err == nil && sr != nil {
+				roleDetails = &Role{
+					ID:             sr.ID,
+					ServiceKey:     sr.ServiceKey,
+					Name:           sr.Name,
+					Description:    sr.Description,
+					Permissions:    sr.Permissions,
+					RoleType:       sr.RoleType,
+					ManagedService: sr.ManagedService,
+				}
+			}
+		} else {
+			roleDetails, err = GetRoleByServiceAndName(userRole.ServiceKey, userRole.RoleName)
+		}
 		if err != nil {
 			log.Printf("Warning: failed to get role details for %s/%s: %v", userRole.ServiceKey, userRole.RoleName, err)
 			roleDetails = nil

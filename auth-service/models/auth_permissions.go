@@ -30,7 +30,26 @@ func GetUserAuthPermissions(userID primitive.ObjectID) ([]string, error) {
 		}
 
 		// Get the role details
-		role, err := GetRoleByServiceAndName("auth", userRole.RoleName)
+		// For external roles with managed_service, use precise lookup to avoid collisions
+		var role *Role
+		var err error
+		if userRole.ManagedService != "" {
+			var sr *ServiceRole
+			sr, err = GetExternalRoleByNameAndService(userRole.RoleName, userRole.ManagedService)
+			if err == nil && sr != nil {
+				role = &Role{
+					ID:             sr.ID,
+					ServiceKey:     sr.ServiceKey,
+					Name:           sr.Name,
+					Description:    sr.Description,
+					Permissions:    sr.Permissions,
+					RoleType:       sr.RoleType,
+					ManagedService: sr.ManagedService,
+				}
+			}
+		} else {
+			role, err = GetRoleByServiceAndName("auth", userRole.RoleName)
+		}
 		if err != nil {
 			log.Printf("DEBUG GetUserAuthPermissions: role not found: service=auth, name=%s: %v", userRole.RoleName, err)
 			continue
