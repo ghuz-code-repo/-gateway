@@ -223,9 +223,10 @@ server {
     }
     
     # Verify logs access (admin sees all, others see filtered)
+    # Pass service key from Referer so iframe-embedded Dozzle stays filtered
     location = /verify-logs-auth {
         internal;
-        proxy_pass http://auth-service:80/verify-logs-access;
+        proxy_pass http://auth-service:80/verify-logs-access?service=$logs_referer_service;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -250,10 +251,11 @@ server {
         error_page 403 = @error403_service_logs;
         
         # Rewrite to Dozzle base path
+        # set MUST come before rewrite...break (break stops rewrite-phase directives)
+        set $dozzle_upstream2 http://gateway-dozzle:8080;
         rewrite ^/services/[^/]+/logs(/.*)?$ /logs$1 break;
         
         # Dozzle web UI with WebSocket support
-        set $dozzle_upstream2 http://gateway-dozzle:8080;
         proxy_pass $dozzle_upstream2;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;

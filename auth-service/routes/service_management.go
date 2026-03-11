@@ -305,6 +305,11 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		models.HasAuthPermission(user.ID, servicePermPrefix+"users.export") ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"users.*")
 
+	// Logs permissions
+	canViewLogs := isSystemAdmin || isServiceManager ||
+		models.HasAuthPermission(user.ID, "auth.logs.view") ||
+		models.HasAuthPermission(user.ID, "auth.logs.system.view")
+
 	// Settings permissions
 	canViewSettings := isSystemAdmin ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"settings.view") ||
@@ -353,6 +358,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 		"canExportUsers":  canExportUsers,
 		"canViewSettings": canViewSettings,
 		"canEditSettings": canEditSettings,
+		"canViewLogs":     canViewLogs,
 	}
 	log.Printf("DEBUG: Template data for service %s - serviceRoles count: %d, externalRoles count: %d", service.Key, len(serviceRoles), len(externalRoles))
 	log.Printf("DEBUG: Permissions check - isSystemAdmin: %v, isServiceManager: %v, hasExternalRoleAccess: %v", isSystemAdmin, isServiceManager, hasExternalRoleAccess)

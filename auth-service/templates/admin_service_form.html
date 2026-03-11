@@ -86,6 +86,11 @@
                     <i class="fas fa-user"></i> Пользователи
                 </button></li>
                 {{ end }}
+                {{ if .canViewLogs }}
+                <li><button type="button" class="tab-btn" data-tab="logs">
+                    <i class="fas fa-file-alt"></i> Логи
+                </button></li>
+                {{ end }}
                 {{ else if .isSystemAdmin }}
                 <!-- Режим системного администратора - все вкладки -->
                 <li><button type="button" class="tab-btn" data-tab="settings">
@@ -105,6 +110,11 @@
                 <li><button type="button" class="tab-btn" data-tab="users">
                     <i class="icon-user"></i> Пользователи
                 </button></li>
+                {{ if .canViewLogs }}
+                <li><button type="button" class="tab-btn" data-tab="logs">
+                    <i class="fas fa-file-alt"></i> Логи
+                </button></li>
+                {{ end }}
                 {{ else }}
                 <!-- Режим внешней роли - только разрешенные вкладки -->
                 {{ if .canViewRoles }}
@@ -120,6 +130,11 @@
                 {{ if .canViewUsers }}
                 <li><button type="button" class="tab-btn{{ if and (not .canViewRoles) (not .canViewExternalRoles) }} active{{ end }}" data-tab="users">
                     <i class="fas fa-user"></i> Пользователи
+                </button></li>
+                {{ end }}
+                {{ if .canViewLogs }}
+                <li><button type="button" class="tab-btn" data-tab="logs">
+                    <i class="fas fa-file-alt"></i> Логи
                 </button></li>
                 {{ end }}
                 {{ end }}
@@ -490,6 +505,13 @@
                         </div>
                     </div>
                 </div>
+            </div>
+            {{ end }}
+
+            <!-- Вкладка "Логи" -->
+            {{ if .canViewLogs }}
+            <div id="logs" class="tab-content">
+                <iframe src="/services/{{ .service.Key }}/logs/" class="logs-iframe" loading="lazy"></iframe>
             </div>
             {{ end }}
         </div>
