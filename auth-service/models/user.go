@@ -1880,15 +1880,47 @@ func GetUserAccessibleServices(userID primitive.ObjectID) ([]string, error) {
 	}
 	defer cursor.Close(ctx)
 
-	var services []string
+	serviceSet := make(map[string]bool)
 	for cursor.Next(ctx) {
 		var result bson.M
 		if err := cursor.Decode(&result); err != nil {
 			continue
 		}
 		if serviceKey, ok := result["_id"].(string); ok {
-			services = append(services, serviceKey)
+			serviceSet[serviceKey] = true
 		}
+	}
+
+	// Also include managed_service values from external role assignments
+	// (external roles have service_key="auth" but manage other services)
+	pipeline2 := []bson.M{
+		{"$match": bson.M{
+			"user_id":         userID,
+			"is_active":       true,
+			"managed_service": bson.M{"$exists": true, "$ne": ""},
+		}},
+		{"$group": bson.M{
+			"_id": "$managed_service",
+		}},
+	}
+
+	cursor2, err := userServiceRolesCol.Aggregate(ctx, pipeline2)
+	if err == nil {
+		defer cursor2.Close(ctx)
+		for cursor2.Next(ctx) {
+			var result bson.M
+			if err := cursor2.Decode(&result); err != nil {
+				continue
+			}
+			if managedService, ok := result["_id"].(string); ok {
+				serviceSet[managedService] = true
+			}
+		}
+	}
+
+	var services []string
+	for svc := range serviceSet {
+		services = append(services, svc)
 	}
 
 	return services, nil
