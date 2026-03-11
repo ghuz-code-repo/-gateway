@@ -8,6 +8,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // RoleType constants for distinguishing internal vs external roles
@@ -69,6 +70,9 @@ func CreateRole(serviceKey, name, description string, permissions []string) (*Ro
 	result, err := serviceRolesCol.InsertOne(ctx, role)
 	if err != nil {
 		log.Printf("ERROR CreateRole: Database insert failed: %v", err)
+		if mongo.IsDuplicateKeyError(err) {
+			return nil, fmt.Errorf("роль с именем '%s' уже существует в сервисе '%s'", name, serviceKey)
+		}
 		return nil, err
 	}
 

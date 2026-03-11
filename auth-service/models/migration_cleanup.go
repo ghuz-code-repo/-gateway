@@ -100,7 +100,7 @@ func CleanupOrphanedUserServiceRoles() (*CleanupResult, error) {
 		}
 	}
 
-	// Step 2: Fix service_key "client" → "client-service"
+	// Step 2: Fix service_key "client" → "client-service" in user_service_roles
 	fixFilter := bson.M{"service_key": "client"}
 	fixCursor, _ := userServiceRolesCol.Find(ctx, fixFilter)
 	var fixCount int
@@ -113,11 +113,44 @@ func CleanupOrphanedUserServiceRoles() (*CleanupResult, error) {
 		updateResult, err := userServiceRolesCol.UpdateMany(ctx, fixFilter,
 			bson.M{"$set": bson.M{"service_key": "client-service"}})
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("Failed to fix 'client' → 'client-service': %v", err))
+			result.Errors = append(result.Errors, fmt.Sprintf("Failed to fix 'client' → 'client-service' in user_service_roles: %v", err))
 		} else {
 			result.ServiceKeysFixed = int(updateResult.ModifiedCount)
-			result.Details = append(result.Details, fmt.Sprintf("Fixed %d records: 'client' → 'client-service'", updateResult.ModifiedCount))
-			log.Printf("Fixed %d records: 'client' → 'client-service'", updateResult.ModifiedCount)
+			result.Details = append(result.Details, fmt.Sprintf("Fixed %d records in user_service_roles: 'client' → 'client-service'", updateResult.ModifiedCount))
+			log.Printf("Fixed %d records in user_service_roles: 'client' → 'client-service'", updateResult.ModifiedCount)
+		}
+	}
+
+	// Step 2b: Fix service "client" → "client-service" in service_roles collection
+	fixRolesFilter := bson.M{"service": "client"}
+	fixRolesCursor, _ := serviceRolesCol.Find(ctx, fixRolesFilter)
+	var fixRolesCount int
+	for fixRolesCursor.Next(ctx) {
+		fixRolesCount++
+	}
+	fixRolesCursor.Close(ctx)
+
+	if fixRolesCount > 0 {
+		updateResult, err := serviceRolesCol.UpdateMany(ctx, fixRolesFilter,
+			bson.M{"$set": bson.M{"service": "client-service"}})
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("Failed to fix 'client' → 'client-service' in service_roles: %v", err))
+		} else {
+			result.Details = append(result.Details, fmt.Sprintf("Fixed %d records in service_roles: 'client' → 'client-service'", updateResult.ModifiedCount))
+			log.Printf("Fixed %d records in service_roles: 'client' → 'client-service'", updateResult.ModifiedCount)
+		}
+	}
+
+	// Step 2c: Remove orphan service with key="client" from services collection (if "client-service" exists)
+	_, csErr := GetServiceByKey("client-service")
+	if csErr == nil {
+		// "client-service" exists, so "client" is a stale duplicate
+		delResult, err := servicesCol.DeleteMany(ctx, bson.M{"key": "client"})
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("Failed to remove orphan 'client' service: %v", err))
+		} else if delResult.DeletedCount > 0 {
+			result.Details = append(result.Details, fmt.Sprintf("Removed %d orphan service(s) with key='client'", delResult.DeletedCount))
+			log.Printf("Removed %d orphan service(s) with key='client'", delResult.DeletedCount)
 		}
 	}
 

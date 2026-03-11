@@ -340,8 +340,13 @@ func InitDB(uri, dbName string) error {
 		log.Printf("Warning: Failed to create username index: %v", err)
 	}
 	// Create compound index for roles (service, name) for uniqueness and fast lookup
-	// First, try to drop old name index if it exists
-	serviceRolesCol.Indexes().DropOne(ctx, "name_1")
+	// First, try to drop old name-only index if it exists (it prevents same-name roles in different services)
+	_, dropErr := serviceRolesCol.Indexes().DropOne(ctx, "name_1")
+	if dropErr != nil {
+		log.Printf("Info: Could not drop old name_1 index (may not exist): %v", dropErr)
+	} else {
+		log.Printf("Info: Successfully dropped old name_1 index from service_roles")
+	}
 
 	_, err = serviceRolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
