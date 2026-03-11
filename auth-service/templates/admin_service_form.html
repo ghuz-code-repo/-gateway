@@ -3233,7 +3233,7 @@
                     
                     <div class="form-group">
                         <!-- Внутренние роли сервиса -->
-                        {{ if and .canManageInternalRoles .serviceRoles }}
+                        {{ if and (or .canManageInternalRoles .canAssignRoles .canViewRoles) .serviceRoles }}
                         <div class="roles-category">
                             {{ if .canViewExternalRoles }}
                             <label class="roles-category-header">
@@ -3246,7 +3246,7 @@
                                 {{ range .serviceRoles }}
                                 {{ if not (and $.manageMode (eq .Name "admin")) }}
                                 <div class="service-permission-checkbox">
-                                    <input type="checkbox" id="role_{{ .Name }}" name="roles" value="{{ .Name }}">
+                                    <input type="checkbox" id="role_{{ .Name }}" name="roles" value="{{ .Name }}"{{ if not $.canAssignRoles }} disabled{{ end }}>
                                     <div class="service-permission-label">
                                         <span>{{ .Name }}</span>
                                         {{ if .Description }}<small>{{ .Description }}</small>{{ end }}
@@ -3353,7 +3353,7 @@
                         </div>
                         {{ end }}
                         
-                        {{ if or .canManageInternalRoles .canViewExternalRoles }}
+                        {{ if or .canManageInternalRoles .canAssignRoles .canViewExternalRoles }}
                         <small style="color: var(--warning-color); margin-top: 15px; display: block;">
                             ⚠️ Удаление всех ролей запретит пользователю доступ к сервису
                         </small>

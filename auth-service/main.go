@@ -177,6 +177,16 @@ func main() {
 		log.Printf("Documents services migration failed: %v", err)
 	}
 
+	// Cleanup orphaned service data (fix "client" → "client-service", remove empty records)
+	log.Println("Running orphaned data cleanup...")
+	cleanupResult, cleanupErr := models.CleanupOrphanedUserServiceRoles()
+	if cleanupErr != nil {
+		log.Printf("Orphaned data cleanup failed: %v", cleanupErr)
+	} else {
+		log.Printf("Orphaned data cleanup completed: %d empty removed, %d keys fixed, %d orphans removed",
+			cleanupResult.EmptyRecordsRemoved, cleanupResult.ServiceKeysFixed, cleanupResult.OrphanedRolesRemoved)
+	}
+
 	// Check and cleanup avatar files
 	checkAndCleanupAvatars()
 
