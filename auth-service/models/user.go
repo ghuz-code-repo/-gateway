@@ -227,13 +227,14 @@ func (u *User) GetDisplayName(isCard bool) string {
 
 // UserServiceRole represents a user's role assignment in a specific service
 type UserServiceRole struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	UserID     primitive.ObjectID `bson:"user_id" json:"user_id" validate:"required"`
-	ServiceKey string             `bson:"service_key" json:"service_key" validate:"required"`
-	RoleName   string             `bson:"role_name" json:"role_name" validate:"required"`
-	AssignedAt time.Time          `bson:"assigned_at" json:"assigned_at"`
-	AssignedBy primitive.ObjectID `bson:"assigned_by,omitempty" json:"assigned_by,omitempty"`
-	IsActive   bool               `bson:"is_active" json:"is_active"`
+	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID         primitive.ObjectID `bson:"user_id" json:"user_id" validate:"required"`
+	ServiceKey     string             `bson:"service_key" json:"service_key" validate:"required"`
+	RoleName       string             `bson:"role_name" json:"role_name" validate:"required"`
+	ManagedService string             `bson:"managed_service,omitempty" json:"managed_service,omitempty"`
+	AssignedAt     time.Time          `bson:"assigned_at" json:"assigned_at"`
+	AssignedBy     primitive.ObjectID `bson:"assigned_by,omitempty" json:"assigned_by,omitempty"`
+	IsActive       bool               `bson:"is_active" json:"is_active"`
 }
 
 // UserWithServiceRoles represents a user with their roles in a specific service
@@ -1745,27 +1746,45 @@ func RemoveRoleFromUser(userID primitive.ObjectID, roleName string) error {
 }
 
 // AssignUserToServiceRole assigns a role to a user in a specific service
-func AssignUserToServiceRole(userID primitive.ObjectID, serviceKey, roleName string, assignedBy primitive.ObjectID) error {
+func AssignUserToServiceRole(userID primitive.ObjectID, serviceKey, roleName string, assignedBy primitive.ObjectID, managedService ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
 	defer cancel()
 
-	// Check if role exists in service
-	role, err := GetRoleByServiceAndName(serviceKey, roleName)
-	if err != nil {
-		return fmt.Errorf("роль %s не найдена в сервисе %s: %v", roleName, serviceKey, err)
+	// Determine managed_service for external role disambiguation
+	ms := ""
+	if len(managedService) > 0 {
+		ms = managedService[0]
 	}
-	if role == nil {
-		return fmt.Errorf("роль %s не существует в сервисе %s", roleName, serviceKey)
+
+	// Check if role exists in service
+	if ms != "" {
+		// External role: look up by name + managed_service to avoid collisions
+		role, err := GetExternalRoleByNameAndService(roleName, ms)
+		if err != nil {
+			return fmt.Errorf("роль %s не найдена для сервиса %s: %v", roleName, ms, err)
+		}
+		if role == nil {
+			return fmt.Errorf("роль %s не существует для сервиса %s", roleName, ms)
+		}
+	} else {
+		role, err := GetRoleByServiceAndName(serviceKey, roleName)
+		if err != nil {
+			return fmt.Errorf("роль %s не найдена в сервисе %s: %v", roleName, serviceKey, err)
+		}
+		if role == nil {
+			return fmt.Errorf("роль %s не существует в сервисе %s", roleName, serviceKey)
+		}
 	}
 
 	// Create user service role assignment
 	userServiceRole := &UserServiceRole{
-		UserID:     userID,
-		ServiceKey: serviceKey,
-		RoleName:   roleName,
-		AssignedAt: time.Now(),
-		AssignedBy: assignedBy,
-		IsActive:   true,
+		UserID:         userID,
+		ServiceKey:     serviceKey,
+		RoleName:       roleName,
+		ManagedService: ms,
+		AssignedAt:     time.Now(),
+		AssignedBy:     assignedBy,
+		IsActive:       true,
 	}
 
 	// Use upsert to prevent duplicates
@@ -1774,6 +1793,9 @@ func AssignUserToServiceRole(userID primitive.ObjectID, serviceKey, roleName str
 		"service_key": serviceKey,
 		"role_name":   roleName,
 	}
+	if ms != "" {
+		filter["managed_service"] = ms
+	}
 	update := bson.M{
 		"$set": userServiceRole,
 		"$setOnInsert": bson.M{
@@ -1781,7 +1803,7 @@ func AssignUserToServiceRole(userID primitive.ObjectID, serviceKey, roleName str
 		},
 	}
 
-	_, err = userServiceRolesCol.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	_, err := userServiceRolesCol.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	return err
 }
 
@@ -1873,17 +1895,22 @@ func GetUserAccessibleServices(userID primitive.ObjectID) ([]string, error) {
 }
 
 // RemoveUserFromServiceRole removes a role from user in a service
-func RemoveUserFromServiceRole(userID primitive.ObjectID, serviceKey, roleName string) error {
+func RemoveUserFromServiceRole(userID primitive.ObjectID, serviceKey, roleName string, managedService ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
 	defer cancel()
 
+	filter := bson.M{
+		"user_id":     userID,
+		"service_key": serviceKey,
+		"role_name":   roleName,
+	}
+	if len(managedService) > 0 && managedService[0] != "" {
+		filter["managed_service"] = managedService[0]
+	}
+
 	_, err := userServiceRolesCol.UpdateOne(
 		ctx,
-		bson.M{
-			"user_id":     userID,
-			"service_key": serviceKey,
-			"role_name":   roleName,
-		},
+		filter,
 		bson.M{"$set": bson.M{"is_active": false}},
 	)
 

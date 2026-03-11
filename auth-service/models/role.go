@@ -482,6 +482,47 @@ func GetServiceRoleByName(serviceKey, roleName string) (*ServiceRole, error) {
 	return &role, nil
 }
 
+// GetExternalRoleByNameAndService retrieves an external role by name and managed service
+// This avoids collisions when multiple external roles share the same name for different managed services
+func GetExternalRoleByNameAndService(roleName, managedService string) (*ServiceRole, error) {
+	ctx := context.Background()
+
+	var role ServiceRole
+	err := serviceRolesCol.FindOne(ctx, bson.M{
+		"$or": []bson.M{
+			{"service_key": "auth", "name": roleName, "managed_service": managedService},
+			{"service": "auth", "name": roleName, "managed_service": managedService},
+		},
+	}).Decode(&role)
+	if err != nil {
+		return nil, err
+	}
+
+	return &role, nil
+}
+
+// GetAllExternalRolesByName returns all external roles with a given name across all managed services
+func GetAllExternalRolesByName(roleName string) ([]*ServiceRole, error) {
+	ctx := context.Background()
+
+	cursor, err := serviceRolesCol.Find(ctx, bson.M{
+		"$or": []bson.M{
+			{"service_key": "auth", "name": roleName, "role_type": "external"},
+			{"service": "auth", "name": roleName, "role_type": "external"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var roles []*ServiceRole
+	if err := cursor.All(ctx, &roles); err != nil {
+		return nil, err
+	}
+	return roles, nil
+}
+
 // UpdateServiceRole updates an existing service role
 func UpdateServiceRole(role *ServiceRole) error {
 	ctx := context.Background()

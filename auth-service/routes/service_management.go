@@ -44,10 +44,20 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 		externalManagedKeys := make(map[string]bool)
 		for _, role := range userServiceRoles {
 			if role.ServiceKey == "auth" && role.IsActive {
-				// Check if this auth role is an external role with managed_service
-				sr, err := models.GetServiceRoleByName("auth", role.RoleName)
-				if err == nil && sr != nil && sr.RoleType == "external" && sr.ManagedService != "" {
-					externalManagedKeys[sr.ManagedService] = true
+				// If assignment has managed_service, use it directly
+				if role.ManagedService != "" {
+					externalManagedKeys[role.ManagedService] = true
+					continue
+				}
+				// Fallback for old assignments without managed_service:
+				// look up role definitions to find managed_service
+				externalRoles, err := models.GetAllExternalRolesByName(role.RoleName)
+				if err == nil {
+					for _, sr := range externalRoles {
+						if sr.ManagedService != "" {
+							externalManagedKeys[sr.ManagedService] = true
+						}
+					}
 				}
 			}
 		}
@@ -892,7 +902,7 @@ func addUserToServiceHandler(c *gin.Context) {
 
 	// Assign external roles (auth-service roles that grant access to this service)
 	for _, extRoleName := range req.ExternalRoleNames {
-		err := models.AssignUserToServiceRole(targetUser.ID, "auth", extRoleName, currentUser.ID)
+		err := models.AssignUserToServiceRole(targetUser.ID, "auth", extRoleName, currentUser.ID, serviceKey)
 		if err != nil {
 			log.Printf("Warning: Failed to assign external role '%s' to user %s: %v", extRoleName, targetUser.ID.Hex(), err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign external role: " + extRoleName})
@@ -1031,7 +1041,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 		for roleName := range currentExternalRoles {
 			if !newExternalRoles[roleName] {
 				log.Printf("Removing external role '%s' from user %s in auth service", roleName, userObjectID.Hex())
-				err := models.RemoveUserFromServiceRole(userObjectID, "auth", roleName)
+				err := models.RemoveUserFromServiceRole(userObjectID, "auth", roleName, serviceKey)
 				if err != nil {
 					log.Printf("Failed to remove external role '%s': %v", roleName, err)
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove external role: " + roleName})
@@ -1044,7 +1054,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 		for roleName := range newExternalRoles {
 			if !currentExternalRoles[roleName] {
 				log.Printf("Adding external role '%s' to user %s in auth service", roleName, userObjectID.Hex())
-				err := models.AssignUserToServiceRole(userObjectID, "auth", roleName, currentUser.ID)
+				err := models.AssignUserToServiceRole(userObjectID, "auth", roleName, currentUser.ID, serviceKey)
 				if err != nil {
 					log.Printf("Failed to assign external role '%s': %v", roleName, err)
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign external role: " + roleName})
@@ -1418,10 +1428,10 @@ func updateExternalRoleHandler(c *gin.Context) {
 
 	log.Printf("DEBUG updateExternalRoleHandler: input name=%s, desc=%s, perms=%d", input.Name, input.Description, len(input.Permissions))
 
-	// Get existing role
-	existingRole, err := models.GetServiceRoleByName("auth", roleName)
+	// Get existing role by name + managed service to avoid collisions
+	existingRole, err := models.GetExternalRoleByNameAndService(roleName, serviceKey)
 	if err != nil {
-		log.Printf("ERROR updateExternalRoleHandler: role '%s' not found in auth service: %v", roleName, err)
+		log.Printf("ERROR updateExternalRoleHandler: role '%s' not found for managed service '%s': %v", roleName, serviceKey, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
 		return
 	}
@@ -1442,17 +1452,24 @@ func updateExternalRoleHandler(c *gin.Context) {
 
 	// Check for name conflict if name is being changed
 	if input.Name != "" && input.Name != existingRole.Name {
-		conflicting, err := models.GetServiceRoleByName("auth", input.Name)
+		// Check conflict with internal auth roles
+		internalConflict, err := models.GetRoleByServiceAndName("auth", input.Name)
+		if err == nil && internalConflict != nil && internalConflict.IsInternal() {
+			log.Printf("ERROR updateExternalRoleHandler: name conflict with internal role '%s'", input.Name)
+			c.JSON(http.StatusConflict, gin.H{
+				"error": fmt.Sprintf("Роль с именем '%s' уже существует", input.Name),
+			})
+			return
+		}
+		// Check conflict with external role for the same managed service
+		conflicting, err := models.GetExternalRoleByNameAndService(input.Name, serviceKey)
 		if err == nil && conflicting != nil {
-			// Only block if the conflicting role is internal or manages the same service
-			if conflicting.ManagedService == "" || conflicting.ManagedService == serviceKey {
-				log.Printf("ERROR updateExternalRoleHandler: name conflict - role '%s' already exists (ID=%s)",
-					input.Name, conflicting.ID.Hex())
-				c.JSON(http.StatusConflict, gin.H{
-					"error": fmt.Sprintf("Роль с именем '%s' уже существует", input.Name),
-				})
-				return
-			}
+			log.Printf("ERROR updateExternalRoleHandler: name conflict - role '%s' already exists for service '%s' (ID=%s)",
+				input.Name, serviceKey, conflicting.ID.Hex())
+			c.JSON(http.StatusConflict, gin.H{
+				"error": fmt.Sprintf("Роль с именем '%s' уже существует", input.Name),
+			})
+			return
 		}
 	}
 
@@ -1499,8 +1516,8 @@ func deleteExternalRoleHandler(c *gin.Context) {
 		return
 	}
 
-	// Get existing role first
-	existingRole, err := models.GetServiceRoleByName("auth", roleName)
+	// Get existing role by name + managed service to avoid collisions
+	existingRole, err := models.GetExternalRoleByNameAndService(roleName, serviceKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
 		return
@@ -1532,17 +1549,10 @@ func getExternalRoleHandler(c *gin.Context) {
 
 	log.Printf("DEBUG: getExternalRoleHandler called for service=%s, role=%s", serviceKey, roleName)
 
-	// Find the role in auth-service
-	role, err := models.GetServiceRoleByName("auth", roleName)
+	// Find the external role by name + managed service
+	role, err := models.GetExternalRoleByNameAndService(roleName, serviceKey)
 	if err != nil {
-		log.Printf("ERROR: getExternalRoleHandler - role '%s' not found: %v", roleName, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
-		return
-	}
-
-	// Verify it's actually an external role for this service
-	if role.RoleType != models.RoleTypeExternal || role.ManagedService != serviceKey {
-		log.Printf("ERROR: getExternalRoleHandler - role '%s' is not an external role for service '%s'", roleName, serviceKey)
+		log.Printf("ERROR: getExternalRoleHandler - role '%s' not found for service '%s': %v", roleName, serviceKey, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Внешняя роль не найдена для данного сервиса"})
 		return
 	}
@@ -1575,9 +1585,9 @@ func getExternalRoleUsersHandler(c *gin.Context) {
 	log.Printf("DEBUG: getExternalRoleUsersHandler called for service=%s, role=%s", serviceKey, roleName)
 
 	// Verify the role exists and is an external role for this service
-	role, err := models.GetServiceRoleByName("auth", roleName)
-	if err != nil || role.RoleType != models.RoleTypeExternal || role.ManagedService != serviceKey {
-		log.Printf("ERROR: getExternalRoleUsersHandler - role '%s' not found or not external for service '%s'", roleName, serviceKey)
+	_, err := models.GetExternalRoleByNameAndService(roleName, serviceKey)
+	if err != nil {
+		log.Printf("ERROR: getExternalRoleUsersHandler - role '%s' not found for service '%s': %v", roleName, serviceKey, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Внешняя роль не найдена для данного сервиса"})
 		return
 	}
