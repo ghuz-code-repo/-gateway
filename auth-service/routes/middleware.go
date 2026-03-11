@@ -494,7 +494,11 @@ func checkExternalRoleInRoles(userServiceRoles []models.UserServiceRole, usernam
 	for _, role := range userServiceRoles {
 		if role.ServiceKey == "auth" && role.IsActive {
 			if externalRoleNames[role.RoleName] {
-				log.Printf("User %s has external role %s for service %s", username, role.RoleName, serviceKey)
+				// For assignments with managed_service, it must match the target service
+				if role.ManagedService != "" && role.ManagedService != serviceKey {
+					continue
+				}
+				log.Printf("User %s has external role %s for service %s (managed_service=%s)", username, role.RoleName, serviceKey, role.ManagedService)
 				return true
 			}
 		}
