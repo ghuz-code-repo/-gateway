@@ -308,6 +308,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 
 	// Logs permissions
 	canViewLogs := isSystemAdmin || isServiceManager ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"logs.view") ||
 		models.HasAuthPermission(user.ID, "auth.logs.view") ||
 		models.HasAuthPermission(user.ID, "auth.logs.system.view")
 
