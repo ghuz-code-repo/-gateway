@@ -90,8 +90,12 @@ func EnsureExternalRolesForAllServices() {
 				fmt.Sprintf("auth.%s.users.edit", service.Key),
 				fmt.Sprintf("auth.%s.users.delete", service.Key),
 				fmt.Sprintf("auth.%s.roles.view", service.Key),
+				fmt.Sprintf("auth.%s.roles.create", service.Key),
+				fmt.Sprintf("auth.%s.roles.edit", service.Key),
+				fmt.Sprintf("auth.%s.roles.delete", service.Key),
 				fmt.Sprintf("auth.%s.roles.assign", service.Key),
 				fmt.Sprintf("auth.%s.service_roles.assign", service.Key),
+				fmt.Sprintf("auth.%s.logs.view", service.Key),
 			},
 		)
 	}
@@ -100,7 +104,8 @@ func EnsureExternalRolesForAllServices() {
 }
 
 // ensureExternalRole creates an external role in auth-service for managing
-// the given service, if it doesn't already exist.
+// the given service, if it doesn't already exist. If the role exists, ensures
+// it has all the required permissions (adds missing ones).
 func ensureExternalRole(ctx context.Context, managedService, roleName, description string, permissions []string) {
 	// Check if role already exists
 	filter := bson.M{
@@ -110,16 +115,49 @@ func ensureExternalRole(ctx context.Context, managedService, roleName, descripti
 		},
 	}
 
-	count, err := serviceRolesCol.CountDocuments(ctx, filter)
-	if err != nil {
-		log.Printf("[EXTERNAL_ROLES] Error checking role %s for %s: %v", roleName, managedService, err)
-		return
-	}
-	if count > 0 {
-		// Role already exists, nothing to do
+	var existing bson.M
+	err := serviceRolesCol.FindOne(ctx, filter).Decode(&existing)
+	if err == nil {
+		// Role exists — ensure it has all required permissions
+		existingPerms := make(map[string]bool)
+		if perms, ok := existing["permissions"].(bson.A); ok {
+			for _, p := range perms {
+				if s, ok := p.(string); ok {
+					existingPerms[s] = true
+				}
+			}
+		}
+
+		var missing []string
+		for _, perm := range permissions {
+			if !existingPerms[perm] {
+				missing = append(missing, perm)
+			}
+		}
+
+		if len(missing) > 0 {
+			_, updateErr := serviceRolesCol.UpdateOne(ctx,
+				bson.M{"_id": existing["_id"]},
+				bson.M{
+					"$addToSet": bson.M{"permissions": bson.M{"$each": missing}},
+					"$set":      bson.M{"updatedAt": time.Now()},
+				},
+			)
+			if updateErr != nil {
+				log.Printf("[EXTERNAL_ROLES] Failed to add permissions to role %s for %s: %v", roleName, managedService, updateErr)
+			} else {
+				log.Printf("[EXTERNAL_ROLES] ✅ Added %d missing permissions to role '%s' for service '%s': %v", len(missing), roleName, managedService, missing)
+			}
+		}
 		return
 	}
 
+	if err != mongo.ErrNoDocuments {
+		log.Printf("[EXTERNAL_ROLES] Error checking role %s for %s: %v", roleName, managedService, err)
+		return
+	}
+
+	// Role doesn't exist — create it
 	role := bson.M{
 		"_id":             primitive.NewObjectID(),
 		"service":         "auth",

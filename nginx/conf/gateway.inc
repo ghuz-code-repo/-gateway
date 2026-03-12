@@ -19,14 +19,14 @@
 # Redirect HTTP -> HTTPS
 server {
     listen 80;
-    server_name analytics.gh.uz localhost;
+    server_name analytics.gh.uz test_analytics.gh.uz localhost;
     return 301 https://$host$request_uri;
 }
 
 # Main HTTPS server
 server {
     listen 443 ssl;
-    server_name analytics.gh.uz localhost;
+    server_name analytics.gh.uz test_analytics.gh.uz localhost;
 
     # SSL Configuration - use certs mounted into the container
     ssl_certificate /etc/nginx/certs/gh.uz.chain.pem;
