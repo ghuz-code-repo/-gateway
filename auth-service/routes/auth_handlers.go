@@ -609,19 +609,26 @@ func verifyLogsAccessHandler(c *gin.Context) {
 	if serviceKey != "" {
 		// Check permission for non-admins
 		if !isAdmin {
-			// For auth service - need auth.logs.system.view
-			// For all other services - need auth.logs.view
-			var hasPermission bool
-			if serviceKey == "auth" {
-				hasPermission = models.HasAuthPermission(user.ID, "auth.logs.system.view")
-			} else {
-				hasPermission = models.HasAuthPermission(user.ID, "auth.logs.view")
-			}
+			isServiceMgr := hasServiceManagerRole(user, serviceKey)
+			if !isServiceMgr {
+				// Check all possible logs permissions:
+				// - auth.logs.system.view (auth service system logs)
+				// - auth.logs.view (global logs permission)
+				// - auth.<serviceKey>.logs.view (per-service logs permission)
+				var hasPermission bool
+				if serviceKey == "auth" {
+					hasPermission = models.HasAuthPermission(user.ID, "auth.logs.system.view")
+				} else {
+					servicePermPrefix := fmt.Sprintf("auth.%s.", serviceKey)
+					hasPermission = models.HasAuthPermission(user.ID, "auth.logs.view") ||
+						models.HasAuthPermission(user.ID, servicePermPrefix+"logs.view")
+				}
 
-			if !hasPermission {
-				log.Printf("Access denied: user '%s' does not have logs permission for service '%s'", user.Username, serviceKey)
-				c.AbortWithStatus(http.StatusForbidden)
-				return
+				if !hasPermission {
+					log.Printf("Access denied: user '%s' does not have logs permission for service '%s'", user.Username, serviceKey)
+					c.AbortWithStatus(http.StatusForbidden)
+					return
+				}
 			}
 		}
 
@@ -681,6 +688,13 @@ func getAllowedLogsServices(userID primitive.ObjectID) []string {
 	// auth.logs.view gives access to ALL external services (not auth)
 	if models.HasAuthPermission(userID, "auth.logs.view") {
 		allowed = append(allowed, externalServices...)
+	} else {
+		// Check per-service logs permissions
+		for _, svc := range externalServices {
+			if models.HasAuthPermission(userID, fmt.Sprintf("auth.%s.logs.view", svc)) {
+				allowed = append(allowed, svc)
+			}
+		}
 	}
 
 	// auth.logs.system.view gives access to auth-service logs specifically
