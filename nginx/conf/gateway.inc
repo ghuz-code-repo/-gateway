@@ -239,6 +239,7 @@ server {
     # Service-specific logs viewer
     location ~ ^/services/([^/]+)/logs(/.*)?$ {
         set $service_key $1;
+        set $dozzle_logs_suffix $2;
         
         # Check access with service filter
         auth_request /verify-service-logs-auth;
@@ -250,13 +251,13 @@ server {
         error_page 401 = @error401;
         error_page 403 = @error403_service_logs;
         
-        # Rewrite to Dozzle base path
-        # set MUST come before rewrite...break (break stops rewrite-phase directives)
-        set $dozzle_upstream2 http://gateway-dozzle:8080;
-        rewrite ^/services/[^/]+/logs(/.*)?$ /logs$1 break;
+        # Build full Dozzle URL directly (no rewrite needed)
+        # /services/referal/logs/  -> http://gateway-dozzle:8080/logs/
+        # /services/referal/logs/api/... -> http://gateway-dozzle:8080/logs/api/...
+        set $dozzle_service_url http://gateway-dozzle:8080/logs$dozzle_logs_suffix;
         
         # Dozzle web UI with WebSocket support
-        proxy_pass $dozzle_upstream2;
+        proxy_pass $dozzle_service_url;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
