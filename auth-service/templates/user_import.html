@@ -1,9 +1,13 @@
 {{ define "user_import.html" }}
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>{{ .title }} - шлюз авторизации</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
       body {
         visibility: hidden;
@@ -17,9 +21,11 @@
         (function() {
             const theme = localStorage.getItem('theme');
             if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
                 document.documentElement.classList.add('dark-theme');
             } else {
                 document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
             }
             requestAnimationFrame(() => {
                 document.body.style.visibility = 'visible';
@@ -33,44 +39,252 @@
         <h1>{{ .title }}</h1>
         
         <div class="card">
-            <form action="/admin/users/import" method="post" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label for="excelFile">Выберите файл Excel:</label>
-                    <input type="file" id="excelFile" name="excelFile" accept=".xlsx,.xls" required>
+            <div class="card-header">
+                <h3><i class="fas fa-download"></i> Скачать шаблон Excel</h3>
+            </div>
+            <div class="card-body">
+                <p>Скачайте шаблон Excel для импорта пользователей:</p>
+                <div class="row">
+                    <div class="col-md-6">
+                        <a href="/users/template" class="btn btn-primary btn-block">
+                            <i class="fas fa-file-excel"></i> Пустой шаблон
+                        </a>
+                        <small class="text-muted">Шаблон с заголовками и примером пользователя</small>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="/users/export" class="btn btn-secondary btn-block">
+                            <i class="fas fa-users"></i> Экспорт текущих пользователей
+                        </a>
+                        <small class="text-muted">Скачать всех пользователей для редактирования</small>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <h5>Структура файла:</h5>
+                    <ul>
+                        <li><strong>Лист "Users":</strong> ID, Имя пользователя, Email, Фамилия, Имя, Отчество, Частица, Телефон, Отдел, Должность + колонки сервисов</li>
+                        <li><strong>Лист "Services":</strong> Справочник сервисов и их ролей</li>
+                        <li><strong>Роли в сервисах:</strong> указываются через запятую без пробелов (например: admin,editor)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-upload"></i> Импорт пользователей</h3>
+            </div>
+            <div class="card-body">
+                <form id="importForm" action="/users/import" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="file">Выберите файл Excel:</label>
+                        <input type="file" id="file" name="file" accept=".xlsx" required class="form-control-file">
+                        <small class="form-text text-muted">Поддерживаются только файлы .xlsx</small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Загрузить и импортировать
+                    </button>
+                </form>
+
+                <!-- Progress indicator (initially hidden) -->
+                <div id="progressContainer" class="mt-3" style="display: none;">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-cog fa-spin"></i> Обработка файла...
+                            </h5>
+                            <div class="progress mb-2">
+                                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <small id="progressText" class="text-muted">Загрузка файла...</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results container (initially hidden) -->
+                <div id="resultsContainer" class="mt-3" style="display: none;">
+                    <div id="resultsAlert" class="alert">
+                        <div id="resultsContent"></div>
+                    </div>
                 </div>
                 
-                <div class="form-info">
-                    <h3>Требования к формату файла:</h3>
-                    <p>Файл Excel должен содержать следующие столбцы:</p>
+                <div class="mt-3">
+                    <h5>Логика импорта:</h5>
                     <ul>
-                        <li><strong>username</strong> (обязательно) - Уникальное имя пользователя для каждого пользователя</li>
-                        <li><strong>email</strong> (обязательно) - Адрес электронной почты для уведомлений</li>
-                        <li><strong>password</strong> (обязательно) - Начальный пароль</li>
-                        <li><strong>roles</strong> (необязательно) - Список ролей через запятую (например, "admin, user")</li>
-                        <li><strong>full_name</strong> (необязательно) - Полное имя пользователя</li>
+                        <li><strong>Новые пользователи:</strong> ID должно быть пустым, поиск по username/email</li>
+                        <li><strong>Существующие:</strong> Поиск по ID, затем по username/email если ID не найден</li>
+                        <li><strong>Пароли:</strong> Пустое поле = автоматическая генерация для новых пользователей, не изменяется для существующих</li>
+                        <li><strong>Email:</strong> Все пользователи получат гарантированные email уведомления</li>
+                        <li><strong>Структура:</strong> ID, Имя пользователя, Email, Фамилия, Имя, Отчество, Частица, Телефон, Отдел, Должность, <strong>Пароль</strong>, затем колонки сервисов</li>
                     </ul>
                 </div>
                 
-                <div class="form-buttons">
-                    <button type="submit" class="btn primary">Импортировать пользователей</button>
-                    <a href="/admin/users" class="btn">Отмена</a>
+                <div class="mt-3">
+                    <a href="/users/import/logs" class="btn btn-info">
+                        <i class="fas fa-history"></i> Посмотреть логи импорта
+                    </a>
                 </div>
-            </form>
+            </div>
         </div>
-        
+                
         <div >
-            <a href="/admin/users" class="back-link">Назад к пользователям</a>
+            <a href="/users" class="back-link">Назад к пользователям</a>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-<script src="/auth/static/js/theme-switcher.js"></script>
-<script src="/auth/static/js/layout-adjust.js"></script>
-<script src="/auth/static/js/mobile-menu.js"></script>
-<script>
+<script src="/static/js/theme-switcher.js"></script>
+<script src="/static/js/layout-adjust.js"></script>
+<script src="/static/js/mobile-menu.js"></script>
+    <script>
     particlesJS('particles-js', {
-        "particles": { "number": { "value": 50, "density": { "enable": true, "value_area": 800 } }, "color": { "value": "#c4a668" }, "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } }, "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } }, "size": { "value": 4, "random": true }, "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 }, "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" } }, "interactivity": { "detect_on": "canvas", "events": { "onhover": { "enable": true, "mode": "bubble" } }, "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } } }, "retina_detect": true
+        "particles": {
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
+            "color": { "value": "#c4a668" },
+            "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+            "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+            "size": { "value": 4, "random": true },
+            "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+            "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
+            "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+        },
+        "retina_detect": true
     });
-</script>
+
+    // Import form handling
+    document.getElementById('importForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const progressContainer = document.getElementById('progressContainer');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const resultsAlert = document.getElementById('resultsAlert');
+        const resultsContent = document.getElementById('resultsContent');
+        
+        // Show progress
+        progressContainer.style.display = 'block';
+        resultsContainer.style.display = 'none';
+        progressBar.style.width = '0%';
+        progressText.textContent = 'Загрузка файла...';
+        
+        // Disable form
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Обработка...';
+        
+        // Simulate progress
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += 5;
+            if (progress <= 90) {
+                progressBar.style.width = progress + '%';
+                if (progress < 30) {
+                    progressText.textContent = 'Загрузка файла...';
+                } else if (progress < 60) {
+                    progressText.textContent = 'Обработка данных...';
+                } else {
+                    progressText.textContent = 'Сохранение изменений...';
+                }
+            }
+        }, 100);
+        
+        // Send request
+        fetch('/users/import', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.text().then(text => {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error('Response is not JSON:', text);
+                    throw new Error('Сервер вернул некорректный ответ. Проверьте логи сервера.');
+                }
+            });
+        })
+        .then(data => {
+            clearInterval(progressInterval);
+            progressBar.style.width = '100%';
+            progressText.textContent = 'Завершено!';
+            
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+                resultsContainer.style.display = 'block';
+                
+                if (data.success) {
+                    resultsAlert.className = 'alert alert-success';
+                    
+                    let html = '<h4><i class="fas fa-check-circle"></i> Импорт завершен успешно!</h4>';
+                    html += `<p><strong>Обработано:</strong> ${data.total_processed} записей</p>`;
+                    html += `<p><strong>Создано:</strong> ${data.users_created} пользователей</p>`;
+                    html += `<p><strong>Обновлено:</strong> ${data.users_updated} пользователей</p>`;
+                    
+                    if (data.users_deleted && data.users_deleted > 0) {
+                        html += `<p><strong>Удалено:</strong> ${data.users_deleted} пользователей</p>`;
+                    }
+                    if (data.users_banned && data.users_banned > 0) {
+                        html += `<p><strong>Заблокировано:</strong> ${data.users_banned} пользователей</p>`;
+                    }
+                    if (data.users_unbanned && data.users_unbanned > 0) {
+                        html += `<p><strong>Разблокировано:</strong> ${data.users_unbanned} пользователей</p>`;
+                    }
+                    
+                    html += `<p><strong>Пропущено:</strong> ${data.users_skipped} записей</p>`;
+                    html += `<p><strong>Время обработки:</strong> ${data.processing_time}</p>`;
+                    
+                    if (data.dry_run) {
+                        html += '<div class="alert alert-info mt-3"><i class="fas fa-info-circle"></i> <strong>Тестовый режим:</strong> Изменения не были сохранены в базе данных.</div>';
+                    }
+                    
+                    if (data.errors && data.errors.length > 0) {
+                        html += '<div class="mt-3"><h5>Ошибки:</h5><ul>';
+                        data.errors.forEach(error => {
+                            html += `<li>Строка ${error.row}: ${error.error}`;
+                            if (error.user_email || error.username) {
+                                html += ` (${error.user_email || error.username})`;
+                            }
+                            html += '</li>';
+                        });
+                        html += '</ul></div>';
+                    }
+                    
+                    resultsContent.innerHTML = html;
+                } else {
+                    resultsAlert.className = 'alert alert-danger';
+                    resultsContent.innerHTML = `<h4><i class="fas fa-exclamation-circle"></i> Ошибка импорта</h4><p>${data.error || data.details || 'Неизвестная ошибка'}</p>`;
+                }
+                
+                // Re-enable form
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }, 500);
+        })
+        .catch(error => {
+            clearInterval(progressInterval);
+            progressContainer.style.display = 'none';
+            resultsContainer.style.display = 'block';
+            
+            resultsAlert.className = 'alert alert-danger';
+            resultsContent.innerHTML = `<h4><i class="fas fa-exclamation-circle"></i> Ошибка сети</h4><p>Не удалось загрузить файл: ${error.message}</p>`;
+            
+            // Re-enable form
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        });
+    });
+    </script>
 </body>
 </html>
 {{ end }}
+

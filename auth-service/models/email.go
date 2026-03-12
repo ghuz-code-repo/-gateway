@@ -29,18 +29,18 @@ func isIPAddress(host string) bool {
 	return net.ParseIP(host) != nil
 }
 
-// getTLSConfig creates appropriate TLS configuration based on whether host is IP or DNS name
+// getTLSConfig creates appropriate TLS configuration based on whether host is IP or DNS name.
+// WARNING: When host is an IP address, TLS certificate verification is skipped (InsecureSkipVerify).
+// This is acceptable ONLY for internal/trusted networks. For external SMTP servers, always use DNS hostnames.
 func getTLSConfig(host string) *tls.Config {
 	if isIPAddress(host) {
-		log.Printf("Host %s is an IP address, using InsecureSkipVerify for TLS", host)
+		log.Printf("WARNING: SMTP host %s is an IP address — TLS certificate verification disabled (MITM risk on untrusted networks)", host)
 		return &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, //nolint:gosec // Acceptable for internal network SMTP by IP
 		}
-	} else {
-		log.Printf("Host %s is a DNS name, using normal TLS verification", host)
-		return &tls.Config{
-			ServerName: host,
-		}
+	}
+	return &tls.Config{
+		ServerName: host,
 	}
 }
 
@@ -217,6 +217,27 @@ func SendEmailNotification(to, subject, body string) error {
 
 	log.Printf("SUCCESS: Email notification sent to %s", to)
 	return nil
+}
+
+// SendEmailNotificationViaService sends an email notification via the external notification service
+// This function is defined in notification_client.go but needs to be accessible from models package
+var SendEmailNotificationViaService func(to, subject, body string) error
+
+// SendEmailNotificationNew sends an email notification ONLY via notification service (no fallback)
+func SendEmailNotificationNew(to, subject, body string) error {
+	// Use only notification service - no fallback to direct SMTP
+	if SendEmailNotificationViaService != nil {
+		err := SendEmailNotificationViaService(to, subject, body)
+		if err != nil {
+			log.Printf("Notification service failed: %v", err)
+			return fmt.Errorf("failed to send notification via notification service: %v", err)
+		}
+		return nil
+	}
+
+	// If notification service client is not initialized, return error
+	log.Printf("ERROR: Notification service client not initialized")
+	return fmt.Errorf("notification service client not initialized")
 }
 
 // LoginAuth is a custom implementation of the LOGIN authentication mechanism

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Тест загрузки документов</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        select, input, button { padding: 8px; }
+        .result { margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Тест загрузки документов в auth-service</h1>
+    
+    <form id="uploadForm">
+        <div class="form-group">
+            <label for="documentType">Тип документа:</label>
+            <select id="documentType" name="document_type" required>
+                <option value="">Выберите тип</option>
+                <option value="ПИНФЛ">ПИНФЛ</option>
+                <option value="Паспорт">Паспорт</option>
+                <option value="Банковские данные">Банковские данные</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="title">Название документа:</label>
+            <input type="text" id="title" name="title" required placeholder="Например: Справка ПИНФЛ">
+        </div>
+        
+        <div class="form-group">
+            <label for="file">Выберите файл:</label>
+            <input type="file" id="file" name="file" required>
+        </div>
+        
+        <button type="submit">Загрузить документ</button>
+    </form>
+    
+    <div id="result" class="result" style="display:none;"></div>
+    
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = 'Загрузка...';
+            
+            const formData = new FormData();
+            formData.append('document_type', document.getElementById('documentType').value);
+            formData.append('title', document.getElementById('title').value);
+            formData.append('file', document.getElementById('file').files[0]);
+            
+            try {
+                // Создаем документ
+                const createResponse = await fetch('/profile/documents', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                });
+                
+                if (!createResponse.ok) {
+                    throw new Error(`Ошибка создания документа: ${createResponse.status}`);
+                }
+                
+                const createResult = await createResponse.json();
+                console.log('Документ создан:', createResult);
+                
+                if (createResult.document_id) {
+                    // Загружаем файл к документу
+                    const uploadData = new FormData();
+                    uploadData.append('file', document.getElementById('file').files[0]);
+                    
+                    const uploadResponse = await fetch(`/profile/documents/${createResult.document_id}/attachments`, {
+                        method: 'POST',
+                        body: uploadData,
+                        credentials: 'include'
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                        throw new Error(`Ошибка загрузки файла: ${uploadResponse.status}`);
+                    }
+                    
+                    const uploadResult = await uploadResponse.json();
+                    console.log('Файл загружен:', uploadResult);
+                    
+                    resultDiv.innerHTML = `
+                        <h3>✅ Успешно загружено!</h3>
+                        <p><strong>Документ ID:</strong> ${createResult.document_id}</p>
+                        <p><strong>Тип:</strong> ${createResult.document_type}</p>
+                        <p><strong>Название:</strong> ${createResult.title}</p>
+                        <p><strong>Файл:</strong> ${uploadResult.attachment ? uploadResult.attachment.filename : 'загружен'}</p>
+                    `;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<h3>❌ Ошибка:</h3><p>${error.message}</p>`;
+                console.error('Ошибка загрузки:', error);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,34 +1,44 @@
 {{ define "header" }}
-<head>
-    <!-- Adding Font Awesome here to ensure it's available on all pages using this header -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-</head>
+<!-- HEADER DEBUG: username=[{{ .username }}], short_name=[{{ .short_name }}], user=[{{ .user }}] -->
 <header class="header-container">
     <div class="header-logo-section"> <!-- Changed from top-left for consistency with CSS -->
-        <a href="/auth/menu">
+        <a href="/menu">
             <!-- Ensure the path to static assets is correct if your Go server serves them from /auth/static -->
-            <img src="/auth/static/img/logo-dark.svg" alt="Golden House Logo" class="logo-img" id="dynamic-logo">
+            <img src="/static/img/logo-dark.svg" alt="Golden House Logo" class="logo-img" id="dynamic-logo">
         </a>
     </div>
 
     <!-- Desktop Header Controls -->
     <div class="header-controls-section">
-        {{if .username }} <!-- Assuming .username implies a logged-in user -->
-        <div class="header-user-info">
-            <span class="header-username">{{ .username }}</span>
-            {{ if .full_name }}<span class="header-fullname">({{ .full_name }})</span>{{ end }}
-        </div>
-        {{end}}
+        <!-- TEMP: Removed {{if .username }} check for debugging -->
+        <a href="/profile" class="header-profilr-link" title="Личный кабинет">
+            <div class="avatar-section">
+                <div class="avatar-mini">
+                    {{ if .user.AvatarPath }}
+                        <img src="{{ .user.AvatarPath }}" alt="Аватар" id="headerAvatarImage">
+                    {{ else }}
+                        <i class="fas fa-user-circle" id="headerDefaultAvatar"></i>
+                    {{ end }}
+                </div>
+            </div>
+            <div class="header-user-info">
+                <!-- DEBUG: short_name=[{{ .short_name }}], full_name=[{{ .full_name }}], username=[{{ .username }}] -->
+                {{ if .short_name }}<span class="header-fullname">{{ .short_name }}</span>{{ else }}<!-- NO SHORT_NAME -->{{ end }}
+                <span class="header-username">({{ .username }})</span>
+            </div>
+        </a>
+        <!-- TEMP: Removed {{end}} -->
         <div class="header-buttons">
             <button id="theme-switcher" title="Сменить тему">
                 <i class="fas fa-moon"></i> <!-- Icon changes via JS -->
             </button>
-            {{if .username }}
-            <a href="/auth/logout" class="logout-btn" title="Выход">
+            <!-- TEMP: Removed {{if .username }} check for logout button -->
+            <a href="/logout" class="logout-btn" title="Выход">
                 <i class="fas fa-sign-out-alt"></i>
                 <!-- <span class="logout-text">Выход</span> --> <!-- Optional: text next to icon -->
             </a>
-            {{end}}
+            <!-- TEMP: Removed {{end}} -->
+        </div>
         </div>
     </div>
 
@@ -47,7 +57,7 @@
     {{if .username }}
     <div class="mobile-user-info">
         <span class="header-username">{{ .username }}</span>
-        {{ if .full_name }}<span class="header-fullname">({{ .full_name }})</span>{{ end }}
+        {{ if .short_name }}<span class="header-fullname">({{ .short_name }})</span>{{ end }}
     </div>
     {{end}}
 
@@ -56,7 +66,10 @@
     </button>
     
     {{if .username }}
-    <a href="/auth/logout" class="btn">
+    <a href="/profile" class="btn">
+        <i class="fas fa-user-circle"></i> Личный кабинет
+    </a>
+    <a href="/logout" class="btn">
         <i class="fas fa-sign-out-alt"></i> Выход
     </a>
     {{end}}
@@ -64,3 +77,4 @@
 </div>
 <div id="modal-backdrop" class="modal-backdrop"></div>
 {{ end }}
+

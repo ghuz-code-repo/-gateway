@@ -1,0 +1,254 @@
+{{ define "service_import.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/service-import.css">
+</head>
+<body>
+    <!-- Контейнер для уведомлений -->
+    <div id="notifications-container" class="notifications-container"></div>
+    
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+
+    <div class="admin-page-container">
+        <div class="header-spacer"></div>
+        <div class="admin-content">
+            <div class="container">
+                <div class="page-title-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h1>Импорт пользователей - {{.service.Name}}</h1>
+                        <div class="d-flex gap-2">
+                            <a href="/services/{{.service.Key}}/template" class="btn btn-primary">
+                                <i class="fas fa-download"></i> Пустой шаблон
+                            </a>
+                            <a href="/services/{{.service.Key}}/export" class="btn btn-success">
+                                <i class="fas fa-users"></i> Шаблон с данными
+                            </a>
+                            <a href="/services/{{ .service.Key }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Назад к сервису
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Загрузка файла Excel</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="flash-message info">
+                            <h6><strong>Инструкции по импорту для сервиса "{{.service.Name}}":</strong></h6>
+                            <ul>
+                                <li><strong>Создание новых пользователей:</strong> Заполните все обязательные поля (имя пользователя, email, пароль), оставьте поле ID пустым</li>
+                                <li><strong>Добавление к сервису:</strong> Если пользователь существует в системе, но не в вашем сервисе, он будет добавлен с указанными ролями</li>
+                                <li><strong>Обновление ролей:</strong> Для существующих пользователей сервиса можно изменить только роли в колонке "{{.service.Key}}"</li>
+                                <li><strong>Ограничения:</strong> Вы можете управлять только пользователями и ролями в рамках сервиса "{{.service.Name}}"</li>
+                                <li><strong>Формат файла:</strong> Используйте файлы Excel (.xlsx) с листом "Users"</li>
+                                <li><strong>Роли:</strong> Укажите роли через запятую в колонке "{{.service.Key}}"</li>
+                            </ul>
+                        </div>
+
+                        <form id="importForm" method="post" enctype="multipart/form-data" action="/services/{{.service.Key}}/import" class="form">
+                            <div class="form-group">
+                                <label for="file">Выберите файл Excel:</label>
+                                <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
+                                <small>Поддерживаются файлы формата .xlsx и .xls</small>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-upload"></i> Загрузить и импортировать
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Service Information Card -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h3>Информация о сервисе</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="service-info-grid">
+                            <div class="info-item">
+                                <strong>Название:</strong><br>
+                                {{.service.Name}}
+                            </div>
+                            <div class="info-item">
+                                <strong>Ключ:</strong><br>
+                                <code>{{.service.Key}}</code>
+                            </div>
+                            <div class="info-item">
+                                <strong>Описание:</strong><br>
+                                {{.service.Description}}
+                            </div>
+                        </div>
+                        {{if .serviceRoles}}
+                        <div class="roles-section">
+                            <strong>Доступные роли:</strong><br>
+                            {{range $index, $role := .serviceRoles}}
+                                {{if $index}}, {{end}}<code>{{$role.Name}}</code>
+                            {{end}}
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+
+                <!-- Recent Import Logs -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Последние импорты</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentImports">
+                            <div class="loading-spinner">
+                                <i class="fas fa-spinner fa-spin"></i> Загрузка данных...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Modal -->
+    <div id="progressModal" class="modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Импорт данных</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                        <p>Обрабатывается файл Excel. Пожалуйста, подождите...</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Handle form submission
+        document.getElementById('importForm').addEventListener('submit', function(e) {
+            // Show progress modal
+            document.getElementById('progressModal').style.display = 'block';
+        });
+
+        // Load recent imports
+        function loadRecentImports() {
+            fetch('/services/{{.service.Key}}/import/logs')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('recentImports');
+                    if (data.logs && data.logs.length > 0) {
+                        let html = '<div class="table-container"><table class="data-table">';
+                        html += '<thead><tr><th>Дата</th><th>Файл</th><th>Статус</th><th>Результат</th></tr></thead><tbody>';
+                        
+                        data.logs.forEach(log => {
+                            const date = new Date(log.timestamp).toLocaleString('ru-RU');
+                            const status = log.success ? 
+                                '<span class="status-badge success">Успешно</span>' : 
+                                '<span class="status-badge error">Ошибка</span>';
+                            
+                            let result = '';
+                            if (log.success && log.result) {
+                                const r = log.result;
+                                const parts = [];
+                                if (r.created_users && r.created_users.length > 0) {
+                                    parts.push(`Создано: ${r.created_users.length}`);
+                                }
+                                if (r.added_to_service && r.added_to_service.length > 0) {
+                                    parts.push(`Добавлено: ${r.added_to_service.length}`);
+                                }
+                                if (r.updated_roles && r.updated_roles.length > 0) {
+                                    parts.push(`Обновлено: ${r.updated_roles.length}`);
+                                }
+                                if (r.errors && r.errors.length > 0) {
+                                    parts.push(`Ошибок: ${r.errors.length}`);
+                                }
+                                result = parts.join(', ');
+                            } else if (!log.success) {
+                                result = log.error_message || 'Неизвестная ошибка';
+                            }
+                            
+                            html += `<tr><td>${date}</td><td>${log.file_name}</td><td>${status}</td><td><small>${result}</small></td></tr>`;
+                        });
+                        
+                        html += '</tbody></table></div>';
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<p class="text-muted">Импорты не найдены</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading import logs:', error);
+                    document.getElementById('recentImports').innerHTML = '<p class="error-message">Ошибка загрузки логов</p>';
+                });
+        }
+
+        // Load recent imports on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRecentImports();
+        });
+    </script>
+
+    <!-- Подключение JS файлов -->
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    
+    <!-- Инициализация particles.js -->
+    <script>
+    particlesJS('particles-js', {
+        "particles": {
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+            "color": { "value": "#c4a668" },
+            "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+            "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+            "size": { "value": 4, "random": true },
+            "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+            "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
+            "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+        },
+        "retina_detect": true
+    });
+    </script>
+    </div> <!-- Закрытие admin-content -->
+    </div> <!-- Закрытие admin-page-container -->
+</body>
+</html>
+{{ end }}

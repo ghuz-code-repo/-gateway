@@ -1,0 +1,179 @@
+/**
+ * Стили для умного поля ввода телефона
+ * Адаптировано из React компонента SmartPhoneInput
+ */
+
+/* Основное поле ввода телефона */
+.smart-phone-input {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.smart-phone-input input {
+    font-family: 'Courier New', monospace; /* Моноширинный шрифт для лучшего отображения маски */
+    letter-spacing: 0.5px;
+}
+
+/* Уведомления */
+.smart-phone-notification {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    font-size: 14px;
+    line-height: 1.4;
+    animation: slideDown 0.2s ease-out;
+    max-width: 300px;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Типы уведомлений */
+.smart-phone-notification.info {
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+    color: #0d47a1;
+}
+
+.smart-phone-notification.warning {
+    background-color: #fff3e0;
+    border-color: #ff9800;
+    color: #e65100;
+}
+
+.smart-phone-notification.error {
+    background-color: #ffebee;
+    border-color: #f44336;
+    color: #c62828;
+}
+
+.smart-phone-notification.success {
+    background-color: #e8f5e8;
+    border-color: #4caf50;
+    color: #2e7d32;
+}
+
+/* Иконки для типов уведомлений */
+.smart-phone-notification.info::before {
+    content: "ℹ️ ";
+    margin-right: 4px;
+}
+
+.smart-phone-notification.warning::before {
+    content: "⚠️ ";
+    margin-right: 4px;
+}
+
+.smart-phone-notification.error::before {
+    content: "❌ ";
+    margin-right: 4px;
+}
+
+.smart-phone-notification.success::before {
+    content: "✅ ";
+    margin-right: 4px;
+}
+
+/* Адаптация под тему сайта */
+.dark-theme .smart-phone-notification {
+    background-color: #2d2d30;
+    border-color: #5a5a5a;
+    color: #e6e6e6;
+}
+
+.dark-theme .smart-phone-notification.info {
+    background-color: #1a237e;
+    border-color: #3f51b5;
+    color: #bbdefb;
+}
+
+.dark-theme .smart-phone-notification.warning {
+    background-color: #e65100;
+    border-color: #ff9800;
+    color: #ffe0b2;
+}
+
+.dark-theme .smart-phone-notification.error {
+    background-color: #c62828;
+    border-color: #f44336;
+    color: #ffcdd2;
+}
+
+.dark-theme .smart-phone-notification.success {
+    background-color: #2e7d32;
+    border-color: #4caf50;
+    color: #c8e6c9;
+}
+
+/* Responsive адаптация */
+@media (max-width: 768px) {
+    .smart-phone-notification {
+        max-width: calc(100vw - 40px);
+        font-size: 13px;
+        padding: 10px;
+    }
+}
+
+/* Интеграция с текущими стилями профиля */
+.profile-form .smart-phone-input input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    background: #fff;
+    color: #333;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.profile-form .smart-phone-input input:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.dark-theme .profile-form .smart-phone-input input {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+.dark-theme .profile-form .smart-phone-input input:focus {
+    border-color: #6c8cd5;
+    box-shadow: 0 0 0 3px rgba(108, 140, 213, 0.1);
+}
+
+/* Состояние валидации */
+.smart-phone-input.valid input {
+    border-color: #28a745;
+}
+
+.smart-phone-input.invalid input {
+    border-color: #dc3545;
+}
+
+/* Загрузка/обработка */
+.smart-phone-input.processing input {
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke="%234a90e2" stroke-width="2" stroke-linecap="round" stroke-dasharray="31.416" stroke-dashoffset="31.416"><animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/><animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/></circle></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px 16px;
+    padding-right: 40px;
+}

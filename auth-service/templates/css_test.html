@@ -1,0 +1,75 @@
+{{ define "css_test.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSS Test</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        .test-container {
+            padding: 20px;
+            margin: 20px;
+            border: 2px solid red;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+        .test-card {
+            background: var(--card-background-color);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .debug-vars {
+            background: yellow;
+            padding: 10px;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Тест CSS переменных</h1>
+        
+        <div class="debug-vars">
+            <h3>CSS переменные должны работать:</h3>
+            <p>Фон страницы: var(--background-color)</p>
+            <p>Цвет текста: var(--text-color)</p>
+            <p>Основной цвет: var(--primary-color)</p>
+        </div>
+        
+        <div class="test-card">
+            <h3>Это тестовая карточка</h3>
+            <p>Если вы видите это с правильными цветами фона и границ, то CSS переменные работают.</p>
+        </div>
+        
+        <div style="background: #f0f0f0; padding: 10px; margin: 10px 0;">
+            <h3>Тест прямых стилей</h3>
+            <p>Это должно отображаться со светло-серым фоном независимо от CSS переменных.</p>
+        </div>
+        
+        <a href="/users/" style="color: blue; text-decoration: underline;">← Назад к управлению пользователями</a>
+    </div>
+
+    <script>
+        console.log("JavaScript загрузился");
+        
+        // Проверим CSS переменные
+        const styles = getComputedStyle(document.documentElement);
+        console.log("CSS Variables:");
+        console.log("--background-color:", styles.getPropertyValue('--background-color'));
+        console.log("--text-color:", styles.getPropertyValue('--text-color'));
+        console.log("--primary-color:", styles.getPropertyValue('--primary-color'));
+        
+        // Добавим информацию на страницу
+        const debugDiv = document.querySelector('.debug-vars');
+        debugDiv.innerHTML += `
+            <p><strong>Реальные значения:</strong></p>
+            <p>--background-color: ${styles.getPropertyValue('--background-color')}</p>
+            <p>--text-color: ${styles.getPropertyValue('--text-color')}</p>
+            <p>--primary-color: ${styles.getPropertyValue('--primary-color')}</p>
+        `;
+    </script>
+</body>
+</html>
+{{ end }}

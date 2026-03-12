@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ if .isEdit }}Редактировать роль{{ else }}Создать роль{{ end }} - {{ .service.Name }}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .accordion {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            background: var(--card-bg);
+            padding: 1rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .accordion-header:hover {
+            background: var(--hover-color);
+        }
+
+        .accordion-header.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: var(--bg-light);
+        }
+
+        .accordion-content.show {
+            max-height: 1000px;
+        }
+
+        .permission-list {
+            padding: 1rem;
+        }
+
+        .permission-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .permission-item:last-child {
+            border-bottom: none;
+        }
+
+        .permission-checkbox {
+            margin-top: 0.25rem;
+        }
+
+        .permission-info {
+            flex: 1;
+        }
+
+        .permission-name {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .permission-description {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        .category-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .category-count {
+            background: var(--primary);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+
+        .select-all-category {
+            margin-left: auto;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        .permissions-counter {
+            position: sticky;
+            bottom: 0;
+            background: var(--primary);
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            font-weight: 600;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    {{ template "header" . }}
+
+    <div class="container">
+        <div style="margin-bottom: 2rem;">
+            <a href="/settings/roles/{{.service.Key}}" style="text-decoration: none; color: var(--primary);">
+                <i class="fas fa-arrow-left"></i> Назад к списку ролей
+            </a>
+        </div>
+
+        <h1>{{ if .isEdit }}Редактировать роль{{ else }}Создать роль{{ end }}</h1>
+        <div class="user-info">
+            <p>Сервис: <strong>{{.service.Name}}</strong> ({{.service.Key}})</p>
+        </div>
+
+        <form id="roleForm">
+            <div class="form-group">
+                <label for="name">Название роли *</label>
+                <input type="text" id="name" name="name" required value="{{ if .role }}{{.role.Name}}{{ end }}"
+                    placeholder="my-custom-role">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Описание</label>
+                <textarea id="description" name="description" rows="3"
+                    placeholder="Описание роли и её назначения">{{ if .role }}{{.role.Description}}{{ end }}</textarea>
+            </div>
+
+            <h2>Разрешения ({{ len .categories }} категорий)</h2>
+
+            <div id="categories">
+                {{ range .categories }}
+                <div class="accordion">
+                    <div class="accordion-header" data-category="{{.Name}}">
+                        <span class="category-badge">
+                            <span>{{.Icon}}</span>
+                            <span>{{.DisplayName}}</span>
+                            <span class="category-count" data-category-count="{{.Name}}">0/{{.Count}}</span>
+                        </span>
+                        <button type="button" class="btn btn-sm select-all-category" data-category="{{.Name}}">
+                            Выбрать всё
+                        </button>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="permission-list">
+                            {{ range .Permissions }}
+                            <div class="permission-item">
+                                <input type="checkbox" class="permission-checkbox" name="permission" value="{{.Name}}"
+                                    data-category="{{$.Name}}" id="perm-{{.Name}}">
+                                <label for="perm-{{.Name}}" class="permission-info">
+                                    <div class="permission-name">{{.Name}}</div>
+                                    <div class="permission-description">{{.Description}}</div>
+                                </label>
+                            </div>
+                            {{ end }}
+                        </div>
+                    </div>
+                </div>
+                {{ end }}
+            </div>
+
+            <div class="permissions-counter">
+                <i class="fas fa-check-circle"></i> Итого выбрано: <span id="totalCount">0</span> разрешений
+            </div>
+
+            <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-primary">
+                    {{ if .isEdit }}Сохранить изменения{{ else }}Создать роль{{ end }}
+                </button>
+                <a href="/settings/roles/{{.service.Key}}" class="btn">Отмена</a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Accordion toggle
+        document.querySelectorAll('.accordion-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                if (e.target.classList.contains('select-all-category')) return;
+
+                const content = header.nextElementSibling;
+                content.classList.toggle('show');
+                header.classList.toggle('active');
+            });
+        });
+
+        // Select all in category
+        document.querySelectorAll('.select-all-category').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const category = btn.dataset.category;
+                const checkboxes = document.querySelectorAll(`input[data-category="${category}"]`);
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+                checkboxes.forEach(cb => cb.checked = !allChecked);
+                updateCounts();
+            });
+        });
+
+        // Update counters
+        function updateCounts() {
+            const categories = {};
+            document.querySelectorAll('.permission-checkbox').forEach(cb => {
+                const cat = cb.dataset.category;
+                if (!categories[cat]) categories[cat] = { checked: 0, total: 0 };
+                categories[cat].total++;
+                if (cb.checked) categories[cat].checked++;
+            });
+
+            Object.keys(categories).forEach(cat => {
+                const badge = document.querySelector(`[data-category-count="${cat}"]`);
+                if (badge) {
+                    badge.textContent = `${categories[cat].checked}/${categories[cat].total}`;
+                }
+            });
+
+            const total = document.querySelectorAll('.permission-checkbox:checked').length;
+            document.getElementById('totalCount').textContent = total;
+        }
+
+        // Listen to checkbox changes
+        document.querySelectorAll('.permission-checkbox').forEach(cb => {
+            cb.addEventListener('change', updateCounts);
+        });
+
+        // Pre-select existing permissions (for edit mode)
+        { { if .role } }
+        const existingPerms = {{ .role.Permissions }};
+        if (existingPerms && existingPerms.length > 0) {
+            existingPerms.forEach(perm => {
+                const checkbox = document.getElementById('perm-' + perm);
+                if (checkbox) checkbox.checked = true;
+            });
+            updateCounts();
+        }
+        { { end } }
+
+        // Form submit
+        document.getElementById('roleForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('name').value;
+            const description = document.getElementById('description').value;
+            const permissions = Array.from(document.querySelectorAll('.permission-checkbox:checked'))
+                .map(cb => cb.value);
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('description', description);
+            formData.append('permissions', permissions.join(','));
+
+            const url = '{{ if .isEdit }}/settings/roles/{{.service.Key}}/{{.role.ID.Hex}}/edit{{ else }}/settings/roles/{{.service.Key}}/create{{ end }}';
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(result.message || 'Успешно!');
+                    window.location.href = result.redirect || '/settings/roles/{{.service.Key}}';
+                } else {
+                    alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                alert('Ошибка сети: ' + error.message);
+            }
+        });
+
+        // Initial count
+        updateCounts();
+    </script>
+</body>
+
+</html>

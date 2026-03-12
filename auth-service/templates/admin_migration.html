@@ -1,0 +1,262 @@
+{{ define "admin_migration.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+      body {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity .05s ease-in-out;
+      }
+      .migration-status {
+        padding: 20px;
+        border-radius: 5px;
+        margin: 20px 0;
+      }
+      .migration-status.success {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+      }
+      .migration-status.error {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+      }
+      .migration-actions {
+        display: flex;
+        gap: 10px;
+        margin: 20px 0;
+      }
+      .code-block {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 3px;
+        padding: 15px;
+        font-family: monospace;
+        white-space: pre-wrap;
+        margin: 10px 0;
+      }
+      .warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+      }
+    </style>
+</head>
+<body>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+    
+    <div class="container">
+        <h1>{{ .title }}</h1>
+        
+        <div class="migration-status {{ if .migrationStatus.completed }}success{{ else }}error{{ end }}">
+            <h3>Статус миграции ADR-001</h3>
+            {{ if .migrationStatus.completed }}
+                <p><strong>✅ Миграция завершена успешно</strong></p>
+                <p>Система использует новую схему авторизации согласно ADR-001.</p>
+            {{ else }}
+                <p><strong>⚠️ Миграция не завершена</strong></p>
+                {{ if .migrationStatus.error }}
+                <p>Ошибка: {{ .migrationStatus.error }}</p>
+                {{ else }}
+                <p>Система все еще использует устаревшую схему авторизации.</p>
+                {{ end }}
+            {{ end }}
+        </div>
+        
+        <div class="warning">
+            <h4>⚠️ Внимание</h4>
+            <p>Операции миграции могут повлиять на работу системы. Рекомендуется создать резервную копию базы данных перед выполнением операций.</p>
+        </div>
+        
+        <h3>Что включает в себя миграция ADR-001:</h3>
+        <ul>
+            <li><strong>Обновление схемы сервисов:</strong> Переход от простого массива разрешений к структурированным PermissionDef</li>
+            <li><strong>Добавление временных меток:</strong> Поля createdAt и updatedAt для ролей</li>
+            <li><strong>Создание стандартных сервисов:</strong> referal, calculators, system</li>
+            <li><strong>Поддержка мягкого удаления:</strong> Разрешения помечаются как удаленные вместо физического удаления</li>
+            <li><strong>Новые заголовки авторизации:</strong> X-User-Service-Roles и X-User-Service-Permissions</li>
+        </ul>
+        
+        <div class="migration-actions">
+            <button onclick="runMigration()" class="btn primary">Запустить миграцию</button>
+            <button onclick="validateMigration()" class="btn secondary">Проверить миграцию</button>
+            <button onclick="rollbackMigration()" class="btn danger" 
+                    onclick="return confirm('Вы уверены, что хотите откатить миграцию? Это может привести к потере данных.')">
+                Откатить миграцию
+            </button>
+        </div>
+        
+        <div id="migration-result" style="display: none;"></div>
+        
+        <h3>Схема новой авторизации</h3>
+        <div class="code-block">
+Service {
+    Key: string                    // Уникальный ключ сервиса
+    Name: string                   // Отображаемое название
+    Description: string            // Описание сервиса
+    AvailablePermissions: []PermissionDef {
+        Name: string               // Идентификатор разрешения
+        DisplayName: string        // Отображаемое название
+        Description: string        // Описание разрешения
+        DeletedAt: time.Time      // Мягкое удаление
+    }
+    Status: string                 // active, deprecated, disabled
+    CreatedAt: time.Time
+    UpdatedAt: time.Time
+}
+
+Role {
+    ServiceKey: string             // Ссылка на Service.Key
+    Name: string                   // Название роли
+    Permissions: []string          // Массив названий разрешений
+    CreatedAt: time.Time
+    UpdatedAt: time.Time
+}
+        </div>
+        
+        <a href="/services" class="btn">Управление сервисами</a>
+        <a href="/menu" class="btn secondary">Вернуться в админ-панель</a>
+    </div>
+
+    <script>
+        async function runMigration() {
+            const resultDiv = document.getElementById('migration-result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<p>Выполняется миграция...</p>';
+            
+            try {
+                const response = await fetch('/migration/run', { method: 'POST' });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="migration-status success">
+                            <h4>Миграция завершена успешно</h4>
+                            <p>Обновлено сервисов: ${result.result.servicesUpdated}</p>
+                            <p>Обновлено ролей: ${result.result.rolesUpdated}</p>
+                            ${result.result.errors.length > 0 ? '<p>Ошибки: ' + result.result.errors.join(', ') + '</p>' : ''}
+                        </div>
+                    `;
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="migration-status error">
+                            <h4>Ошибка миграции</h4>
+                            <p>${result.error}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="migration-status error">
+                        <h4>Ошибка выполнения</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function validateMigration() {
+            const resultDiv = document.getElementById('migration-result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<p>Проверка миграции...</p>';
+            
+            try {
+                const response = await fetch('/migration/validate', { method: 'POST' });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="migration-status success">
+                            <h4>Проверка пройдена</h4>
+                            <p>${result.message}</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="migration-status error">
+                            <h4>Проверка не пройдена</h4>
+                            <p>${result.error}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="migration-status error">
+                        <h4>Ошибка проверки</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function rollbackMigration() {
+            if (!confirm('Вы уверены, что хотите откатить миграцию? Это может привести к потере данных.')) {
+                return;
+            }
+            
+            const resultDiv = document.getElementById('migration-result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<p>Выполняется откат миграции...</p>';
+            
+            try {
+                const response = await fetch('/migration/rollback', { method: 'POST' });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="migration-status success">
+                            <h4>Откат завершен</h4>
+                            <p>${result.message}</p>
+                        </div>
+                    `;
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="migration-status error">
+                            <h4>Ошибка отката</h4>
+                            <p>${result.error}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="migration-status error">
+                        <h4>Ошибка выполнения</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+
+    <script src="/static/js/particles.min.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
+{{ end }}
+

@@ -1,0 +1,163 @@
+/* ===== Переключатель видов ===== */
+.view-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-content: flex-end;
+}
+
+.view-toggle .btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.view-container {
+    width: 100%;
+}
+
+/* ===== Карточки пользователей ===== */
+.users-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 10px 0;
+}
+
+.users-grid .user-card {
+    background: var(--card-background-color) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.users-grid .user-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-color: var(--primary-color) !important;
+}
+
+.user-card-header {
+    margin-bottom: 15px;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.user-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 2px;
+}
+
+.user-username {
+    font-size: 14px;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.user-email {
+    font-size: 14px;
+    color: var(--light-text-color);
+}
+
+.user-card-body {
+    margin-bottom: 20px;
+}
+
+.user-roles-section {
+    margin-bottom: 15px;
+}
+
+.user-roles-section:last-child {
+    margin-bottom: 0;
+}
+
+.roles-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 8px;
+}
+
+.system-roles, .service-roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.users-grid .system-role-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.users-grid .service-role-badge {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+    color: white !important;
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-block;
+    cursor: help;
+}
+
+.no-roles {
+    color: var(--lighter-text-color);
+    font-style: italic;
+    font-size: 13px;
+}
+
+.user-card-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    align-items: center;
+    padding-top: 15px;
+    border-top: 1px solid var(--light-border-color);
+}
+
+.user-card-actions .inline-form {
+    margin: 0;
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 768px) {
+    .users-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .user-card {
+        padding: 15px;
+    }
+    
+    .view-toggle {
+        justify-content: center;
+        margin-bottom: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .user-card-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .user-card-actions .btn {
+        width: 100%;
+        text-align: center;
+    }
+}

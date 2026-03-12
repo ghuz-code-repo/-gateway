@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вход - Портал Golden House</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"> <!-- Added Font Awesome -->
     <style>
       body {
@@ -17,7 +18,38 @@
 <body>
     <script>
         (function() {
-            const theme = localStorage.getItem('theme');
+            // Helper function to get cookie
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+            
+            // Определение системной темы
+            function getSystemTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
+            
+            // Проверяем cookie (приоритет - пользователь уже выбрал тему)
+            const cookieTheme = getCookie('gh_theme');
+            let theme;
+            
+            if (cookieTheme) {
+                // Используем сохраненную тему пользователя
+                theme = cookieTheme;
+            } else {
+                // Первый визит - используем системную тему
+                theme = getSystemTheme();
+            }
+            
             if (theme === 'dark') {
                 document.documentElement.classList.add('dark-theme');
             } else {
@@ -59,10 +91,10 @@
         </form>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-    <script src="/auth/static/js/theme-switcher.js"></script>
-    <script src="/auth/static/js/layout-adjust.js"></script>
-    <script src="/auth/static/js/mobile-menu.js"></script>
-<script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+    <script>
     particlesJS('particles-js', {
         "particles": {
             "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
@@ -75,7 +107,7 @@
         },
         "interactivity": {
             "detect_on": "canvas",
-            "events": { "onhover": { "enable": true, "mode": "bubble" } },
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
             "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
         },
         "retina_detect": true
@@ -83,3 +115,4 @@
     </script>
 </body>
 </html>
+

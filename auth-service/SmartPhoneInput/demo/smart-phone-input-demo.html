@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartPhoneInput Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .demo-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .demo-title {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .code-block {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+            font-family: 'Fira Code', 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 15px 0;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        /* Подсветка синтаксиса */
+        .keyword { color: #d73a49; font-weight: bold; }
+        .component { color: #005cc5; font-weight: bold; }
+        .function { color: #6f42c1; }
+        .string { color: #032f62; }
+        .prop { color: #e36209; }
+        .comment { color: #6a737d; font-style: italic; }
+        .css-selector { color: #d73a49; font-weight: bold; }
+        .css-property { color: #005cc5; }
+        .css-value { color: #032f62; }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .feature-list li:before {
+            content: "✅ ";
+            margin-right: 8px;
+        }
+        
+        .integration-step {
+            background: #e7f3ff;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .success {
+            background: #d4edda;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-section">
+        <h1 class="demo-title">📱 SmartPhoneInput - Умное поле ввода телефона</h1>
+        <p>Переиспользуемый React компонент для профессиональной обработки номеров телефонов.</p>
+        
+        <div class="success">
+            <strong>🎉 Компонент готов к использованию!</strong><br>
+            Все файлы созданы в <code>src/components/SmartPhoneInput/</code>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">🌟 Основные возможности</h2>
+        <ul class="feature-list">
+            <li>Автоформатирование для 5 стран (Россия, Узбекистан, Кыргызстан, Таджикистан, Туркменистан)</li>
+            <li>Умное определение страны через геолокацию (IP → GPS → координаты)</li>
+            <li>Валидация кодов стран с настраиваемыми ограничениями</li>
+            <li>Динамические placeholder'ы с интеллектуальной логикой</li>
+            <li>Обработка неизвестных кодов стран (+380, +49, +1, etc.)</li>
+            <li>Полная кастомизация стилей</li>
+            <li>TypeScript типы включены</li>
+            <li>Мобильная оптимизация</li>
+            <li>Поддержка React Hook Form, Formik</li>
+            <li>Безопасность и обработка ошибок</li>
+        </ul>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">🚀 Быстрая интеграция</h2>
+        
+        <div class="integration-step">
+            <strong>Шаг 1:</strong> Импортируйте компонент
+            <div class="code-block">
+<span class="keyword">import</span> { <span class="component">SmartPhoneInput</span> } <span class="keyword">from</span> <span class="string">'./components/SmartPhoneInput'</span>;
+            </div>
+        </div>
+
+        <div class="integration-step">
+            <strong>Шаг 2:</strong> Добавьте в форму
+            <div class="code-block">
+<span class="keyword">function</span> <span class="function">MyForm</span>() {
+  <span class="keyword">const</span> [phone, setPhone] = <span class="function">useState</span>(<span class="string">''</span>);
+
+  <span class="keyword">return</span> (
+    &lt;<span class="component">SmartPhoneInput</span>
+      <span class="prop">value</span>={phone}
+      <span class="prop">onChange</span>={(e) => <span class="function">setPhone</span>(e.target.value)}
+      <span class="prop">className</span>=<span class="string">"my-phone-input"</span>
+    /&gt;
+  );
+}
+            </div>
+        </div>
+
+        <div class="integration-step">
+            <strong>Шаг 3:</strong> Стилизуйте под свои нужды
+            <div class="code-block">
+<span class="css-selector">.my-phone-input</span> {
+  <span class="css-property">width</span>: <span class="css-value">100%</span>;
+  <span class="css-property">padding</span>: <span class="css-value">12px</span>;
+  <span class="css-property">border</span>: <span class="css-value">1px solid #ddd</span>;
+  <span class="css-property">border-radius</span>: <span class="css-value">4px</span>;
+}
+            </div>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">🔧 Расширенная настройка</h2>
+        
+        <h3>🎯 Что такое "расширенная настройка"?</h3>
+        <p>Это использование дополнительных возможностей компонента через специальные обработчики (callbacks) и конфигурацию:</p>
+        
+        <div class="integration-step">
+            <strong>onValidationChange</strong> - отслеживает валидность номера
+            <div class="code-block">
+<span class="keyword">const</span> <span class="function">handleValidation</span> = (status) => {
+  <span class="function">console.log</span>(<span class="string">'Можно отправлять:'</span>, status.isValid);
+  <span class="function">console.log</span>(<span class="string">'Номер полный:'</span>, status.isComplete);
+  <span class="function">setCanSubmit</span>(status.isValid && status.isComplete);
+};
+
+&lt;<span class="component">SmartPhoneInput</span>
+  <span class="prop">onValidationChange</span>={handleValidation}
+  <span class="comment">// ... остальные props</span>
+/&gt;
+            </div>
+        </div>
+
+        <div class="integration-step">
+            <strong>onCountryDetected</strong> - уведомляет об определении страны
+            <div class="code-block">
+<span class="keyword">const</span> <span class="function">handleCountryDetected</span> = (country) => {
+  <span class="function">console.log</span>(<span class="string">'Страна:'</span>, country.countryCode);
+  <span class="keyword">if</span> (!country.isAllowed) {
+    <span class="function">alert</span>(<span class="string">'Эта страна не поддерживается'</span>);
+  }
+};
+
+&lt;<span class="component">SmartPhoneInput</span>
+  <span class="prop">onCountryDetected</span>={handleCountryDetected}
+  <span class="comment">// ... остальные props</span>
+/&gt;
+            </div>
+        </div>
+
+        <div class="integration-step">
+            <strong>config</strong> - настройка поведения
+            <div class="code-block">
+&lt;<span class="component">SmartPhoneInput</span>
+  <span class="prop">config</span>={{
+    <span class="prop">allowedCountryCodes</span>: [<span class="string">'998'</span>, <span class="string">'7'</span>],  <span class="comment">// Только Узбекистан и Россия</span>
+    <span class="prop">defaultCountryCode</span>: <span class="string">'998'</span>,          <span class="comment">// При фокусе покажет +998</span>
+    <span class="prop">enableGeolocation</span>: <span class="keyword">true</span>             <span class="comment">// Определять страну автоматически</span>
+  }}
+  <span class="comment">// ... остальные props</span>
+/&gt;
+            </div>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">📝 Практические примеры</h2>
+        
+        <h3>Пример 1: Простая форма</h3>
+        <div class="code-block">
+<span class="keyword">function</span> <span class="function">CallbackForm</span>() {
+  <span class="keyword">const</span> [phone, setPhone] = <span class="function">useState</span>(<span class="string">''</span>);
+  <span class="keyword">const</span> [canSubmit, setCanSubmit] = <span class="function">useState</span>(<span class="keyword">false</span>);
+
+  <span class="keyword">const</span> <span class="function">handleValidation</span> = (status) => {
+    <span class="function">setCanSubmit</span>(status.isValid && status.isComplete);
+  };
+
+  <span class="keyword">return</span> (
+    &lt;<span class="component">form</span>&gt;
+      &lt;<span class="component">SmartPhoneInput</span>
+        <span class="prop">value</span>={phone}
+        <span class="prop">onChange</span>={(e) => <span class="function">setPhone</span>(e.target.value)}
+        <span class="prop">onValidationChange</span>={handleValidation}
+      /&gt;
+      &lt;<span class="component">button</span> <span class="prop">disabled</span>={!canSubmit}&gt;Отправить&lt;/<span class="component">button</span>&gt;
+    &lt;/<span class="component">form</span>&gt;
+  );
+}
+        </div>
+
+        <h3>Пример 2: Ограничение стран</h3>
+        <div class="code-block">
+<span class="comment">// Только Узбекистан разрешен</span>
+&lt;<span class="component">SmartPhoneInput</span>
+  <span class="prop">config</span>={{
+    <span class="prop">allowedCountryCodes</span>: [<span class="string">'998'</span>]  <span class="comment">// Только +998</span>
+  }}
+  <span class="prop">onValidationChange</span>={(status) => {
+    <span class="keyword">if</span> (!status.isValid && status.value) {
+      <span class="function">showError</span>(<span class="string">'Поддерживается только +998'</span>);
+    }
+  }}
+/&gt;
+        </div>
+
+        <h3>Пример 3: Без геолокации</h3>
+        <div class="code-block">
+<span class="comment">// Всегда показывать +998</span>
+&lt;<span class="component">SmartPhoneInput</span>
+  <span class="prop">config</span>={{
+    <span class="prop">enableGeolocation</span>: <span class="keyword">false</span>,  <span class="comment">// Отключить автоопределение</span>
+    <span class="prop">defaultCountryCode</span>: <span class="string">'998'</span>
+  }}
+/&gt;
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">📁 Структура файлов</h2>
+        <div class="code-block">
+src/components/SmartPhoneInput/
+├── SmartPhoneInput.jsx       # Основной компонент
+├── useSmartPhoneLogic.js     # Хук с логикой
+├── index.js                  # Экспорты
+├── types.d.ts               # TypeScript типы
+├── README.md                # Полная документация
+├── CHEATSHEET.md            # Шпаргалка с примерами
+├── QUICK_START.md           # Краткое руководство
+└── CallbackMiniExample.jsx  # Пример интеграции
+        </div>
+        
+        <div class="success">
+            <strong>💡 Совет:</strong> Начните с файла <code>CHEATSHEET.md</code> - там все основные примеры!
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">🌍 Поддерживаемые страны</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f8f9fa;">
+                    <th style="padding: 10px; border: 1px solid #ddd;">Страна</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Код</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Формат</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Пример</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd;">Россия/Казахстан</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+7</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+7 999 999 99 99</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+7 999 123 45 67</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd;">Узбекистан</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+998</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+998 99 999 99 99</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+998 90 123 45 67</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd;">Кыргызстан</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+996</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+996 999 999 999</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+996 555 123 456</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd;">Таджикистан</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+992</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+992 99 999 9999</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+992 93 123 4567</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd;">Туркменистан</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+993</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+993 99 999 999</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">+993 65 123 456</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">🔥 Демо в действии</h2>
+        <p>Чтобы увидеть компонент в работе:</p>
+        <ol>
+            <li>Откройте <strong>http://localhost:4444</strong> в браузере</li>
+            <li>Импортируйте компонент в ваш App.jsx</li>
+            <li>Или используйте готовый пример из CallbackMiniExample.jsx</li>
+        </ol>
+        
+        <div class="warning">
+            <strong>💡 Совет:</strong> Для быстрого тестирования замените существующий CallbackMini на новый SmartPhoneInput компонент!
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">📚 Что дальше?</h2>
+        <ul>
+            <li>📖 Изучите полную документацию в <code>README.md</code></li>
+            <li>🎨 Кастомизируйте стили под ваш дизайн</li>
+            <li>🔧 Настройте конфигурацию под ваши требования</li>
+            <li>🚀 Используйте в других проектах - просто скопируйте папку!</li>
+        </ul>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">✨ Итого</h2>
+        <p>Теперь у вас есть профессиональный, переиспользуемый компонент для ввода телефонов с:</p>
+        <ul class="feature-list">
+            <li>Полной инкапсуляцией логики</li>
+            <li>Гибкой конфигурацией</li>
+            <li>Умной геолокацией</li>
+            <li>Готовностью к production</li>
+            <li>Подробной документацией</li>
+        </ul>
+        
+        <div class="success">
+            <strong>🎯 Задача выполнена!</strong><br>
+            Компонент готов к использованию в любых React проектах.
+        </div>
+    </div>
+</body>
+</html>
