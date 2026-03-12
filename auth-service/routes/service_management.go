@@ -280,16 +280,24 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 	// Roles management permissions (for internal service roles)
 	canViewRoles := isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.view") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.view") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.*")
 	canCreateRoles := isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.create") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.create") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.*")
 	canEditRoles := isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.edit") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.edit") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.*")
 	canDeleteRoles := isSystemAdmin || isServiceManager ||
 		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.delete") ||
-		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*")
+		models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.delete") ||
+		models.HasAuthPermission(user.ID, servicePermPrefix+"service_roles.*")
 
 	// Users management permissions
 	canViewUsers := isSystemAdmin || isServiceManager ||

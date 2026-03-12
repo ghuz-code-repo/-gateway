@@ -167,7 +167,11 @@ func RegisterExternalServicePermissions(serviceKey, serviceName string) error {
 		{"roles.edit", fmt.Sprintf("Edit %s external roles", serviceName), "Edit existing external roles for this service", "roles"},
 		{"roles.delete", fmt.Sprintf("Delete %s external roles", serviceName), "Delete external roles for this service", "roles"},
 		{"roles.assign", fmt.Sprintf("Assign %s external roles", serviceName), "Assign external roles to users", "roles"},
-		{"service_roles.assign", fmt.Sprintf("Assign %s internal roles", serviceName), "Assign internal roles to users within this service", "roles"},
+		{"service_roles.view", fmt.Sprintf("View %s internal roles", serviceName), "View internal roles within this service", "service_roles"},
+		{"service_roles.create", fmt.Sprintf("Create %s internal roles", serviceName), "Create new internal roles within this service", "service_roles"},
+		{"service_roles.edit", fmt.Sprintf("Edit %s internal roles", serviceName), "Edit existing internal roles within this service", "service_roles"},
+		{"service_roles.delete", fmt.Sprintf("Delete %s internal roles", serviceName), "Delete internal roles within this service", "service_roles"},
+		{"service_roles.assign", fmt.Sprintf("Assign %s internal roles", serviceName), "Assign internal roles to users within this service", "service_roles"},
 
 		// Settings Management
 		{"settings.view", fmt.Sprintf("View %s settings", serviceName), "View service settings and configuration", "settings"},
