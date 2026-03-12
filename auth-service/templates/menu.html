@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Портал Golden House</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
       body {
@@ -28,9 +29,26 @@
                 }
                 return null;
             }
+            
+            // Определение системной темы
+            function getSystemTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
 
             const cookieTheme = getCookie('gh_theme');
-            const theme = cookieTheme || localStorage.getItem('theme');
+            let theme;
+            
+            if (cookieTheme) {
+                // Используем сохраненную тему пользователя
+                theme = cookieTheme;
+            } else {
+                // Первый визит - используем системную тему
+                theme = getSystemTheme();
+            }
+            
             if (theme === 'dark') {
                 document.documentElement.classList.add('dark-theme');
             } else {
@@ -49,12 +67,22 @@
         <h1>Сервис утилит отдела аналитики и развития Golden House</h1>
         
         <div class="user-info">
-            <p>Добро пожаловать, <strong>{{ .full_name }}</strong></p>
+            <p>Добро пожаловать, <strong>{{ .short_name }}</strong></p>
         </div>
         
         <div class="services-list">
             {{ range .serviceInfos }}
-            <div class="service-card">
+            <div class="service-card" data-service-key="{{ .serviceKey }}">
+                <!-- Status Indicator -->
+                <div class="service-status-indicator" data-status="loading">
+                    <span class="status-dot" title="Проверка статуса..."></span>
+                </div>
+                
+                <!-- Inactive Overlay (hidden by default) -->
+                <div class="service-inactive-overlay" style="display: none;">
+                    <div class="inactive-label">НЕАКТИВЕН</div>
+                </div>
+                
                 <a href="/{{ .id }}/" class="service-link" data-service="{{ .id }}">
                     <div class="service-icon">
                         {{ if eq .id "calculators" }}
@@ -68,17 +96,38 @@
                         {{ end }}
                     </div>
                     <h3>{{ .displayName }}</h3>
+                    <p class="service-description">{{ .description }}</p>
                 </a>
+                {{ if .canManage }}
+                <div class="service-manage-btn">
+                    <a href="/services/{{ .serviceKey }}" class="btn manage-btn" title="Управлять сервисом">
+                        <i class="fas fa-cog"></i> Управлять
+                    </a>
+                </div>
+                {{ end }}
             </div>
             {{ end }}
             
-            {{ if .isAdmin }}
+            <!-- Личный кабинет - всегда доступен -->
             <div class="service-card">
-                <a href="/admin">
+                <a href="/profile">
                     <div class="service-icon">
-                        <i class="fas fa-cogs"></i>
+                        <i class="fas fa-user-circle"></i>
                     </div>
-                    <h3>Админ-панель</h3>
+                    <h3>Личный кабинет</h3>
+                    <p class="service-description">Управление профилем и настройками пользователя</p>
+                </a>
+            </div>
+            
+            {{ if .canViewSystemSettings }}
+            <!-- Настройки системы -->
+            <div class="service-card">
+                <a href="/settings">
+                    <div class="service-icon">
+                        <i class="fas fa-cog"></i>
+                    </div>
+                    <h3>Настройки системы</h3>
+                    <p class="service-description">Управление пользователями, ролями, разрешениями и сервисами</p>
                 </a>
             </div>
             {{ end }}
@@ -86,10 +135,10 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-<script src="/auth/static/js/theme-switcher.js"></script>
-<script src="/auth/static/js/layout-adjust.js"></script>
-<script src="/auth/static/js/mobile-menu.js"></script>
-<script>
+<script src="/static/js/theme-switcher.js"></script>
+<script src="/static/js/layout-adjust.js"></script>
+<script src="/static/js/mobile-menu.js"></script>
+    <script>
     particlesJS('particles-js', {
         "particles": {
             "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
@@ -102,11 +151,84 @@
         },
         "interactivity": {
             "detect_on": "canvas",
-            "events": { "onhover": { "enable": true, "mode": "bubble" } },
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
             "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
         },
         "retina_detect": true
     });
+    </script>
+<script>
+        // Load service health statuses
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServiceHealthStatuses();
+            
+            // Refresh statuses every 30 seconds
+            setInterval(loadServiceHealthStatuses, 30000);
+        });
+        
+        async function loadServiceHealthStatuses() {
+            try {
+                const response = await fetch('/api/services/health');
+                if (!response.ok) {
+                    console.error('Failed to load service health statuses');
+                    return;
+                }
+                
+                const data = await response.json();
+                updateServiceCards(data.services || []);
+            } catch (error) {
+                console.error('Error loading service health:', error);
+            }
+        }
+        
+        function updateServiceCards(services) {
+            const isAdmin = {{ if .isAdmin }}true{{ else }}false{{ end }};
+            
+            console.log('Updating service cards, isAdmin:', isAdmin, 'services:', services);
+            
+            services.forEach(service => {
+                const card = document.querySelector(`.service-card[data-service-key="${service.service_key}"]`);
+                if (!card) {
+                    console.log('Card not found for service:', service.service_key);
+                    return;
+                }
+                
+                const indicator = card.querySelector('.service-status-indicator');
+                const overlay = card.querySelector('.service-inactive-overlay');
+                const statusDot = card.querySelector('.status-dot');
+                
+                if (!indicator || !overlay || !statusDot) {
+                    console.log('Missing elements for service:', service.service_key, {indicator, overlay, statusDot});
+                    return;
+                }
+                
+                // Update status indicator
+                indicator.setAttribute('data-status', service.status);
+                
+                // Update tooltip
+                const statusText = {
+                    'healthy': 'Сервис работает',
+                    'unhealthy': 'Возможны проблемы',
+                    'offline': 'Сервис недоступен',
+                    'loading': 'Проверка статуса...'
+                };
+                statusDot.setAttribute('title', statusText[service.status] || 'Неизвестный статус');
+                
+                console.log('Service:', service.service_key, 'Status:', service.status, 'isAdmin:', isAdmin);
+                
+                // Show/hide overlay for non-admin users
+                // Блокируем карточку если статус unhealthy или offline И пользователь не админ
+                if (!isAdmin && (service.status === 'unhealthy' || service.status === 'offline')) {
+                    console.log('Showing overlay for:', service.service_key);
+                    overlay.style.display = 'flex';
+                    card.classList.add('inactive');
+                } else {
+                    console.log('Hiding overlay for:', service.service_key);
+                    overlay.style.display = 'none';
+                    card.classList.remove('inactive');
+                }
+            });
+        }
     </script>
 <script>
         // Передача темы через cookie (cookie автоматически передается)
@@ -144,3 +266,4 @@
     </script>
 </body>
 </html>
+

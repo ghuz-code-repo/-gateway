@@ -81,8 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
             setCookie('gh_theme', newTheme, 365); // Сохраняем в cookie
             
             const mainLogo = document.getElementById('dynamic-logo'); // The main logo in the header
-            const darkLogoSrc = '/auth/static/img/logo-dark.svg'; 
-            const lightLogoSrc = '/auth/static/img/logo-light.svg';
+            const darkLogoSrc = '/static/img/logo-dark.svg'; 
+            const lightLogoSrc = '/static/img/logo-light.svg';
 
             if (newTheme === 'dark') {
                 htmlElement.classList.add('dark-theme');

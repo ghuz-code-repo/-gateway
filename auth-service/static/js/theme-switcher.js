@@ -6,8 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Theme-specific values
     const darkThemeClass = 'dark-theme';
     const lightThemeClass = 'light-theme';
-    const darkLogoSrc = '/auth/static/img/logo-dark.svg';
-    const lightLogoSrc = '/auth/static/img/logo-light.svg';
+    const darkLogoSrc = '/static/img/logo-dark.svg';
+    const lightLogoSrc = '/static/img/logo-light.svg';
 
     const moonIconClass = 'fa-moon';
     const sunIconClass = 'fa-sun';
@@ -28,6 +28,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
         }
         return null;
+    }
+
+    // Определение системной темы пользователя
+    function getSystemTheme() {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            return 'dark';
+        }
+        return 'light';
     }
 
     function applyTheme(theme) {
@@ -57,13 +65,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 iconElement.classList.add(moonIconClass);
             }
         }
+        
+        // // Reinitialize particles with new theme colors
+        // if (typeof window.initParticles === 'function') {
+        //     setTimeout(() => {
+        //         window.initParticles();
+        //     }, 100);
+        // }
     }
 
     // Set initial state of the button icon and logo.
     // The inline script in <head> already handles the class on <html> and body background for FOUC.
     // This part ensures the button icon and logo are correct on load.
     const cookieTheme = getCookie('gh_theme');
-    const currentTheme = cookieTheme || localStorage.getItem('theme') || 'light';
+    let currentTheme;
+    
+    // Логика определения темы:
+    // 1. Если есть cookie - используем его (пользователь уже выбрал тему)
+    // 2. Если нет cookie - используем системную тему (первый визит)
+    if (cookieTheme) {
+        currentTheme = cookieTheme;
+    } else {
+        // Первый визит - используем системную тему
+        currentTheme = getSystemTheme();
+        // Сохраняем системную тему в localStorage и cookie
+        localStorage.setItem('theme', currentTheme);
+        setCookie('gh_theme', currentTheme, 365);
+    }
     
     // Sync localStorage with cookie if different
     if (cookieTheme && cookieTheme !== localStorage.getItem('theme')) {

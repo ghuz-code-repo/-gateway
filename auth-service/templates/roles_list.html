@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <style>
       body {
         visibility: hidden;
@@ -35,7 +35,7 @@
         <h1>{{ .title }}</h1>
         
         <div class="action-buttons">
-            <a href="/admin/roles/new" class="btn primary">Добавить роль</a>
+            <a href="/roles/new" class="btn primary">Добавить роль</a>
         </div>
         
         <div class="data-table-wrapper">
@@ -44,7 +44,7 @@
                     <tr>
                         <th>Название</th>
                         <th>Описание</th>
-                        <th>Разрешения</th>
+                        <th>Права доступа</th>
                         <th class="actions-column">Действия</th>
                     </tr>
                 </thead>
@@ -55,9 +55,9 @@
                         <td>{{ .Description }}</td>
                         <td>{{ range $index, $perm := .Permissions }}{{ if $index }}, {{ end }}{{ $perm }}{{ end }}</td>
                         <td class="actions">
-                            <a href="/admin/roles/{{ .ID.Hex }}" class="btn small">Изменить</a>
-                            {{ if ne .Name "admin" }}
-                            <form action="/admin/roles/{{ .ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить эту роль?');">
+                            <a href="/roles/{{ .ID.Hex }}" class="btn small">Изменить</a>
+                            {{ if ne .Name "administrator" }}
+                            <form action="/roles/{{ .ID.Hex }}/delete" method="post" class="inline-form" onsubmit="return confirm('Вы уверены, что хотите удалить эту роль?');">
                                 <button type="submit" class="btn small danger">Удалить</button>
                             </form>
                             {{ end }}
@@ -68,18 +68,33 @@
             </table>
         </div>
         
-        <div >
-            <a href="/admin" class="back-link">Назад к панели управления</a>
+        <div>
+            <a href="/menu" class="back-link">Назад к панели управления</a>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-<script src="/auth/static/js/theme-switcher.js"></script>
-<script src="/auth/static/js/layout-adjust.js"></script>
-<script src="/auth/static/js/mobile-menu.js"></script>
-<script>
+<script src="/static/js/theme-switcher.js"></script>
+<script src="/static/js/layout-adjust.js"></script>
+<script src="/static/js/mobile-menu.js"></script>
+    <script>
     particlesJS('particles-js', {
-        "particles": { "number": { "value": 50, "density": { "enable": true, "value_area": 800 } }, "color": { "value": "#c4a668" }, "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } }, "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } }, "size": { "value": 4, "random": true }, "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 }, "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" } }, "interactivity": { "detect_on": "canvas", "events": { "onhover": { "enable": true, "mode": "bubble" } }, "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } } }, "retina_detect": true
+        "particles": {
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
+            "color": { "value": "#c4a668" },
+            "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+            "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+            "size": { "value": 4, "random": true },
+            "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+            "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
+            "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+        },
+        "retina_detect": true
     });
-</script>
+    </script>
 </body>
 </html>
+

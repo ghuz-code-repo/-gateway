@@ -1,26 +1,53 @@
+{{ define "user_form.html" }}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }} - Сервис аутентификации</title>
-    <link rel="stylesheet" href="/auth/static/css/styles.css">
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/admin-service-form.css">
+    <link rel="stylesheet" href="/static/css/user-form.css">
+    <link rel="stylesheet" href="/static/css/profile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/user-form.js"></script>
     <style>
-      body {
-        visibility: hidden;
-        opacity: 0;
-        transition: opacity .05s ease-in-out;
-      }
+        body {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity .05s ease-in-out;
+        }
     </style>
 </head>
 <body>
     <script>
         (function() {
-            const theme = localStorage.getItem('theme');
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+            function getSystemTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
+            const cookieTheme = getCookie('gh_theme');
+            const theme = cookieTheme ? cookieTheme : getSystemTheme();
             if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
                 document.documentElement.classList.add('dark-theme');
             } else {
                 document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
             }
             requestAnimationFrame(() => {
                 document.body.style.visibility = 'visible';
@@ -28,76 +55,615 @@
             });
         })();
     </script>
+    
     <div id="particles-js"></div>
     {{ template "header" . }}
     
-    <div class="container">
-        <h1>{{ .title }}</h1>
-        
-        {{ if .error }}
-        <div class="flash-message danger">
-            {{ .error }}
-        </div>
-        {{ end }}
-        
-        <form action="{{ if .user }}/admin/users/{{ .user.ID.Hex }}{{ else }}/admin/users{{ end }}" method="post">
-            <div class="form-group">
-                <label for="username">Имя пользователя:</label>
-                <input type="text" id="username" name="username" value="{{ if .user }}{{ .user.Username }}{{ else }}{{ .username }}{{ end }}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="full_name">ФИО:</label>
-                <input type="text" id="full_name" name="full_name" value="{{ if .user }}{{ .user.FullName }}{{ else }}{{ .full_name }}{{ end }}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" value="{{ if .user }}{{ .user.Email }}{{ else }}{{ .email }}{{ end }}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">
-                    {{ if .user }}
-                        Пароль (оставьте пустым, чтобы сохранить текущий пароль):
-                    {{ else }}
-                        Пароль:
+    <div class="admin-page-container">
+        <div class="admin-content">
+            <div class="profile-container">
+                <div class="enhanced-user-form">
+                <div class="page-title-section">
+                    <h1>{{ .title }}</h1>
+                    
+                    {{ if .error }}
+                    <div class="flash-message error">
+                        {{ .error }}
+                    </div>
                     {{ end }}
-                </label>
-                <input type="password" id="password" name="password" {{ if not .user }}required{{ end }}>
-            </div>
-            
-            <div class="form-group">
-                <label>Роли:</label>
-                <div class="role-checkboxes">
-                    {{ range .roles }}
-                    <div class="role-checkbox">
-                        <input type="checkbox" id="role-{{ .Name }}" name="roles" value="{{ .Name }}"
-                        {{ if $.user }}
-                            {{ $roleName := .Name }}
-                            {{ range $.user.Roles }}
-                                {{ if eq . $roleName }}checked{{ end }}
-                            {{ end }}
-                        {{ end }}>
-                        <label for="role-{{ .Name }}">{{ .Name }}</label>
-                        <span class="role-description">{{ .Description }}</span>
+                    
+                    {{ if .success }}
+                    <div class="flash-message success">
+                        {{ .success }}
                     </div>
                     {{ end }}
                 </div>
+                
+                <!-- User Header с аватаром (как на профиле) -->
+                <div class="profile-header">
+                    <div class="avatar-section">
+                        <div class="avatar" id="avatarContainer">
+                            {{ if .editingUser.AvatarPath }}
+                                <img src="{{ .editingUser.AvatarPath }}?v={{ .timestamp }}" alt="Аватар" id="avatarImage">
+                            {{ else }}
+                                <i class="fas fa-user-circle" id="defaultAvatar"></i>
+                            {{ end }}
+                            <div class="avatar-overlay" id="avatarOverlay">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                        </div>
+                        <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="user-info">
+                        <h1>{{ if .editingUser }}{{ .editingUser.GetFullName }}{{ else }}Новый пользователь{{ end }}</h1>
+                        <p class="user-email">{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}</p>
+                    </div>
+                </div>
+                
+                <form action="{{ if .editingUser }}/users/{{ .editingUser.ID.Hex }}{{ else }}/users{{ end }}" method="post" enctype="multipart/form-data" id="userForm" autocomplete="off">
+                    <div class="form-sections">
+                        
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <i class="fas fa-user"></i>
+                                Основная информация
+                            </h3>
+                            
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="username" class="required">Имя пользователя</label>
+                                    <div class="input-with-button">
+                                        <input type="text" 
+                                               id="username" 
+                                               name="username" 
+                                               value="{{ if .editingUser }}{{ .editingUser.Username }}{{ end }}" 
+                                               required>
+                                        <button type="button" 
+                                                class="generate-btn" 
+                                                onclick="generateFromEmail()" 
+                                                title="Автоматически заполняется из email">
+                                            <i class="fas fa-magic"></i>
+                                            Создать логин из почтового адреса
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="email" class="required">Email</label>
+                                    <input type="email" 
+                                           id="email" 
+                                           name="email" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}" 
+                                           required>
+                                    <span class="help-text">Может быть использован для входа в систему</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="password" {{ if not .editingUser }}class="required"{{ end }}>
+                                        {{ if .editingUser }}Новый пароль (оставьте пустым, чтобы не менять){{ else }}Пароль{{ end }}
+                                    </label>
+                                    <div class="password-input-container">
+                                        <input type="password" 
+                                               id="password" 
+                                               name="password" 
+                                               autocomplete="new-password"
+                                               data-form-type="other"
+                                               {{ if not .editingUser }}required{{ end }}>
+                                        <button type="button" 
+                                                class="password-toggle-btn" 
+                                                onclick="togglePasswordVisibility()"
+                                                title="Показать/скрыть пароль">
+                                            <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                                        </button>
+                                        <button type="button" 
+                                                class="generate-password-btn" 
+                                                onclick="generatePassword()"
+                                                title="Сгенерировать пароль">
+                                            <i class="fas fa-random"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="phone">Телефон</label>
+                                    <input type="tel" 
+                                           id="phone" 
+                                           name="phone" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Phone }}{{ end }}" 
+                                           placeholder="+998 12 345 67 89">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <i class="fas fa-id-card"></i>
+                                Личная информация
+                            </h3>
+                            
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="last_name" class="required">Фамилия</label>
+                                    <input type="text" 
+                                           id="last_name" 
+                                           name="last_name" 
+                                           value="{{ if .editingUser }}{{ .editingUser.LastName }}{{ end }}" 
+                                           required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="first_name" class="required">Имя</label>
+                                    <input type="text" 
+                                           id="first_name" 
+                                           name="first_name" 
+                                           value="{{ if .editingUser }}{{ .editingUser.FirstName }}{{ end }}" 
+                                           required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="middle_name">Отчество</label>
+                                    <input type="text" 
+                                           id="middle_name" 
+                                           name="middle_name" 
+                                           value="{{ if .editingUser }}{{ .editingUser.MiddleName }}{{ end }}">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="suffix">Суффикс</label>
+                                    <input type="text" 
+                                           id="suffix" 
+                                           name="suffix" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Suffix }}{{ end }}" 
+                                           placeholder="Jr., Sr., III и т.д.">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="position">Должность</label>
+                                    <input type="text" 
+                                           id="position" 
+                                           name="position" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Position }}{{ end }}">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="department">Отдел</label>
+                                    <input type="text" 
+                                           id="department" 
+                                           name="department" 
+                                           value="{{ if .editingUser }}{{ .editingUser.Department }}{{ end }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <i class="fas fa-user-shield"></i>
+                                Роли и права доступа
+                            </h3>
+                            
+                            <div class="roles-container">
+                                <div class="form-group full-width">
+                                    
+                                        {{ if .allServices }}
+                                        {{ range $service := .allServices }}
+                                        <div class="service-role-group">
+                                            <div class="service-title">
+                                                <i class="fas fa-cogs"></i>
+                                                {{ $service.Name }} ({{ len $service.Roles }} ролей)
+                                            </div>
+                                            <div class="roles-grid">
+                                                {{ if $service.Roles }}
+                                                {{ range $role := $service.Roles }}
+                                                <div class="checkbox-item service-role">
+                                                    <input type="checkbox" 
+                                                           id="role-{{ $service.ID.Hex }}-{{ $role.Name }}" 
+                                                           name="roles" 
+                                                           value="{{ $service.Key }}-{{ $role.Name }}"
+                                                           {{ range $userRole := $.userRoles }}
+                                                             {{ if and (eq $userRole.ServiceKey $service.Key) (eq $userRole.RoleName $role.Name) }}checked{{ end }}
+                                                           {{ end }}>
+                                                    <label for="role-{{ $service.ID.Hex }}-{{ $role.Name }}">
+                                                        {{ $role.Name }}
+                                                        {{ if $role.Description }}
+                                                        <div class="permission-info">
+                                                            <small>{{ $role.Description }}</small>
+                                                        </div>
+                                                        {{ end }}
+                                                    </label>
+                                                </div>
+                                                {{ end }}
+                                                {{ else }}
+                                                <div class="empty-roles">
+                                                    <span>Нет доступных ролей для этого сервиса</span>
+                                                </div>
+                                                {{ end }}
+                                            </div>
+                                        </div>
+                                        {{ end }}
+                                        {{ else }}
+                                        <div class="empty-services">
+                                            <p>Нет доступных сервисов. Проверьте подключение к базе данных.</p>
+                                        </div>
+                                        {{ end }}
+                                    
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="documents-header">
+                                <h3 class="section-title">
+                                    <i class="fas fa-file-alt"></i>
+                                    Документы пользователя
+                                </h3>
+                                <button type="button" class="btn btn-primary" id="addDocumentBtn">
+                                    <i class="fas fa-plus"></i>
+                                    Добавить документ
+                                </button>
+                            </div>
+                            <div class="documents-grid" id="documentsGrid">
+                                <!-- Документы будут загружены через JavaScript -->
+                                <div class="loading-documents">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Загрузка документов...</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <div class="left-actions">
+                                <a href="/users" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left"></i>
+                                    Назад к списку
+                                </a>
+                            </div>
+                            <div class="right-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-check"></i>
+                                    {{ if .editingUser }}Обновить пользователя{{ else }}Создать пользователя{{ end }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
             </div>
-            
-            <div class="form-buttons">
-                <button type="submit" class="btn primary">
-                    {{ if .user }}Обновить{{ else }}Создать{{ end }} пользователя
-                </button>
-                <a href="/admin/users" class="btn">Отмена</a>
-            </div>
-        </form>
+        </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-    <script src="/auth/static/js/theme-switcher.js"></script>
-    <script src="/auth/static/js/layout-adjust.js"></script>
-    <script src="/auth/static/js/mobile-menu.js"></script>
+    
+
+    <div id="documentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Добавить документ</h3>
+                <span class="close" onclick="closeDocumentModalAdmin()">&times;</span>
+            </div>
+            <form id="documentForm" class="modal-form" novalidate>
+                <div class="form-group">
+                    <label for="documentTypeSelect">Тип документа</label>
+                    <select id="documentTypeSelect" name="documentType" required>
+                        <option value="">Выберите тип документа</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="allowedServicesSelect">Сервисы для использования документа <span class="required">*</span></label>
+                    <select id="allowedServicesSelect" name="allowedServices" multiple required style="min-height: 100px;">
+                        <!-- Сервисы будут загружены динамически -->
+                    </select>
+                    <small class="form-help">Выберите сервисы, где этот документ может использоваться. Используйте Ctrl+клик для выбора нескольких сервисов.</small>
+                </div>
+                <div id="documentFields" class="document-fields">
+                    <!-- Поля документа будут загружены динамически -->
+                </div>
+                <!-- Единая секция управления файлами для создания -->
+                <div class="form-group">
+                    <label>Файлы документа (необязательно)</label>
+                    <div id="newDocumentFilesArea" class="unified-files-area">
+                        <!-- Новые файлы будут отображаться здесь -->
+                        <div id="newFilesContainer" class="files-container">
+                            <!-- Файлы будут добавлены динамически -->
+                            <!-- Кнопка + будет добавлена сюда JavaScript'ом -->
+                        </div>
+                        <div id="newEmptyState" class="empty-files-state">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетяните файлы сюда или нажмите для выбора</p>
+                            <small>Поддерживаемые форматы: PDF, JPG, PNG</small>
+                        </div>
+                    </div>
+                    <input type="file" id="documentFile" name="documentFile" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="file-input-hidden">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelDocumentBtn" onclick="closeDocumentModalAdmin()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить документ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для редактирования документа -->
+    <div id="editDocumentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Редактировать документ</h3>
+                <span class="close" onclick="closeEditDocumentModal()">&times;</span>
+            </div>
+            <form id="editDocumentForm" class="modal-form" novalidate>
+                <input type="hidden" name="documentId" id="editDocumentId">
+                <div class="form-group">
+                    <label for="editDocumentTypeSelect">Тип документа</label>
+                    <select id="editDocumentTypeSelect" name="documentType" required disabled>
+                        <option value="">Выберите тип документа</option>
+                    </select>
+                    <small class="form-help">Тип документа нельзя изменить после создания</small>
+                </div>
+                <div id="editDocumentFields" class="document-fields">
+                    <!-- Поля документа будут загружены динамически -->
+                </div>
+                
+                <!-- Единая секция управления файлами -->
+                <div class="form-group">
+                    <label>Файлы документа</label>
+                    <!-- Панель массовых операций -->
+                    <div id="bulkActionsPanel" class="bulk-actions-panel" style="display: none;">
+                        <div class="bulk-actions-controls">
+                            <span class="select-all-label" onclick="toggleSelectAllFiles()">Выбрать все</span>
+                            <span id="selectedCount" class="selected-count">0 выбрано</span>
+                        </div>
+                        <div class="bulk-actions-buttons">
+                            <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm" disabled>
+                                <i class="fas fa-trash"></i> Удалить выбранные
+                            </button>
+                        </div>
+                    </div>
+                    <div id="editDocumentFilesArea" class="unified-files-area">
+                        <!-- Загруженные и новые файлы будут отображаться здесь -->
+                        <div id="editFilesContainer" class="files-container">
+                            <!-- Файлы будут загружены динамически -->
+                            <!-- Кнопка + будет добавлена сюда JavaScript'ом -->
+                        </div>
+                        <div id="editEmptyState" class="empty-files-state">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетяните файлы сюда или нажмите для выбора</p>
+                            <small>Поддерживаемые форматы: PDF, JPG, PNG</small>
+                        </div>
+                    </div>
+                    <input type="file" id="editDocumentFiles" name="documentFiles" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="file-input-hidden">
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelEditDocumentBtn" onclick="closeEditDocumentModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для кропа аватарки -->
+    <div id="cropModal" class="modal crop-modal">
+        <div class="modal-content crop-modal-content">
+            <div class="modal-header">
+                <h3>Обрезать изображение</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body-actions">
+                <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancelCropBtn">Отмена</button>
+                <button type="button" class="btn btn-danger" id="removeAvatarModalBtn" style="display: none;">
+                    <i class="fas fa-trash"></i> Удалить аватар
+                </button>
+                <button type="button" class="btn btn-outline" id="changeFileBtn" style="display: none;">
+                    <i class="fas fa-exchange-alt"></i> Выбрать другой файл
+                </button>
+                <button type="button" class="btn btn-primary" id="saveCropBtn" style="display: none;">
+                    <i class="fas fa-upload"></i> Загрузить аватар
+                </button>
+                </div>
+                <div class="modal-body">
+                <div class="file-selection" id="fileSelection">
+                    <div class="file-upload-area" id="newAvatarArea">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Выберите изображение для аватара</p>
+                        <button type="button" class="btn btn-primary" id="selectFileBtn">
+                            <i class="fas fa-folder-open"></i> Выбрать файл
+                        </button>
+                        <p class="file-info">Поддерживаются: JPG, PNG, GIF (до 99MB)</p>
+                    </div>
+                </div>
+                <div class="crop-container" id="cropContainer" style="display: none;">
+                    <div class="crop-area">
+                        <img id="cropImage" src="" alt="Изображение для обрезки">
+                        <div class="crop-overlay">
+                            <div class="crop-box" id="cropBox">
+                                <div class="crop-handle crop-handle-nw"></div>
+                                <div class="crop-handle crop-handle-ne"></div>
+                                <div class="crop-handle crop-handle-sw"></div>
+                                <div class="crop-handle crop-handle-se"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="crop-preview">
+                        <h4>Предпросмотр</h4>
+                        <div class="preview-container">
+                            <div class="preview-item">
+                                <span>Квадратная</span>
+                                <div class="preview-square">
+                                    <canvas id="previewSquare" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                            <div class="preview-item">
+                                <span>Круглая</span>
+                                <div class="preview-circle">
+                                    <canvas id="previewCircle" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global functions for modal management
+        function closeDocumentModal() {
+            const modal = document.getElementById('documentModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        function closeEditDocumentModal() {
+            const modal = document.getElementById('editDocumentModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        function toggleSelectAllFiles() {
+            const checkboxes = document.querySelectorAll('#editDocumentFilesArea .file-checkbox');
+            const checkedBoxes = document.querySelectorAll('#editDocumentFilesArea .file-checkbox:checked');
+            const allSelected = checkedBoxes.length === checkboxes.length && checkboxes.length > 0;
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = !allSelected;
+                const fileItem = checkbox.closest('.file-item');
+                if (fileItem) {
+                    if (!allSelected) {
+                        fileItem.classList.add('selected');
+                    } else {
+                        fileItem.classList.remove('selected');
+                    }
+                }
+            });
+            
+            updateBulkActionsStateAdmin();
+        }
+        
+        function generateFromEmail() {
+            const email = document.getElementById('email').value;
+            if (email) {
+                const username = email.split('@')[0];
+                document.getElementById('username').value = username;
+            }
+        }
+        
+        document.getElementById('email').addEventListener('blur', function() {
+            const usernameField = document.getElementById('username');
+            if (!usernameField.value && this.value) {
+                generateFromEmail();
+            }
+        });
+
+        function generatePassword() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+            let password = '';
+            for (let i = 0; i < 12; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('password').value = password;
+            
+            const passwordField = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            passwordField.type = 'text';
+            toggleIcon.className = 'fas fa-eye-slash';
+            
+            setTimeout(() => {
+                passwordField.type = 'password';
+                toggleIcon.className = 'fas fa-eye';
+            }, 3000);
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.className = 'fas fa-eye-slash';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.className = 'fas fa-eye';
+            }
+        }
+        
+        function openDocumentModal() {
+            document.getElementById('documentModal').style.display = 'block';
+        }
+
+        function closeDocumentModal() {
+            document.getElementById('documentModal').style.display = 'none';
+            document.getElementById('documentForm').reset();
+        }
+
+        document.getElementById('documentForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('documentTitle').value;
+            const file = document.getElementById('documentFile').files[0];
+            
+            if (title && file) {
+                const documentsGrid = document.getElementById('documentsGrid');
+                
+                // Remove empty state if it exists
+                const emptyState = documentsGrid.querySelector('.empty-documents');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+                
+                // Create new document item
+                const documentItem = document.createElement('div');
+                documentItem.className = 'document-item';
+                documentItem.innerHTML = `
+                    <div class="document-info">
+                        <i class="fas fa-file"></i>
+                        <span>${title}</span>
+                        <input type="hidden" name="document_titles[]" value="${title}">
+                        <input type="hidden" name="document_files[]" value="${file.name}">
+                    </div>
+                    <button type="button" class="btn small danger" onclick="removeDocument(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                `;
+                
+                documentsGrid.appendChild(documentItem);
+                closeDocumentModal();
+            }
+        });
+
+        function removeDocument(button) {
+            const documentItem = button.parentElement;
+            const documentsGrid = document.getElementById('documentsGrid');
+            
+            documentItem.remove();
+            
+            // Add empty state if no documents left
+            if (documentsGrid.children.length === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'empty-documents';
+                emptyState.innerHTML = `
+                    <i class="fas fa-folder-open"></i>
+                    <p>Нет добавленных документов</p>
+                `;
+                documentsGrid.appendChild(emptyState);
+            }
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('documentModal');
+            if (event.target === modal) {
+                closeDocumentModal();
+            }
+        });
+    </script>
+    
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/avatar-crop.js"></script>
     <script>
     particlesJS('particles-js', {
         "particles": {
@@ -111,11 +677,58 @@
         },
         "interactivity": {
             "detect_on": "canvas",
-            "events": { "onhover": { "enable": true, "mode": "bubble" } },
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
             "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
         },
         "retina_detect": true
     });
     </script>
+    
+    <script>
+        // Данные пользователя для JavaScript
+        window.userData = {
+            id: {{ if .editingUser }}{{ .editingUser.ID }}{{ else }}""{{ end }},
+            fullName: "{{ if .editingUser }}{{ .editingUser.GetFullName }}{{ end }}",
+            shortName: "{{ if .editingUser }}{{ .editingUser.GetShortName }}{{ end }}",
+            email: "{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}",
+            phone: "{{ if .editingUser }}{{ .editingUser.Phone }}{{ end }}",
+            position: "{{ if .editingUser }}{{ .editingUser.Position }}{{ end }}",
+            department: "{{ if .editingUser }}{{ .editingUser.Department }}{{ end }}",
+            avatarPath: "{{ if .editingUser }}{{ .editingUser.AvatarPath }}{{ end }}"
+        };
+        
+        // Initialize Avatar Crop если есть элементы
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if AvatarCrop is already initialized
+            if (window.avatarCropInstance) {
+                console.log('AvatarCrop already initialized, skipping...');
+                return;
+            }
+
+            // Initialize AvatarCrop if elements exist
+            const avatarContainer = document.getElementById('avatarContainer');
+            const cropModal = document.getElementById('cropModal');
+            
+            if (avatarContainer && cropModal && typeof AvatarCrop !== 'undefined') {
+                try {
+                    console.log('Initializing AvatarCrop for user form...');
+                    window.avatarCropInstance = new AvatarCrop();
+                    console.log('AvatarCrop initialized successfully');
+                } catch (error) {
+                    console.error('Error initializing AvatarCrop:', error);
+                }
+            } else {
+                console.log('AvatarCrop elements not found or AvatarCrop class not available');
+                console.log('avatarContainer:', avatarContainer);
+                console.log('cropModal:', cropModal);
+                console.log('AvatarCrop class:', typeof AvatarCrop);
+            }
+            
+            // Make body visible after all CSS is loaded
+            document.body.style.visibility = 'visible';
+            document.body.style.opacity = '1';
+        });
+    </script>
 </body>
 </html>
+{{ end }}

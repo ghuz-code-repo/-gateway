@@ -1,6 +1,21 @@
-/nginx/conf/*
-/nginx/certs/*
+# SSL certificates
+/nginx/certs/
+
+# Environment files (contain secrets)
+.env
 /auth-service/.env
+/monitoring-service/.env
+/notification-service/.env
+
+# Go build artifacts
+*.exe
 /auth-service/go.sum
 
-mongo_data/*
+# Data directories
+/auth-service/data/
+mongo_data/
+mongo_data_old/
+mongo_data_new/
+
+# Generated documentation
+REGISTER_AUTH_SERVICE.md

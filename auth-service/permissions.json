@@ -1,0 +1,299 @@
+{
+  "service_key": "auth",
+  "service_name": "Authentication & Authorization Service",
+  "service_description": "Управление пользователями, ролями, разрешениями и сервисами",
+  "permissions": [
+    {
+      "name": "auth.dashboard.view",
+      "display_name": "Просмотр дашборда",
+      "description": "Доступ к главной панели управления auth-service",
+      "category": "dashboard"
+    },
+    {
+      "name": "auth.users.view",
+      "display_name": "Просмотр пользователей",
+      "description": "Просмотр списка пользователей",
+      "category": "users"
+    },
+    {
+      "name": "auth.users.create",
+      "display_name": "Создание пользователей",
+      "description": "Создание новых пользователей в системе",
+      "category": "users"
+    },
+    {
+      "name": "auth.users.edit",
+      "display_name": "Редактирование пользователей",
+      "description": "Редактирование информации о пользователях",
+      "category": "users"
+    },
+    {
+      "name": "auth.users.delete",
+      "display_name": "Удаление пользователей",
+      "description": "Удаление пользователей из системы",
+      "category": "users"
+    },
+    {
+      "name": "auth.users.reset_password",
+      "display_name": "Сброс паролей",
+      "description": "Сброс паролей пользователей",
+      "category": "users"
+    },
+    {
+      "name": "auth.users.assign_roles",
+      "display_name": "Назначение ролей",
+      "description": "Назначение ролей пользователям",
+      "category": "users"
+    },
+    {
+      "name": "auth.services.view",
+      "display_name": "Просмотр сервисов",
+      "description": "Просмотр списка зарегистрированных сервисов",
+      "category": "services"
+    },
+    {
+      "name": "auth.services.create",
+      "display_name": "Создание сервисов",
+      "description": "Регистрация новых сервисов в системе",
+      "category": "services"
+    },
+    {
+      "name": "auth.services.edit",
+      "display_name": "Редактирование сервисов",
+      "description": "Редактирование настроек сервисов",
+      "category": "services"
+    },
+    {
+      "name": "auth.services.delete",
+      "display_name": "Удаление сервисов",
+      "description": "Удаление сервисов из системы",
+      "category": "services"
+    },
+    {
+      "name": "auth.services.sync_permissions",
+      "display_name": "Синхронизация разрешений",
+      "description": "Синхронизация разрешений сервисов",
+      "category": "services"
+    },
+    {
+      "name": "auth.roles.view",
+      "display_name": "Просмотр ролей",
+      "description": "Просмотр ролей всех сервисов",
+      "category": "roles"
+    },
+    {
+      "name": "auth.roles.create",
+      "display_name": "Создание ролей",
+      "description": "Создание новых ролей для сервисов",
+      "category": "roles"
+    },
+    {
+      "name": "auth.roles.edit",
+      "display_name": "Редактирование ролей",
+      "description": "Редактирование ролей и их разрешений",
+      "category": "roles"
+    },
+    {
+      "name": "auth.roles.delete",
+      "display_name": "Удаление ролей",
+      "description": "Удаление ролей из системы",
+      "category": "roles"
+    },
+    {
+      "name": "auth.roles.assign_permissions",
+      "display_name": "Назначение разрешений",
+      "description": "Назначение разрешений ролям",
+      "category": "roles"
+    },
+    {
+      "name": "auth.permissions.view",
+      "display_name": "Просмотр разрешений",
+      "description": "Просмотр всех разрешений системы",
+      "category": "permissions"
+    },
+    {
+      "name": "auth.permissions.manage",
+      "display_name": "Управление разрешениями",
+      "description": "Создание и редактирование разрешений",
+      "category": "permissions"
+    },
+    {
+      "name": "auth.documents.view",
+      "display_name": "Просмотр документов",
+      "description": "Просмотр документов пользователей",
+      "category": "documents"
+    },
+    {
+      "name": "auth.documents.manage",
+      "display_name": "Управление документами",
+      "description": "Создание, редактирование и удаление документов",
+      "category": "documents"
+    },
+    {
+      "name": "auth.document_types.view",
+      "display_name": "Просмотр типов документов",
+      "description": "Просмотр списка типов документов",
+      "category": "document_types"
+    },
+    {
+      "name": "auth.document_types.manage",
+      "display_name": "Управление типами документов",
+      "description": "Создание и редактирование типов документов",
+      "category": "document_types"
+    },
+    {
+      "name": "auth.logs.view",
+      "display_name": "Просмотр логов",
+      "description": "Просмотр логов действий пользователей",
+      "category": "logs"
+    },
+    {
+      "name": "auth.logs.export",
+      "display_name": "Экспорт логов",
+      "description": "Экспорт логов в различных форматах",
+      "category": "logs"
+    },
+    {
+      "name": "auth.settings.view",
+      "display_name": "Просмотр настроек",
+      "description": "Просмотр системных настроек",
+      "category": "settings"
+    },
+    {
+      "name": "auth.settings.edit",
+      "display_name": "Изменение настроек",
+      "description": "Изменение системных настроек",
+      "category": "settings"
+    },
+    {
+      "name": "auth.notifications.receive",
+      "display_name": "Получение уведомлений",
+      "description": "Получение системных уведомлений",
+      "category": "notifications"
+    },
+    {
+      "name": "auth.notifications.send",
+      "display_name": "Отправка уведомлений",
+      "description": "Отправка уведомлений пользователям",
+      "category": "notifications"
+    },
+    {
+      "name": "auth.import.execute",
+      "display_name": "Выполнение импорта",
+      "description": "Импорт данных в систему",
+      "category": "import_export"
+    },
+    {
+      "name": "auth.export.execute",
+      "display_name": "Выполнение экспорта",
+      "description": "Экспорт данных из системы",
+      "category": "import_export"
+    },
+    {
+      "name": "auth.api.access",
+      "display_name": "Доступ к API",
+      "description": "Доступ к API endpoints auth-service",
+      "category": "api"
+    },
+    {
+      "name": "auth.system.monitor",
+      "display_name": "Мониторинг системы",
+      "description": "Просмотр статуса и метрик системы",
+      "category": "system"
+    }
+  ],
+  "roles": [
+    {
+      "name": "GOD",
+      "display_name": "Верховный Администратор",
+      "description": "Полный доступ ко всем функциям auth-service без ограничений",
+      "permissions": ["auth.*"]
+    },
+    {
+      "name": "admin",
+      "display_name": "Системный Администратор",
+      "description": "Полный доступ к управлению пользователями, ролями и сервисами",
+      "permissions": [
+        "auth.dashboard.view",
+        "auth.users.*",
+        "auth.services.*",
+        "auth.roles.*",
+        "auth.permissions.*",
+        "auth.documents.*",
+        "auth.document_types.*",
+        "auth.logs.*",
+        "auth.settings.view",
+        "auth.notifications.receive",
+        "auth.system.monitor"
+      ]
+    },
+    {
+      "name": "service-manager",
+      "display_name": "Менеджер Сервисов",
+      "description": "Управление сервисами и их настройками без доступа к пользователям",
+      "permissions": [
+        "auth.dashboard.view",
+        "auth.services.view",
+        "auth.services.edit",
+        "auth.services.sync_permissions",
+        "auth.roles.view",
+        "auth.roles.create",
+        "auth.roles.edit",
+        "auth.roles.assign_permissions",
+        "auth.permissions.view",
+        "auth.logs.view",
+        "auth.notifications.receive"
+      ]
+    },
+    {
+      "name": "user-manager",
+      "display_name": "Менеджер Пользователей",
+      "description": "Управление пользователями и назначение ролей",
+      "permissions": [
+        "auth.dashboard.view",
+        "auth.users.view",
+        "auth.users.create",
+        "auth.users.edit",
+        "auth.users.reset_password",
+        "auth.users.assign_roles",
+        "auth.roles.view",
+        "auth.services.view",
+        "auth.documents.view",
+        "auth.documents.manage",
+        "auth.logs.view",
+        "auth.notifications.receive"
+      ]
+    },
+    {
+      "name": "viewer",
+      "display_name": "Наблюдатель",
+      "description": "Только просмотр информации без возможности изменений",
+      "permissions": [
+        "auth.dashboard.view",
+        "auth.users.view",
+        "auth.services.view",
+        "auth.roles.view",
+        "auth.permissions.view",
+        "auth.documents.view",
+        "auth.document_types.view",
+        "auth.logs.view",
+        "auth.settings.view"
+      ]
+    },
+    {
+      "name": "support",
+      "display_name": "Техподдержка",
+      "description": "Просмотр информации и сброс паролей пользователей",
+      "permissions": [
+        "auth.dashboard.view",
+        "auth.users.view",
+        "auth.users.reset_password",
+        "auth.services.view",
+        "auth.roles.view",
+        "auth.documents.view",
+        "auth.logs.view",
+        "auth.notifications.receive"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+services:
+  monitoring-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: monitoring-service
+    env_file:
+      - .env
+    networks:
+      - service_network
+      - public_network
+    environment:
+      - TZ=Asia/Tashkent
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  service_network:
+    external: true
+    name: service_network
+  public_network:
+    external: true
+    name: public_network

@@ -1,0 +1,23 @@
+﻿{{ define "head" }}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    {{ if .extraCSS }}
+        {{ range .extraCSS }}
+            <link rel="stylesheet" href="{{ . }}">
+        {{ end }}
+    {{ end }}
+    {{ if .fontAwesome }}
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    {{ end }}
+    <style>
+      body {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity .05s ease-in-out;
+      }
+    </style>
+</head>
+{{ end }}

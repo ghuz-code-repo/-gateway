@@ -1,0 +1,1070 @@
+{{ define "user_edit_tabbed.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .title }} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/admin-service-form.css">
+    <link rel="stylesheet" href="/static/css/user-form.css">
+    <link rel="stylesheet" href="/static/css/profile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/user-form.js"></script>
+    <style>
+        body {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity .05s ease-in-out;
+            overflow: hidden !important;
+            height: 100vh !important;
+        }
+        
+        body .admin-page-container {
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* Tabbed Interface Styles */
+        .tabs-container {
+            margin-top: 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+        
+        .tabs-nav {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid rgba(196, 166, 104, 0.2);
+            margin-bottom: 0;
+            flex-shrink: 0;
+            padding: 0 30px;
+            background: var(--card-background-color);
+        }
+        
+        .tabs-container > form {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            padding: 0;
+        }
+        
+        .tab-btn {
+            padding: 1rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .tab-btn:hover {
+            color: var(--accent-gold);
+            background: rgba(196, 166, 104, 0.05);
+        }
+        
+        .tab-btn.active {
+            color: var(--accent-gold);
+        }
+        
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent-gold);
+        }
+        
+        .tab-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        
+        .tab-btn .badge {
+            background: rgba(196, 166, 104, 0.2);
+            color: var(--accent-gold);
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Permission denied message */
+        .permission-denied {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+        
+        .permission-denied i {
+            font-size: 3rem;
+            color: var(--accent-gold);
+            opacity: 0.5;
+            margin-bottom: 1rem;
+        }
+        
+        .permission-denied h4 {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        /* External Roles Section */
+        .external-roles-section {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(196, 166, 104, 0.2);
+        }
+        
+        .external-roles-section h4 {
+            color: var(--accent-gold);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .service-external-roles {
+            margin-bottom: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid rgba(196, 166, 104, 0.1);
+        }
+        
+        .service-external-roles .service-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .service-external-roles .service-name i {
+            color: var(--accent-gold);
+        }
+        
+        .external-roles-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        
+        .external-role-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 4px 10px;
+            background: rgba(196, 166, 104, 0.05);
+            border-radius: 6px;
+        }
+        
+        .external-role-item.readonly {
+            opacity: 0.6;
+        }
+        
+        .external-role-item label {
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        
+        .no-access-hint {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-style: italic;
+            padding: 0.5rem;
+        }
+        
+        /* Two-column layout for internal + external roles per service */
+        .service-roles-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .service-roles-columns {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .roles-column h5 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid rgba(196, 166, 104, 0.15);
+        }
+        
+        .roles-column h5 i {
+            color: var(--accent-gold);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        (function() {
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+            function getSystemTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
+            const cookieTheme = getCookie('gh_theme');
+            const theme = cookieTheme ? cookieTheme : getSystemTheme();
+            if (theme === 'dark') {
+                document.documentElement.classList.remove('light-theme');
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+                document.documentElement.classList.add('light-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+    
+    <div class="admin-page-container">
+        <div class="admin-content">
+            <div class="profile-container">
+                <div class="enhanced-user-form">
+                <div class="page-title-section">
+                    <h1>{{ .title }}</h1>
+                    
+                    {{ if .error }}
+                    <div class="flash-message error">
+                        {{ .error }}
+                    </div>
+                    {{ end }}
+                    
+                    {{ if .success }}
+                    <div class="flash-message success">
+                        {{ .success }}
+                    </div>
+                    {{ end }}
+                </div>
+                
+                <!-- User Header с аватаром -->
+                <div class="profile-header">
+                    <div class="avatar-section">
+                        <div class="avatar" id="avatarContainer">
+                            {{ if .editingUser.AvatarPath }}
+                                <img src="{{ .editingUser.AvatarPath }}?v={{ .timestamp }}" alt="Аватар" id="avatarImage">
+                            {{ else }}
+                                <i class="fas fa-user-circle" id="defaultAvatar"></i>
+                            {{ end }}
+                            {{ if .canEditBasicInfo }}
+                            <div class="avatar-overlay" id="avatarOverlay">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                            {{ end }}
+                        </div>
+                        {{ if .canEditBasicInfo }}
+                        <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                        {{ end }}
+                    </div>
+                    <div class="user-info">
+                        <h1>{{ if .editingUser }}{{ .editingUser.GetFullName }}{{ else }}Новый пользователь{{ end }}</h1>
+                        <p class="user-email">{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}</p>
+                    </div>
+                </div>
+                
+                <!-- Tabbed Interface -->
+                <div class="tabs-container">
+                    <div class="tabs-nav">
+                        <button type="button" class="tab-btn active {{ if not .canViewBasicInfo }}disabled{{ end }}" 
+                                data-tab="basic-info" {{ if not .canViewBasicInfo }}disabled title="Нет доступа"{{ end }}>
+                            <i class="fas fa-user"></i>
+                            Основная информация
+                        </button>
+                        <button type="button" class="tab-btn {{ if not .canViewDocuments }}disabled{{ end }}" 
+                                data-tab="documents" {{ if not .canViewDocuments }}disabled title="Нет доступа"{{ end }}>
+                            <i class="fas fa-file-alt"></i>
+                            Документы
+                            {{ if .documentCount }}<span class="badge">{{ .documentCount }}</span>{{ end }}
+                        </button>
+                        <button type="button" class="tab-btn {{ if not .canViewRoles }}disabled{{ end }}" 
+                                data-tab="roles" {{ if not .canViewRoles }}disabled title="Нет доступа"{{ end }}>
+                            <i class="fas fa-user-shield"></i>
+                            Роли и доступ
+                            {{ if .roleCount }}<span class="badge">{{ .roleCount }}</span>{{ end }}
+                        </button>
+                    </div>
+                    
+                    <form action="{{ if .editingUser }}/users/{{ .editingUser.ID.Hex }}{{ else }}/users{{ end }}" method="post" enctype="multipart/form-data" id="userForm" autocomplete="off">
+                        
+                        <!-- Tab: Basic Info -->
+                        <div class="tab-content active" id="tab-basic-info">
+                            {{ if .canViewBasicInfo }}
+                            <div class="form-sections">
+                                <div class="form-section">
+                                    <h3 class="section-title">
+                                        <i class="fas fa-user"></i>
+                                        Учётные данные
+                                    </h3>
+                                    
+                                    <div class="form-grid">
+                                        <div class="form-group">
+                                            <label for="username" class="required">Имя пользователя</label>
+                                            <div class="input-with-button">
+                                                <input type="text" 
+                                                       id="username" 
+                                                       name="username" 
+                                                       value="{{ if .editingUser }}{{ .editingUser.Username }}{{ end }}" 
+                                                       {{ if not .canEditBasicInfo }}readonly{{ end }}
+                                                       required>
+                                                {{ if .canEditBasicInfo }}
+                                                <button type="button" 
+                                                        class="generate-btn" 
+                                                        onclick="generateFromEmail()" 
+                                                        title="Автоматически заполняется из email">
+                                                    <i class="fas fa-magic"></i>
+                                                    Создать логин из почтового адреса
+                                                </button>
+                                                {{ end }}
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="email" class="required">Email</label>
+                                            <input type="email" 
+                                                   id="email" 
+                                                   name="email" 
+                                                   value="{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}" 
+                                                   {{ if not .canEditBasicInfo }}readonly{{ end }}
+                                                   required>
+                                            <span class="help-text">Может быть использован для входа в систему</span>
+                                        </div>
+                                        
+                                        {{ if .canEditBasicInfo }}
+                                        <div class="form-group">
+                                            <label for="password" {{ if not .editingUser }}class="required"{{ end }}>
+                                                {{ if .editingUser }}Новый пароль (оставьте пустым, чтобы не менять){{ else }}Пароль{{ end }}
+                                            </label>
+                                            <div class="password-input-container">
+                                                <input type="password" 
+                                                       id="password" 
+                                                       name="password" 
+                                                       autocomplete="new-password"
+                                                       data-form-type="other"
+                                                       {{ if not .editingUser }}required{{ end }}>
+                                                <button type="button" 
+                                                        class="password-toggle-btn" 
+                                                        onclick="togglePasswordVisibility()"
+                                                        title="Показать/скрыть пароль">
+                                                    <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                                                </button>
+                                                <button type="button" 
+                                                        class="generate-password-btn" 
+                                                        onclick="generatePassword()"
+                                                        title="Сгенерировать пароль">
+                                                    <i class="fas fa-random"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {{ end }}
+                                        
+                                        <div class="form-group">
+                                            <label for="phone">Телефон</label>
+                                            <input type="tel" 
+                                                   id="phone" 
+                                                   name="phone" 
+                                                   value="{{ if .editingUser }}{{ .editingUser.Phone }}{{ end }}" 
+                                                   {{ if not .canEditBasicInfo }}readonly{{ end }}
+                                                   placeholder="+998 12 345 67 89">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-section">
+                                    <h3 class="section-title">
+                                        <i class="fas fa-id-card"></i>
+                                        Личная информация
+                                    </h3>
+                                    
+                                    <div class="form-grid">
+                                        <div class="form-group">
+                                            <label for="last_name" class="required">Фамилия</label>
+                                            <input type="text" 
+                                                   id="last_name" 
+                                                   name="last_name" 
+                                                   value="{{ if .editingUser }}{{ .editingUser.LastName }}{{ end }}" 
+                                                   {{ if not .canEditBasicInfo }}readonly{{ end }}
+                                                   required>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="first_name" class="required">Имя</label>
+                                            <input type="text" 
+                                                   id="first_name" 
+                                                   name="first_name" 
+                                                   value="{{ if .editingUser }}{{ .editingUser.FirstName }}{{ end }}" 
+                                                   {{ if not .canEditBasicInfo }}readonly{{ end }}
+                                                   required>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="middle_name">Отчество</label>
+                                            <input type="text" 
+                                                   id="middle_name" 
+                                                   name="middle_name" 
+                                                   value="{{ if .editingUser }}{{ .editingUser.MiddleName }}{{ end }}"
+                                                   {{ if not .canEditBasicInfo }}readonly{{ end }}>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="suffix">Суффикс</label>
+                                            <input type="text" 
+                                                   id="suffix" 
+                                                   name="suffix" 
+                                                   value="{{ if .editingUser }}{{ .editingUser.Suffix }}{{ end }}" 
+                                                   {{ if not .canEditBasicInfo }}readonly{{ end }}
+                                                   placeholder="Jr., Sr., III и т.д.">
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="position">Должность</label>
+                                            <input type="text" 
+                                                   id="position" 
+                                                   name="position" 
+                                                   value="{{ if .editingUser }}{{ .editingUser.Position }}{{ end }}"
+                                                   {{ if not .canEditBasicInfo }}readonly{{ end }}>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="department">Отдел</label>
+                                            <input type="text" 
+                                                   id="department" 
+                                                   name="department" 
+                                                   value="{{ if .editingUser }}{{ .editingUser.Department }}{{ end }}"
+                                                   {{ if not .canEditBasicInfo }}readonly{{ end }}>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- System Admin Toggle (only for users with permission) -->
+                                {{ if .canManageSystemAdmin }}
+                                <div class="form-section">
+                                    <h3 class="section-title">
+                                        <i class="fas fa-crown"></i>
+                                        Системные права
+                                    </h3>
+                                    <div class="form-group">
+                                        <label class="system-admin-toggle">
+                                            <input type="checkbox" name="is_system_admin" {{ if .isSystemAdmin }}checked{{ end }}>
+                                            <span class="toggle-switch"></span>
+                                            <span class="toggle-label">Системный администратор</span>
+                                        </label>
+                                        <span class="help-text">Полный доступ ко всем функциям системы</span>
+                                    </div>
+                                </div>
+                                {{ end }}
+                            </div>
+                            {{ else }}
+                            <div class="permission-denied">
+                                <i class="fas fa-lock"></i>
+                                <h4>Доступ ограничен</h4>
+                                <p>У вас нет разрешения на просмотр основной информации пользователя</p>
+                            </div>
+                            {{ end }}
+                        </div>
+                        
+                        <!-- Tab: Documents -->
+                        <div class="tab-content" id="tab-documents">
+                            {{ if .canViewDocuments }}
+                            <div class="form-sections">
+                                <div class="form-section">
+                                    <div class="documents-header">
+                                        <h3 class="section-title">
+                                            <i class="fas fa-file-alt"></i>
+                                            Документы пользователя
+                                        </h3>
+                                        {{ if .canManageDocuments }}
+                                        <button type="button" class="btn btn-primary" id="addDocumentBtn">
+                                            <i class="fas fa-plus"></i>
+                                            Добавить документ
+                                        </button>
+                                        {{ end }}
+                                    </div>
+                                    <div class="documents-grid" id="documentsGrid">
+                                        <!-- Документы будут загружены через JavaScript -->
+                                        <div class="loading-documents">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            <p>Загрузка документов...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {{ else }}
+                            <div class="permission-denied">
+                                <i class="fas fa-lock"></i>
+                                <h4>Доступ ограничен</h4>
+                                <p>У вас нет разрешения на просмотр документов пользователя</p>
+                            </div>
+                            {{ end }}
+                        </div>
+                        
+                        <!-- Tab: Roles -->
+                        <div class="tab-content" id="tab-roles">
+                            {{ if .canViewRoles }}
+                            <div class="form-sections">
+                                <!-- Internal auth-service roles -->
+                                <div class="form-section">
+                                    <h3 class="section-title">
+                                        <i class="fas fa-key"></i>
+                                        Роли в сервисе аутентификации
+                                    </h3>
+                                    
+                                    <div class="roles-container">
+                                        {{ if .authServiceRoles }}
+                                        <div class="service-permissions-grid">
+                                            {{ range $role := .authServiceRoles }}
+                                            <div class="service-permission-checkbox">
+                                                <input type="checkbox" 
+                                                       id="role-auth-{{ $role.Name }}" 
+                                                       name="roles" 
+                                                       value="auth:{{ $role.Name }}"
+                                                       {{ if not $.canManageRoles }}disabled{{ end }}
+                                                       {{ range $userRole := $.userRoles }}
+                                                         {{ if and (eq $userRole.ServiceKey "auth") (eq $userRole.RoleName $role.Name) }}checked{{ end }}
+                                                       {{ end }}>
+                                                <label class="service-permission-label" for="role-auth-{{ $role.Name }}">
+                                                    <span>{{ $role.Name }}</span>
+                                                    {{ if $role.Description }}<small>{{ $role.Description }}</small>{{ end }}
+                                                </label>
+                                            </div>
+                                            {{ end }}
+                                        </div>
+                                        {{ else }}
+                                        <div class="empty-roles">
+                                            <span>Нет доступных ролей</span>
+                                        </div>
+                                        {{ end }}
+                                    </div>
+                                </div>
+                                
+                                <!-- Working Services Roles (internal + external per service) -->
+                                {{ if .workingServices }}
+                                {{ range $service := .workingServices }}
+                                <div class="form-section">
+                                    <h3 class="section-title">
+                                        <i class="fas fa-server"></i>
+                                        {{ $service.Name }}
+                                    </h3>
+                                    
+                                    {{ $perms := index $.servicePermissions $service.Key }}
+                                    {{ if $perms }}
+                                    <div class="service-roles-columns">
+                                        <!-- Internal roles column -->
+                                        <div class="roles-column">
+                                            <h5><i class="fas fa-cog"></i> Внутренние роли</h5>
+                                            {{ if $service.InternalRoles }}
+                                            <div class="service-permissions-grid">
+                                                {{ range $role := $service.InternalRoles }}
+                                                <div class="service-permission-checkbox">
+                                                    <input type="checkbox" 
+                                                           id="role-{{ $service.Key }}-{{ $role.Name }}" 
+                                                           name="roles" 
+                                                           value="{{ $service.Key }}:{{ $role.Name }}"
+                                                           {{ if not $perms.CanManage }}disabled{{ end }}
+                                                           {{ range $userRole := $.userRoles }}
+                                                             {{ if and (eq $userRole.ServiceKey $service.Key) (eq $userRole.RoleName $role.Name) }}checked{{ end }}
+                                                           {{ end }}>
+                                                    <label class="service-permission-label" for="role-{{ $service.Key }}-{{ $role.Name }}">
+                                                        <span>{{ $role.Name }}</span>
+                                                        {{ if $role.Description }}<small>{{ $role.Description }}</small>{{ end }}
+                                                    </label>
+                                                </div>
+                                                {{ end }}
+                                            </div>
+                                            {{ else }}
+                                            <div class="empty-roles">
+                                                <span>Нет внутренних ролей</span>
+                                            </div>
+                                            {{ end }}
+                                        </div>
+                                        
+                                        <!-- External roles column (from auth service) -->
+                                        <div class="roles-column">
+                                            <h5><i class="fas fa-external-link-alt"></i> Внешние роли (из сервиса авторизации)</h5>
+                                            {{ if $service.ExternalRoles }}
+                                            <div class="service-permissions-grid">
+                                                {{ range $role := $service.ExternalRoles }}
+                                                <div class="service-permission-checkbox external-role-checkbox">
+                                                    <input type="checkbox" 
+                                                           id="role-ext-{{ $service.Key }}-{{ $role.Name }}" 
+                                                           name="roles" 
+                                                           value="auth:{{ $role.Name }}"
+                                                           {{ if not $.canManageRoles }}disabled{{ end }}
+                                                           {{ range $userRole := $.userRoles }}
+                                                             {{ if and (eq $userRole.ServiceKey "auth") (eq $userRole.RoleName $role.Name) }}checked{{ end }}
+                                                           {{ end }}>
+                                                    <label class="service-permission-label" for="role-ext-{{ $service.Key }}-{{ $role.Name }}">
+                                                        <span>{{ $role.Name }}</span>
+                                                        {{ if $role.Description }}<small>{{ $role.Description }}</small>{{ end }}
+                                                    </label>
+                                                </div>
+                                                {{ end }}
+                                            </div>
+                                            {{ else }}
+                                            <div class="empty-roles">
+                                                <span>Нет внешних ролей</span>
+                                            </div>
+                                            {{ end }}
+                                        </div>
+                                    </div>
+                                    {{ else }}
+                                    <div class="no-access-hint">
+                                        <i class="fas fa-lock"></i>
+                                        У вас нет доступа к управлению ролями этого сервиса
+                                    </div>
+                                    {{ end }}
+                                </div>
+                                {{ end }}
+                                {{ end }}
+                            </div>
+                            {{ else }}
+                            <div class="permission-denied">
+                                <i class="fas fa-lock"></i>
+                                <h4>Доступ ограничен</h4>
+                                <p>У вас нет разрешения на просмотр ролей пользователя</p>
+                            </div>
+                            {{ end }}
+                        </div>
+                        
+                        <!-- Form Actions -->
+                        <div class="form-actions">
+                            <div class="left-actions">
+                                <a href="/users" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left"></i>
+                                    Назад к списку
+                                </a>
+                            </div>
+                            <div class="right-actions">
+                                {{ if or .canEditBasicInfo .canManageRoles .canManageDocuments }}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-check"></i>
+                                    {{ if .editingUser }}Сохранить изменения{{ else }}Создать пользователя{{ end }}
+                                </button>
+                                {{ end }}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Document Modal -->
+    <div id="documentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Добавить документ</h3>
+                <span class="close" onclick="closeDocumentModalAdmin()">&times;</span>
+            </div>
+            <form id="documentForm" class="modal-form" novalidate>
+                <div class="form-group">
+                    <label for="documentTypeSelect">Тип документа</label>
+                    <select id="documentTypeSelect" name="documentType" required>
+                        <option value="">Выберите тип документа</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="allowedServicesSelect">Сервисы для использования документа <span class="required">*</span></label>
+                    <select id="allowedServicesSelect" name="allowedServices" multiple required style="min-height: 100px;">
+                    </select>
+                    <small class="form-help">Выберите сервисы, где этот документ может использоваться.</small>
+                </div>
+                <div id="documentFields" class="document-fields">
+                </div>
+                <div class="form-group">
+                    <label>Файлы документа (необязательно)</label>
+                    <div id="newDocumentFilesArea" class="unified-files-area">
+                        <div id="newFilesContainer" class="files-container">
+                        </div>
+                        <div id="newEmptyState" class="empty-files-state">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетяните файлы сюда или нажмите для выбора</p>
+                            <small>Поддерживаемые форматы: PDF, JPG, PNG</small>
+                        </div>
+                    </div>
+                    <input type="file" id="documentFile" name="documentFile" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="file-input-hidden">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeDocumentModalAdmin()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить документ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Document Modal -->
+    <div id="editDocumentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Редактировать документ</h3>
+                <span class="close" onclick="closeEditDocumentModal()">&times;</span>
+            </div>
+            <form id="editDocumentForm" class="modal-form" novalidate>
+                <input type="hidden" name="documentId" id="editDocumentId">
+                <div class="form-group">
+                    <label for="editDocumentTypeSelect">Тип документа</label>
+                    <select id="editDocumentTypeSelect" name="documentType" required disabled>
+                        <option value="">Выберите тип документа</option>
+                    </select>
+                    <small class="form-help">Тип документа нельзя изменить после создания</small>
+                </div>
+                <div id="editDocumentFields" class="document-fields">
+                </div>
+                
+                <div class="form-group">
+                    <label>Файлы документа</label>
+                    <div id="bulkActionsPanel" class="bulk-actions-panel" style="display: none;">
+                        <div class="bulk-actions-controls">
+                            <span class="select-all-label" onclick="toggleSelectAllFiles()">Выбрать все</span>
+                            <span id="selectedCount" class="selected-count">0 выбрано</span>
+                        </div>
+                        <div class="bulk-actions-buttons">
+                            <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm" disabled>
+                                <i class="fas fa-trash"></i> Удалить выбранные
+                            </button>
+                        </div>
+                    </div>
+                    <div id="editDocumentFilesArea" class="unified-files-area">
+                        <div id="editFilesContainer" class="files-container">
+                        </div>
+                        <div id="editEmptyState" class="empty-files-state">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетяните файлы сюда или нажмите для выбора</p>
+                            <small>Поддерживаемые форматы: PDF, JPG, PNG</small>
+                        </div>
+                    </div>
+                    <input type="file" id="editDocumentFiles" name="documentFiles" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="file-input-hidden">
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditDocumentModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Avatar Crop Modal -->
+    <div id="cropModal" class="modal crop-modal">
+        <div class="modal-content crop-modal-content">
+            <div class="modal-header">
+                <h3>Обрезать изображение</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body-actions">
+                <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancelCropBtn">Отмена</button>
+                <button type="button" class="btn btn-danger" id="removeAvatarModalBtn" style="display: none;">
+                    <i class="fas fa-trash"></i> Удалить аватар
+                </button>
+                <button type="button" class="btn btn-outline" id="changeFileBtn" style="display: none;">
+                    <i class="fas fa-exchange-alt"></i> Выбрать другой файл
+                </button>
+                <button type="button" class="btn btn-primary" id="saveCropBtn" style="display: none;">
+                    <i class="fas fa-upload"></i> Загрузить аватар
+                </button>
+                </div>
+                <div class="modal-body">
+                <div class="file-selection" id="fileSelection">
+                    <div class="file-upload-area" id="newAvatarArea">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Выберите изображение для аватара</p>
+                        <button type="button" class="btn btn-primary" id="selectFileBtn">
+                            <i class="fas fa-folder-open"></i> Выбрать файл
+                        </button>
+                        <p class="file-info">Поддерживаются: JPG, PNG, GIF (до 99MB)</p>
+                    </div>
+                </div>
+                <div class="crop-container" id="cropContainer" style="display: none;">
+                    <div class="crop-area">
+                        <img id="cropImage" src="" alt="Изображение для обрезки">
+                        <div class="crop-overlay">
+                            <div class="crop-box" id="cropBox">
+                                <div class="crop-handle crop-handle-nw"></div>
+                                <div class="crop-handle crop-handle-ne"></div>
+                                <div class="crop-handle crop-handle-sw"></div>
+                                <div class="crop-handle crop-handle-se"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="crop-preview">
+                        <h4>Предпросмотр</h4>
+                        <div class="preview-container">
+                            <div class="preview-item">
+                                <span>Квадратная</span>
+                                <div class="preview-square">
+                                    <canvas id="previewSquare" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                            <div class="preview-item">
+                                <span>Круглая</span>
+                                <div class="preview-circle">
+                                    <canvas id="previewCircle" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Tab switching logic
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (this.disabled || this.classList.contains('disabled')) return;
+                
+                // Remove active from all tabs
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active to clicked tab
+                this.classList.add('active');
+                const tabId = 'tab-' + this.dataset.tab;
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // Global functions
+        function closeDocumentModal() {
+            const modal = document.getElementById('documentModal');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        // Alias for compatibility with user-form.js
+        function closeDocumentModalAdmin() {
+            closeDocumentModal();
+        }
+        
+        function closeEditDocumentModal() {
+            const modal = document.getElementById('editDocumentModal');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        function toggleSelectAllFiles() {
+            const checkboxes = document.querySelectorAll('#editDocumentFilesArea .file-checkbox');
+            const checkedBoxes = document.querySelectorAll('#editDocumentFilesArea .file-checkbox:checked');
+            const allSelected = checkedBoxes.length === checkboxes.length && checkboxes.length > 0;
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = !allSelected;
+                const fileItem = checkbox.closest('.file-item');
+                if (fileItem) {
+                    if (!allSelected) {
+                        fileItem.classList.add('selected');
+                    } else {
+                        fileItem.classList.remove('selected');
+                    }
+                }
+            });
+            
+            if (typeof updateBulkActionsStateAdmin === 'function') {
+                updateBulkActionsStateAdmin();
+            }
+        }
+        
+        function generateFromEmail() {
+            const email = document.getElementById('email').value;
+            if (email) {
+                const username = email.split('@')[0];
+                document.getElementById('username').value = username;
+            }
+        }
+        
+        const emailField = document.getElementById('email');
+        if (emailField) {
+            emailField.addEventListener('blur', function() {
+                const usernameField = document.getElementById('username');
+                if (usernameField && !usernameField.value && this.value) {
+                    generateFromEmail();
+                }
+            });
+        }
+
+        function generatePassword() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+            let password = '';
+            for (let i = 0; i < 12; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            const passwordField = document.getElementById('password');
+            if (passwordField) {
+                passwordField.value = password;
+                
+                const toggleIcon = document.getElementById('passwordToggleIcon');
+                passwordField.type = 'text';
+                if (toggleIcon) toggleIcon.className = 'fas fa-eye-slash';
+                
+                setTimeout(() => {
+                    passwordField.type = 'password';
+                    if (toggleIcon) toggleIcon.className = 'fas fa-eye';
+                }, 3000);
+            }
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            
+            if (passwordInput && toggleIcon) {
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    toggleIcon.className = 'fas fa-eye-slash';
+                } else {
+                    passwordInput.type = 'password';
+                    toggleIcon.className = 'fas fa-eye';
+                }
+            }
+        }
+        
+        function openDocumentModal() {
+            document.getElementById('documentModal').style.display = 'block';
+        }
+
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('documentModal');
+            if (event.target === modal) {
+                closeDocumentModal();
+            }
+            const editModal = document.getElementById('editDocumentModal');
+            if (event.target === editModal) {
+                closeEditDocumentModal();
+            }
+        });
+    </script>
+    
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/avatar-crop.js"></script>
+    <script>
+    particlesJS('particles-js', {
+        "particles": {
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+            "color": { "value": "#c4a668" },
+            "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+            "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+            "size": { "value": 4, "random": true },
+            "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+            "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
+            "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+        },
+        "retina_detect": true
+    });
+    </script>
+    
+    <script>
+        // User data for JavaScript
+        window.userData = {
+            id: {{ if .editingUser }}{{ .editingUser.ID }}{{ else }}""{{ end }},
+            fullName: "{{ if .editingUser }}{{ .editingUser.GetFullName }}{{ end }}",
+            shortName: "{{ if .editingUser }}{{ .editingUser.GetShortName }}{{ end }}",
+            email: "{{ if .editingUser }}{{ .editingUser.Email }}{{ end }}",
+            phone: "{{ if .editingUser }}{{ .editingUser.Phone }}{{ end }}",
+            position: "{{ if .editingUser }}{{ .editingUser.Position }}{{ end }}",
+            department: "{{ if .editingUser }}{{ .editingUser.Department }}{{ end }}",
+            avatarPath: "{{ if .editingUser }}{{ .editingUser.AvatarPath }}{{ end }}"
+        };
+        
+        // Permissions for JavaScript
+        window.userPermissions = {
+            canEditBasicInfo: {{ if .canEditBasicInfo }}true{{ else }}false{{ end }},
+            canViewDocuments: {{ if .canViewDocuments }}true{{ else }}false{{ end }},
+            canManageDocuments: {{ if .canManageDocuments }}true{{ else }}false{{ end }},
+            canViewRoles: {{ if .canViewRoles }}true{{ else }}false{{ end }},
+            canManageRoles: {{ if .canManageRoles }}true{{ else }}false{{ end }}
+        };
+        
+        // Initialize Avatar Crop
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.avatarCropInstance) {
+                console.log('AvatarCrop already initialized, skipping...');
+                return;
+            }
+
+            const avatarContainer = document.getElementById('avatarContainer');
+            const cropModal = document.getElementById('cropModal');
+            
+            if (avatarContainer && cropModal && typeof AvatarCrop !== 'undefined' && window.userPermissions.canEditBasicInfo) {
+                try {
+                    console.log('Initializing AvatarCrop for user form...');
+                    window.avatarCropInstance = new AvatarCrop();
+                    console.log('AvatarCrop initialized successfully');
+                } catch (error) {
+                    console.error('Error initializing AvatarCrop:', error);
+                }
+            }
+            
+            document.body.style.visibility = 'visible';
+            document.body.style.opacity = '1';
+        });
+    </script>
+</body>
+</html>
+{{ end }}

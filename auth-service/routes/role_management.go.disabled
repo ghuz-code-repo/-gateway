@@ -1,0 +1,501 @@
+package routes
+
+import (
+	"auth-service/models"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+// ============================================================================
+// Role Management Handlers
+// ============================================================================
+
+// listServicesForRoleManagement shows list of all services for role management
+// GET /settings/roles
+func listServicesForRoleManagement(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+
+	// Check permission
+	if !requireAuthPermission(c, "auth.roles.view") {
+		c.HTML(http.StatusForbidden, "error.html", gin.H{
+			"error": "У вас нет прав для просмотра списка сервисов",
+		})
+		return
+	}
+
+	// Get all services
+	services, err := models.GetAllServices()
+	if err != nil {
+		log.Printf("ERROR listServicesForRoleManagement: %v", err)
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось получить список сервисов",
+		})
+		return
+	}
+
+	// Count EXTERNAL roles for each service
+	// External roles are auth-service roles that have permissions for that service
+	type ServiceWithRoleCount struct {
+		models.Service
+		RoleCount int
+	}
+
+	// Only include business services - auth-service cannot have external roles (it's at the top of hierarchy)
+	businessServices := []ServiceWithRoleCount{}
+	for _, service := range services {
+		// Exclude auth-service - it has no external roles by definition
+		if service.Key == "auth" || service.Key == "system" {
+			continue
+		}
+
+		// Get external roles for this service
+		externalRoles, _ := models.GetExternalServiceRoles(service.Key)
+		businessServices = append(businessServices, ServiceWithRoleCount{
+			Service:   service,
+			RoleCount: len(externalRoles),
+		})
+	}
+
+	c.HTML(http.StatusOK, "service_list.html", gin.H{
+		"title":            "Управление внешними ролями",
+		"user":             user,
+		"username":         user.Username,
+		"full_name":        user.GetFullName(),
+		"short_name":       user.GetShortName(),
+		"businessServices": businessServices,
+	})
+}
+
+// listServiceRoles shows all EXTERNAL roles for a specific service
+// These are roles that define who can MANAGE the service, not roles within the service
+// GET /settings/roles/:serviceKey
+func listServiceRoles(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+	serviceKey := c.Param("serviceKey")
+
+	// Check permission: user needs EITHER global auth.roles.view OR service-specific auth.<serviceKey>.roles.view
+	hasGlobalView := requireAuthPermission(c, "auth.roles.view")
+	hasServiceView := requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.view", serviceKey))
+
+	if !hasGlobalView && !hasServiceView {
+		c.HTML(http.StatusForbidden, "error.html", gin.H{
+			"error": "У вас нет прав для просмотра ролей",
+		})
+		return
+	}
+
+	// Get service info
+	service, err := models.GetServiceByKey(serviceKey)
+	if err != nil || service == nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	// Get EXTERNAL roles - roles in auth-service that control access to this service
+	roles, err := models.GetExternalServiceRoles(serviceKey)
+	if err != nil {
+		log.Printf("ERROR listServiceRoles: %v", err)
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось получить список ролей",
+		})
+		return
+	}
+
+	// Get EXTERNAL permissions for this service (e.g. auth.referal.users.manage)
+	permissionCategories, err := models.GetExternalServicePermissions(serviceKey)
+	if err != nil {
+		log.Printf("ERROR listServiceRoles GetExternalServicePermissions: %v", err)
+		permissionCategories = []models.PermissionCategory{}
+	}
+
+	// Check if user can create/edit/delete roles (global OR service-specific)
+	// Using granular permissions: .create, .edit, .delete instead of .manage
+	canCreate := requireAuthPermission(c, "auth.roles.create") || requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.create", serviceKey))
+	canEdit := requireAuthPermission(c, "auth.roles.edit") || requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.edit", serviceKey))
+	canDelete := requireAuthPermission(c, "auth.roles.delete") || requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.delete", serviceKey))
+
+	c.HTML(http.StatusOK, "role_list.html", gin.H{
+		"title":                fmt.Sprintf("Внешние роли - %s", service.Name),
+		"user":                 user,
+		"username":             user.Username,
+		"full_name":            user.GetFullName(),
+		"short_name":           user.GetShortName(),
+		"service":              service,
+		"roles":                roles,
+		"permissionCategories": permissionCategories,
+		"canCreate":            canCreate,
+		"canEdit":              canEdit,
+		"canDelete":            canDelete,
+	})
+}
+
+// showCreateRoleForm shows the form to create a new role
+// GET /settings/roles/:serviceKey/create
+func showCreateRoleForm(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+	serviceKey := c.Param("serviceKey")
+
+	// Check permission: global OR service-specific
+	hasGlobalCreate := requireAuthPermission(c, "auth.roles.create")
+	hasServiceManage := requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.manage", serviceKey))
+
+	if !hasGlobalCreate && !hasServiceManage {
+		c.HTML(http.StatusForbidden, "error.html", gin.H{
+			"error": "У вас нет прав для создания ролей",
+		})
+		return
+	}
+
+	// Get service info
+	service, err := models.GetServiceByKey(serviceKey)
+	if err != nil || service == nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	// Get permissions grouped by category
+	categories, err := models.GetPermissionsByCategory(serviceKey)
+	if err != nil {
+		log.Printf("ERROR showCreateRoleForm: %v", err)
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось получить список разрешений",
+		})
+		return
+	}
+
+	c.HTML(http.StatusOK, "role_form.html", gin.H{
+		"title":      fmt.Sprintf("Создать роль - %s", service.Name),
+		"user":       user,
+		"username":   user.Username,
+		"full_name":  user.GetFullName(),
+		"short_name": user.GetShortName(),
+		"service":    service,
+		"categories": categories,
+		"isEdit":     false,
+	})
+}
+
+// createServiceRole handles creating a new EXTERNAL role
+// POST /settings/roles/:serviceKey/create
+func createServiceRole(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+
+	// Check permission: global OR service-specific
+	hasGlobalCreate := requireAuthPermission(c, "auth.roles.create")
+	hasServiceManage := requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.manage", serviceKey))
+
+	if !hasGlobalCreate && !hasServiceManage {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"error":   "У вас нет прав для создания ролей",
+		})
+		return
+	}
+
+	// Try to parse as JSON first
+	var jsonData struct {
+		Name        string   `json:"name"`
+		Description string   `json:"description"`
+		Permissions []string `json:"permissions"`
+	}
+
+	var name, description string
+	var permissions []string
+
+	if err := c.ShouldBindJSON(&jsonData); err == nil {
+		name = jsonData.Name
+		description = jsonData.Description
+		permissions = jsonData.Permissions
+	} else {
+		// Fall back to form data
+		name = c.PostForm("name")
+		description = c.PostForm("description")
+		permissionsStr := c.PostForm("permissions")
+		if permissionsStr != "" {
+			permissions = strings.Split(permissionsStr, ",")
+			for i := range permissions {
+				permissions[i] = strings.TrimSpace(permissions[i])
+			}
+		}
+	}
+
+	// Validate inputs
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Название роли обязательно",
+		})
+		return
+	}
+
+	// External roles are stored in auth service with permissions like auth.<serviceKey>.*
+	// Validate that permissions start with the correct prefix
+	prefix := serviceKey + "."
+	for _, perm := range permissions {
+		if !strings.HasPrefix(perm, prefix) && !strings.HasPrefix(perm, "auth."+prefix) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   fmt.Sprintf("Разрешение '%s' не принадлежит сервису '%s'", perm, serviceKey),
+			})
+			return
+		}
+	}
+
+	// Create role in auth service (not in the target service)
+	role, err := models.CreateRole("auth", name, description, permissions)
+	if err != nil {
+		log.Printf("ERROR createServiceRole: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Не удалось создать роль: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"message":  "Роль успешно создана",
+		"redirect": fmt.Sprintf("/settings/roles/%s", serviceKey),
+		"role":     role,
+	})
+}
+
+// showEditRoleForm shows the form to edit an existing role
+// GET /settings/roles/:serviceKey/:roleId/edit
+func showEditRoleForm(c *gin.Context) {
+	user := c.MustGet("user").(*models.User)
+	serviceKey := c.Param("serviceKey")
+	roleID := c.Param("roleId")
+
+	// Check permission: global OR service-specific
+	hasGlobalEdit := requireAuthPermission(c, "auth.roles.edit")
+	hasServiceManage := requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.manage", serviceKey))
+
+	if !hasGlobalEdit && !hasServiceManage {
+		c.HTML(http.StatusForbidden, "error.html", gin.H{
+			"error": "У вас нет прав для редактирования ролей",
+		})
+		return
+	}
+
+	// Convert roleID to ObjectID
+	objID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{
+			"error": "Неверный ID роли",
+		})
+		return
+	}
+
+	// Get role
+	role, err := models.GetRoleByID(objID)
+	if err != nil || role == nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Роль не найдена",
+		})
+		return
+	}
+
+	// Get service info
+	service, err := models.GetServiceByKey(serviceKey)
+	if err != nil || service == nil {
+		c.HTML(http.StatusNotFound, "error.html", gin.H{
+			"error": "Сервис не найден",
+		})
+		return
+	}
+
+	// Get permissions grouped by category
+	categories, err := models.GetPermissionsByCategory(serviceKey)
+	if err != nil {
+		log.Printf("ERROR showEditRoleForm: %v", err)
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Не удалось получить список разрешений",
+		})
+		return
+	}
+
+	c.HTML(http.StatusOK, "role_form.html", gin.H{
+		"title":      fmt.Sprintf("Редактировать роль - %s", service.Name),
+		"user":       user,
+		"username":   user.Username,
+		"full_name":  user.GetFullName(),
+		"short_name": user.GetShortName(),
+		"service":    service,
+		"role":       role,
+		"categories": categories,
+		"isEdit":     true,
+	})
+}
+
+// updateServiceRole handles updating an existing EXTERNAL role
+// POST /settings/roles/:serviceKey/:roleId/edit
+func updateServiceRole(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	roleID := c.Param("roleId")
+
+	// Check permission: global OR service-specific
+	hasGlobalEdit := requireAuthPermission(c, "auth.roles.edit")
+	hasServiceManage := requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.manage", serviceKey))
+
+	if !hasGlobalEdit && !hasServiceManage {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"error":   "У вас нет прав для редактирования ролей",
+		})
+		return
+	}
+
+	// Convert roleID to ObjectID
+	objID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Неверный ID роли",
+		})
+		return
+	}
+
+	// Try to parse as JSON first
+	var jsonData struct {
+		Name        string   `json:"name"`
+		Description string   `json:"description"`
+		Permissions []string `json:"permissions"`
+	}
+
+	var name, description string
+	var permissions []string
+
+	if err := c.ShouldBindJSON(&jsonData); err == nil {
+		name = jsonData.Name
+		description = jsonData.Description
+		permissions = jsonData.Permissions
+	} else {
+		// Fall back to form data
+		name = c.PostForm("name")
+		description = c.PostForm("description")
+		permissionsStr := c.PostForm("permissions")
+		if permissionsStr != "" {
+			permissions = strings.Split(permissionsStr, ",")
+			for i := range permissions {
+				permissions[i] = strings.TrimSpace(permissions[i])
+			}
+		}
+	}
+
+	// Validate inputs
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Название роли обязательно",
+		})
+		return
+	}
+
+	// External roles are stored in auth service
+	// Validate that permissions belong to the target service
+	prefix := serviceKey + "."
+	for _, perm := range permissions {
+		if !strings.HasPrefix(perm, prefix) && !strings.HasPrefix(perm, "auth."+prefix) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   fmt.Sprintf("Разрешение '%s' не принадлежит сервису '%s'", perm, serviceKey),
+			})
+			return
+		}
+	}
+
+	// Update role (external roles are stored in auth service)
+	err = models.UpdateRole(objID, "auth", name, description, permissions)
+	if err != nil {
+		log.Printf("ERROR updateServiceRole: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Не удалось обновить роль: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"message":  "Роль успешно обновлена",
+		"redirect": fmt.Sprintf("/settings/roles/%s", serviceKey),
+	})
+}
+
+// deleteServiceRole handles deleting a role
+// POST /settings/roles/:serviceKey/:roleId/delete
+func deleteServiceRole(c *gin.Context) {
+	serviceKey := c.Param("serviceKey")
+	roleID := c.Param("roleId")
+
+	// Check permission: global OR service-specific
+	hasGlobalDelete := requireAuthPermission(c, "auth.roles.delete")
+	hasServiceDelete := requireAuthPermission(c, fmt.Sprintf("auth.%s.roles.delete", serviceKey))
+
+	if !hasGlobalDelete && !hasServiceDelete {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"error":   "У вас нет прав для удаления ролей",
+		})
+		return
+	}
+
+	// Convert roleID to ObjectID
+	objID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Неверный ID роли",
+		})
+		return
+	}
+
+	// Get role to check if it can be deleted
+	role, err := models.GetRoleByID(objID)
+	if err != nil || role == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   "Роль не найдена",
+		})
+		return
+	}
+
+	// Prevent deletion of protected roles
+	protectedRoles := []string{"GOD", "admin"}
+	for _, protected := range protectedRoles {
+		if role.Name == protected && role.ServiceKey == "auth" {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   fmt.Sprintf("Роль %s защищена от удаления", role.Name),
+			})
+			return
+		}
+	}
+
+	// Delete role
+	err = models.DeleteRole(objID)
+	if err != nil {
+		log.Printf("ERROR deleteServiceRole: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Не удалось удалить роль: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"message":  "Роль успешно удалена",
+		"redirect": fmt.Sprintf("/settings/roles/%s", serviceKey),
+	})
+}

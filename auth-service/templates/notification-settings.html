@@ -1,0 +1,434 @@
+{{ define "notification-settings.html" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}} - Сервис аутентификации</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/users-management.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .notification-settings {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .settings-form {
+            background: var(--card-background-color);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px var(--header-shadow-color);
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--input-border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: var(--input-background-color);
+            color: var(--input-text-color);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px var(--focus-ring-color);
+        }
+        .form-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+            transform: scale(1.2);
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--text-color);
+        }
+        .help-text {
+            font-size: 12px;
+            color: var(--text-color-muted);
+            margin-top: 5px;
+        }
+        .test-section {
+            background: var(--light-background-color);
+            padding: 20px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border: 1px solid var(--light-border-color);
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: var(--text-color);
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+            }
+        })();
+    </script>
+    
+    <div id="particles-js"></div>
+    {{ template "header" . }}
+    
+    <div class="admin-page-container">
+        <div class="header-spacer"></div>
+        
+        <div class="user-management-container">
+            <div class="page-title-section">
+                <h1>{{.title}}</h1>
+            </div>
+
+            <div class="notification-settings">
+                <div id="alertContainer"></div>
+
+                <form id="settingsForm" class="settings-form">
+                    <h2 style="margin-top: 0; color: var(--text-color);">Конфигурация сервиса уведомлений</h2>
+                
+                <div class="section-title">SMTP Настройки</div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="smtp_host">SMTP Сервер:</label>
+                        <input type="text" id="smtp_host" name="smtp_host" value="{{.settings.SMTPHost}}" required>
+                        <div class="help-text">Адрес SMTP сервера (например: smtp.gmail.com)</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="smtp_port">SMTP Порт:</label>
+                        <input type="number" id="smtp_port" name="smtp_port" value="{{.settings.SMTPPort}}" required>
+                        <div class="help-text">Обычно 587 для TLS или 465 для SSL</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="smtp_username">Пользователь SMTP:</label>
+                        <input type="text" id="smtp_username" name="smtp_username" value="{{.settings.SMTPUsername}}">
+                        <div class="help-text">Email адрес для аутентификации</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="smtp_password">Пароль SMTP:</label>
+                        <input type="password" id="smtp_password" name="smtp_password" value="{{.settings.SMTPPassword}}">
+                        <div class="help-text">Пароль или токен приложения</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="smtp_from">Отправитель (From):</label>
+                    <input type="email" id="smtp_from" name="smtp_from" value="{{.settings.SMTPFrom}}" required>
+                    <div class="help-text">Email адрес отправителя</div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="smtp_use_tls" {{if .settings.SMTPUseTLS}}checked{{end}}>
+                            Использовать TLS
+                        </label>
+                        <div class="help-text">Рекомендуется для безопасности</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="smtp_use_auth" {{if .settings.SMTPUseAuth}}checked{{end}}>
+                            Требуется аутентификация
+                        </label>
+                        <div class="help-text">Почти всегда необходимо</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="smtp_auth_method">Метод аутентификации:</label>
+                    <select id="smtp_auth_method" name="smtp_auth_method">
+                        <option value="plain" {{if eq .settings.SMTPAuthMethod "plain"}}selected{{end}}>PLAIN</option>
+                        <option value="login" {{if eq .settings.SMTPAuthMethod "login"}}selected{{end}}>LOGIN</option>
+                        <option value="crammd5" {{if eq .settings.SMTPAuthMethod "crammd5"}}selected{{end}}>CRAM-MD5</option>
+                    </select>
+                </div>
+
+                <div class="section-title">Системные уведомления</div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="system_email_recipient">Email для системных уведомлений:</label>
+                        <input type="email" id="system_email_recipient" name="system_email_recipient" value="{{.settings.SystemEmailRecipient}}">
+                        <div class="help-text">На этот email будут приходить уведомления о состоянии системы</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="system_telegram_username">Telegram Username для системных уведомлений:</label>
+                        <input type="text" id="system_telegram_username" name="system_telegram_username" value="{{.settings.SystemTelegramUsername}}" placeholder="@username">
+                        <div class="help-text">Username в Telegram для системных алертов (например: @admin)</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="send_system_email_notifications" {{if .settings.SendSystemEmailNotifications}}checked{{end}}>
+                            Отправлять уведомления о системных сбоях на почту
+                        </label>
+                        <div class="help-text">Включить отправку email уведомлений при системных ошибках</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="send_system_telegram_notifications" {{if .settings.SendSystemTelegramNotifications}}checked{{end}}>
+                            Отправлять уведомления о системных сбоях в Telegram
+                        </label>
+                        <div class="help-text">Включить отправку Telegram уведомлений при системных ошибках</div>
+                    </div>
+                </div>
+
+                <div class="section-title" style="color: #ff9800; border-bottom-color: #ff9800;">
+                    🐛 Debug режим
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="debug_mode" {{if .settings.DebugMode}}checked{{end}}>
+                        Включить Debug режим
+                    </label>
+                    <div class="help-text" style="color: #ff9800;">⚠️ В этом режиме ВСЕ письма будут отправляться на указанный ниже email</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="debug_email">Email для Debug режима:</label>
+                    <input type="email" id="debug_email" name="debug_email" value="{{.settings.DebugEmail}}" placeholder="debug@example.com">
+                    <div class="help-text">Все письма будут перенаправлены на этот адрес с пометкой [DEBUG] в теме и информацией о конечном получателе в начале письма</div>
+                </div>
+
+                <div class="section-title">Настройки обработки</div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="max_retry_attempts">Максимум попыток:</label>
+                        <input type="number" id="max_retry_attempts" name="max_retry_attempts" value="{{.settings.MaxRetryAttempts}}" min="1" max="10">
+                        <div class="help-text">Количество попыток отправки при ошибке</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="batch_size">Размер батча:</label>
+                        <input type="number" id="batch_size" name="batch_size" value="{{.settings.BatchSize}}" min="1" max="100">
+                        <div class="help-text">Количество писем в одном батче</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="delay_between_batches_ms">Задержка между батчами (мс):</label>
+                    <input type="number" id="delay_between_batches_ms" name="delay_between_batches_ms" value="{{.settings.DelayBetweenMS}}" min="0">
+                    <div class="help-text">Пауза между отправкой батчей для предотвращения блокировки</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="delay_between_messages_ms">Задержка между сообщениями (мс):</label>
+                    <input type="number" id="delay_between_messages_ms" name="delay_between_messages_ms" value="{{.settings.DelayBetweenMessagesMS}}" min="0">
+                    <div class="help-text">Пауза между отправкой отдельных сообщений внутри батча (рекомендуется 100-500 мс)</div>
+                </div>
+
+                <div style="margin-top: 30px;">
+                    <button type="submit" class="btn primary">
+                        <i class="fas fa-save"></i>
+                        Сохранить настройки
+                    </button>
+                    <button type="button" id="resetBtn" class="btn secondary">
+                        <i class="fas fa-undo"></i>
+                        Сброс
+                    </button>
+                </div>
+            </form>
+
+                <div class="test-section">
+                    <h3>Тестирование настроек</h3>
+                    <p style="color: var(--text-color-muted);">Отправить тестовое письмо для проверки настроек:</p>
+                    <div style="display: flex; gap: 15px; align-items: end;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="test_email">Email для теста:</label>
+                            <input type="email" id="test_email" placeholder="test@example.com">
+                        </div>
+                        <button type="button" id="testBtn" class="btn success">
+                            <i class="fas fa-paper-plane"></i>
+                            Отправить тест
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Подключаем стандартные скрипты -->
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+    
+    <!-- Инициализация particles.js -->
+    <script>
+        particlesJS('particles-js', {
+            "particles": {
+                "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+                "color": { "value": "#c4a668" },
+                "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+                "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+                "size": { "value": 4, "random": true },
+                "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+                "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
+                "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+            },
+            "retina_detect": true
+        });
+    </script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const settingsForm = document.getElementById('settingsForm');
+            const testBtn = document.getElementById('testBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const alertContainer = document.getElementById('alertContainer');
+
+            // Show alert function
+            function showAlert(message, type = 'success') {
+                const alertClass = type === 'success' ? 'flash-message success' : 'flash-message error';
+                alertContainer.innerHTML = `<div class="${alertClass}">${message}</div>`;
+                
+                // Auto-hide alert after 5 seconds
+                setTimeout(() => {
+                    const existingAlert = alertContainer.querySelector('.flash-message');
+                    if (existingAlert) {
+                        existingAlert.remove();
+                    }
+                }, 5000);
+            }
+
+            // Settings form submission
+            settingsForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                console.log('Form submission started');
+                
+                const formData = new FormData(settingsForm);
+                
+                // Convert FormData to object, handling checkboxes and numbers properly
+                const data = {};
+                for (let [key, value] of formData.entries()) {
+                    console.log(key, value);
+                    data[key] = value;
+                }
+                
+                // Handle checkboxes - if not present in FormData, they should be false
+                const checkboxes = ['smtp_use_tls', 'smtp_use_auth', 'send_system_email_notifications', 'send_system_telegram_notifications', 'debug_mode'];
+                checkboxes.forEach(checkbox => {
+                    if (!(checkbox in data)) {
+                        data[checkbox] = false;
+                        console.log(checkbox, false);
+                    } else {
+                        data[checkbox] = true; // FormData contains 'on' for checked boxes
+                        console.log(checkbox, true);
+                    }
+                });
+                
+                // Convert numeric fields from strings to numbers
+                const numericFields = ['max_retry_attempts', 'batch_size', 'delay_between_batches_ms', 'delay_between_messages_ms'];
+                numericFields.forEach(field => {
+                    if (field in data) {
+                        data[field] = parseInt(data[field]) || 0;
+                        console.log(field + ' (converted to number)', data[field]);
+                    }
+                });
+                
+                console.log('Final data object:', data);
+                
+                fetch('/notification-settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        showAlert(data.message, 'success');
+                    } else {
+                        showAlert(data.error || 'Произошла ошибка при сохранении', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Form submission error:', error);
+                    showAlert('Ошибка при сохранении настроек: ' + error.message, 'error');
+                });
+            });
+
+            // Test email functionality
+            testBtn.addEventListener('click', function() {
+                const testEmail = document.getElementById('test_email').value;
+                if (!testEmail) {
+                    showAlert('Введите email для тестирования', 'danger');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('test_email', testEmail);
+
+                fetch('/notification-settings/test', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showAlert(data.message, 'success');
+                    } else {
+                        showAlert(data.error, 'danger');
+                    }
+                })
+                .catch(error => {
+                    showAlert('Ошибка при отправке тестового письма: ' + error.message, 'danger');
+                });
+            });
+
+            // Reset form
+            resetBtn.addEventListener('click', function() {
+                if (confirm('Сбросить все изменения?')) {
+                    location.reload();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+{{ end }}

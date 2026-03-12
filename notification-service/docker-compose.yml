@@ -1,0 +1,65 @@
+services:
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # НЕТ ПОРТОВ НАРУЖУ! Доступ только через внутреннюю сеть
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Tashkent
+    depends_on:
+      - notification-postgres
+    networks:
+      - notification_network  # Для доступа к БД (изолированная)
+      - service_network      # Для приема запросов от других сервисов
+      - smtp_network         # Для отправки на внешние SMTP серверы
+    restart: always
+    volumes:
+      - ./logs:/var/log/notification-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  notification-postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=notifications
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=notification_password
+      - TZ=Asia/Tashkent
+    # НЕТ ПОРТОВ НАРУЖУ! Полная изоляция БД
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    networks:
+      - notification_network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d notifications"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  notification_postgres_data:
+
+networks:
+  # Внутренняя сеть для БД - полностью изолированная
+  notification_network:
+    driver: bridge
+    internal: true
+  
+  # Сеть микросервисов - для приема запросов от других сервисов через внутреннюю сеть
+  service_network:
+    name: service_network
+    external: true
+  
+  # SMTP сеть - для отправки на внешние SMTP серверы
+  # НЕ internal - разрешаем внешние соединения
+  smtp_network:
+    driver: bridge
+    internal: false

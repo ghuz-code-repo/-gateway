@@ -3,7 +3,8 @@
     --background-color: #f5f5f5;
     --text-color: #333;
     --primary-color: #d4af37;
-    --primary-color-rgb: 212, 175, 55; /* Added for RGBA shadows */
+    --primary-color-rgb: 212, 175, 55;
+    /* Added for RGBA shadows */
     --primary-color-hover: #b8860b;
     --primary-text-color: white;
     --card-background-color: #fff;
@@ -33,14 +34,59 @@
     --button-danger-text-color: white;
     --particles-color: "#c4a668";
     /* Gold color for particles */
-    --focus-ring-color: rgba(var(--primary-color-rgb), 0.25); /* Added for input focus */
+    --focus-ring-color: rgba(var(--primary-color-rgb), 0.25);
+    /* Added for input focus */
+
+    /* Дополнительные переменные для админки */
+    --manage-button-color: #ccc7bb;
+    --manage-button-color-hover: #7d766c;
+
+    --secondary-color: #6c757d;
+    --secondary-color-hover: #5a6268;
+    --text-color-muted: #666;
+    --light-text-color: #666;
+    --lighter-text-color: #7f8c8d;
+    --lightest-text-color: #95a5a6;
+    --dark-text-color: #2c3e50;
+    --light-border-color: #e1e8ed;
+    --light-background-color: #f8f9fa;
+    --lighter-background-color: #fafbfc;
+    --danger-light-color: #e53e3e;
+    --danger-light-background: #fff5f5;
+    --danger-light-border: #feb2b2;
+    --warning-background: #fff3cd;
+    --warning-border: #ffeaa7;
+    --modal-background: rgba(0, 0, 0, 0.4);
+    --modal-content-background: #fefefe;
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-light: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    --gradient-card: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+    --shadow-light: 0 2px 4px rgba(0, 0, 0, 0.05);
+    --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-heavy: 0 10px 40px rgba(0, 0, 0, 0.2);
+    --modal-focus-color: #667eea;
+    --modal-focus-background: #f8f9ff;
+
+    /* Переменные для форматированных полей */
+    --input-error-color: #DC4446;
+    --input-error-background: #fdf2f2;
+    --input-error-border: #fca5a5;
+    --input-error-focus-ring: rgba(220, 68, 70, 0.25);
+    --input-success-color: #10B981;
+    --input-success-background: #f0fdf4;
+    --input-success-border: #86efac;
+    --input-success-focus-ring: rgba(16, 185, 129, 0.25);
+    --input-hint-color: #6b7280;
+    --input-neutral-color: #6b7280;
+    --monospace-font: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
 }
 
 .dark-theme {
     --background-color: #121212;
     --text-color: #e0e0e0;
     --primary-color: #b8860b;
-    --primary-color-rgb: 184, 134, 11; /* Added for RGBA shadows */
+    --primary-color-rgb: 184, 134, 11;
+    /* Added for RGBA shadows */
     --primary-color-hover: #a0740a;
     --primary-text-color: #e0e0e0;
     --card-background-color: #1e1e1e;
@@ -71,24 +117,76 @@
     /* For better contrast on dark red */
     --particles-color: "#b39150";
     /* Darker gold for dark theme particles */
-    --focus-ring-color: rgba(var(--primary-color-rgb), 0.35); /* Adjusted opacity for dark theme if needed */
+    --focus-ring-color: rgba(var(--primary-color-rgb), 0.35);
+    /* Adjusted opacity for dark theme if needed */
+
+    /* Дополнительные переменные для темной темы админки */
+    --manage-button-color: #7d766c;
+    --manage-button-color-hover: #5e574e;
+
+    --secondary-color: #6c757d;
+    --secondary-color-hover: #5a6268;
+    --text-color-muted: #aaa;
+    --light-text-color: #aaa;
+    --lighter-text-color: #888;
+    --lightest-text-color: #666;
+    --dark-text-color: #e0e0e0;
+    --light-border-color: #444;
+    --light-background-color: #2c2c2c;
+    --lighter-background-color: #252525;
+    --danger-light-color: #e57373;
+    --danger-light-background: #4a1c1f;
+    --danger-light-border: #a73c47;
+    --warning-background: #3d3516;
+    --warning-border: #5a4a00;
+    --modal-background: rgba(0, 0, 0, 0.6);
+    --modal-content-background: #1e1e1e;
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-light: linear-gradient(135deg, #2c2c2c 0%, #383838 100%);
+    --gradient-card: linear-gradient(135deg, #1e1e1e 0%, #2c2c2c 100%);
+    --shadow-light: 0 2px 4px rgba(0, 0, 0, 0.2);
+    --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-heavy: 0 10px 40px rgba(0, 0, 0, 0.4);
+    --modal-focus-color: #8ab4f8;
+    --modal-focus-background: #1a2332;
+
+    /* Переменные для форматированных полей в темной теме */
+    --input-error-color: #f87171;
+    --input-error-background: #3f1517;
+    --input-error-border: #7f1d1d;
+    --input-error-focus-ring: rgba(248, 113, 113, 0.35);
+    --input-success-color: #34d399;
+    --input-success-background: #064e3b;
+    --input-success-border: #065f46;
+    --input-success-focus-ring: rgba(52, 211, 153, 0.35);
+    --input-hint-color: #9ca3af;
+    --input-neutral-color: #9ca3af;
+    --monospace-font: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
 }
 
 html {
     width: 100%;
-    overflow-x: hidden; /* Prevent horizontal scroll on the html element */
-    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    overflow-x: hidden;
+    /* Prevent horizontal scroll on the html element */
+    box-sizing: border-box;
+    /* Include padding and border in the element's total width and height */
 }
 
-*, *::before, *::after { /* Apply box-sizing to all elements */
+*,
+*::before,
+*::after {
+    /* Apply box-sizing to all elements */
     box-sizing: inherit;
 }
 
 body {
     /* max-width: 100vw; Removed, width: 100% is default and usually better */
-    width: 100%; /* Explicitly set width to 100% of html */
-    min-height: 100vh; /* Ensures body is at least viewport height, allows growing */
-    display: flex; /* Keep flex if you need a footer pushed to the bottom, but ensure main content area can grow */
+    width: 100%;
+    /* Explicitly set width to 100% of html */
+    min-height: 100vh;
+    /* Ensures body is at least viewport height, allows growing */
+    display: flex;
+    /* Keep flex if you need a footer pushed to the bottom, but ensure main content area can grow */
     flex-direction: column;
     font-family: Arial, sans-serif;
     background-color: var(--background-color);
@@ -98,8 +196,10 @@ body {
     /* justify-content: center; Removed, content should start at the top */
     transition: background-color 0.3s, color 0.3s;
     /* align-items: center; Removed, content should be full width or controlled by containers */
-    position: relative; /* Ensures body is in normal document flow */
-    overflow-x: hidden; /* Prevent horizontal scrollbars on body */
+    position: relative;
+    /* Ensures body is in normal document flow */
+    overflow-x: hidden;
+    /* Prevent horizontal scrollbars on body */
 }
 
 /* Particles.js background container */
@@ -109,20 +209,56 @@ body {
     height: 100%;
     top: 0;
     left: 0;
-    z-index: 0; /* Corrected as per user feedback */
+    z-index: 0;
+    /* Changed from -1 to 0 to show above body background */
+    /* pointer-events: none; Allow clicks to pass through */
     /* This places it above the body's direct background, but behind other z-indexed content */
 }
 
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--table-row-hover-background-color) !important;
+    border-radius: 3px !important;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-color) !important;
+    border-radius: 3px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color) !important;
+}
+
+.admin-page-container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 90%;
+    max-width: 1200px;
+    align-self: center;
+}
 
 .container {
     display: flex;
     flex-direction: column;
-    align-items: center; /* This centers content *within* the container if it's narrower than the container */
-    width: 90%; 
-    max-width: 1200px;
-    margin: auto; /* Centers the container horizontally */
-    padding: 20px; /* Base padding for left/right/bottom. JS adjusts padding-top. */
-    background: rgba(255, 255, 255, 0.1); 
+    align-items: center;
+    /* width: 90%;  */
+    /* max-width: 1200px; */
+    margin-right: auto;
+    margin-left: auto;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 20px;
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(4.7px);
@@ -130,21 +266,29 @@ body {
     position: relative;
     z-index: 1;
     transition: background-color 0.3s;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    /* Предотвращает горизонтальный скролл */
+    /* max-width: calc(100vw - 40px); Гарантирует, что контейнер не превысит ширину экрана */
 }
+
 .header-buttons {
     display: flex;
     align-items: center;
-    gap: 10px; /* Space between theme switcher and logout button */
+    gap: 10px;
+    /* Space between theme switcher and logout button */
 }
 
-.logo-img { /* New class for the img itself */
+.logo-img {
+    /* New class for the img itself */
     height: auto;
     min-width: 100px;
     /* Maintain aspect ratio */
 }
 
 .logout-btn {
-    background: transparent; /* Changed from none for clarity */
+    background: transparent;
+    /* Changed from none for clarity */
     border: 2px solid var(--primary-color);
     color: var(--primary-color);
     padding: 8px 12px;
@@ -164,8 +308,10 @@ body {
 .logout-btn:hover {
     background-color: var(--primary-color);
     color: var(--button-text-color);
-    border-color: var(--primary-color-hover); /* Ensure border color changes on hover too */
-    transform: scale(1.05); /* Slight scale effect on hover */
+    border-color: var(--primary-color-hover);
+    /* Ensure border color changes on hover too */
+    transform: scale(1.05);
+    /* Slight scale effect on hover */
 }
 
 /* Added active state for logout button */
@@ -174,10 +320,40 @@ body {
     box-shadow: 0 0 8px 1px var(--primary-color);
 }
 
+/* Profile button styles */
+.profile-btn {
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    margin-left: 10px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+    text-align: center;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.profile-btn:hover {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    border-color: var(--primary-color-hover);
+    transform: scale(1.05);
+}
+
+.profile-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 0 8px 1px var(--primary-color);
+}
+
 
 /* Theme switcher button */
 #theme-switcher {
-    background: transparent; /* Changed from none for clarity */
+    background: transparent;
+    /* Changed from none for clarity */
     border: 2px solid var(--primary-color);
     color: var(--primary-color);
     padding: 8px 12px;
@@ -195,13 +371,17 @@ body {
 #theme-switcher:hover {
     background-color: var(--primary-color);
     color: var(--button-text-color);
-    border-color: var(--primary-color-hover); /* Ensure border color changes on hover too */
-    transform: scale(1.05); /* Slight scale effect on hover */
+    border-color: var(--primary-color-hover);
+    /* Ensure border color changes on hover too */
+    transform: scale(1.05);
+    /* Slight scale effect on hover */
 }
 
 #theme-switcher:active {
-    transform: scale(0.95); /* Specific stronger shrink effect for theme switcher */
-    box-shadow: 0 0 8px 1px var(--primary-color); /* Added glow */
+    transform: scale(0.95);
+    /* Specific stronger shrink effect for theme switcher */
+    box-shadow: 0 0 8px 1px var(--primary-color);
+    /* Added glow */
 }
 
 /* Styles for theme switcher on login page */
@@ -209,7 +389,8 @@ body {
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 1001; /* Ensure it's above other elements */
+    z-index: 1001;
+    /* Ensure it's above other elements */
 }
 
 
@@ -412,9 +593,11 @@ button[type="button"]:hover,
 /* Active state for buttons and specified blocks for glow effect */
 .btn:active,
 button:active,
-.admin-section a.btn:active { /* Glow for admin section buttons */
+.admin-section a.btn:active {
+    /* Glow for admin section buttons */
     /* transform: scale(1); Subtle shrink effect */
-    box-shadow: 0 0 8px 1px var(--primary-color); /* Subtle glow */
+    box-shadow: 0 0 8px 1px var(--primary-color);
+    /* Subtle glow */
 }
 
 
@@ -448,7 +631,7 @@ form {
     flex-direction: column;
     padding: 20px;
     width: 100%;
-    max-width: 500px;
+    /* max-width: 500px; */
 }
 
 .form-group {
@@ -470,7 +653,8 @@ input[type="date"],
 input[type="number"],
 input[type="file"],
 select,
-textarea { /* Added textarea for future use */
+textarea {
+    /* Added textarea for future use */
     width: 100%;
     min-width: 100%;
     max-width: 100%;
@@ -481,7 +665,8 @@ textarea { /* Added textarea for future use */
     box-sizing: border-box;
     background-color: var(--input-background-color);
     color: var(--input-text-color);
-    transition: border-color 0.3s, background-color 0.3s, color 0.3s, box-shadow 0.3s; /* Added box-shadow transition */
+    transition: border-color 0.3s, background-color 0.3s, color 0.3s, box-shadow 0.3s;
+    /* Added box-shadow transition */
 }
 
 /* Input focus styles */
@@ -495,19 +680,22 @@ select:focus,
 textarea:focus {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 0.2rem var(--focus-ring-color);
-    outline: none; /* Remove default browser outline */
+    outline: none;
+    /* Remove default browser outline */
 }
 
 
 /* Override browser autofill styles for WebKit-based browsers */
 input:-webkit-autofill,
-input:-webkit-autofill:hover, 
-input:-webkit-autofill:focus, 
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
     -webkit-text-fill-color: var(--input-text-color) !important;
     -webkit-box-shadow: 0 0 0px 1000px var(--input-background-color) inset !important;
-    transition: background-color 5000s ease-in-out 0s; /* A trick to delay browser style application */
-    font-family: Arial, sans-serif; /* Ensure font matches */
+    transition: background-color 5000s ease-in-out 0s;
+    /* A trick to delay browser style application */
+    font-family: Arial, sans-serif;
+    /* Ensure font matches */
 }
 
 /* For Firefox, direct override is harder, but this can sometimes help if it uses a specific pseudo-class */
@@ -534,10 +722,6 @@ input[type="file"]::placeholder {
 
 input[type="file"]:hover {
     cursor: pointer;
-}
-
-input[type="text"][name="password"] {
-    -webkit-text-security: disc !important;
 }
 
 /* Alert messages */
@@ -578,6 +762,17 @@ input[type="text"][name="password"] {
     border-radius: 4px;
     border: 1px solid var(--flash-danger-border);
     /* Add border for consistency */
+}
+
+.warning-text {
+    color: #856404;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+[data-theme="dark"] .warning-text {
+    color: #ffc107;
+    opacity: 0.9;
 }
 
 /* Pagination styles */
@@ -774,118 +969,181 @@ input[type="text"][name="password"] {
     color: var(--text-color);
     /* Ensure description color adapts */
     opacity: 0.7;
+
     /* Slightly muted */
 }
 
 /* Header styles */
 .header-container {
     display: flex;
-    justify-content: space-between; /* Pushes logo to left, controls to right */
+    justify-content: space-between;
+    /* Pushes logo to left, controls to right */
     align-items: center;
     width: 100%;
-    padding: 10px 20px; 
+    height: 70px;
+    /* Фиксированная высота для одностраничной архитектуры */
+    padding: 0 20px;
+    /* Убираем вертикальные отступы из-за фиксированной высоты */
     background-color: var(--header-background-color);
     box-shadow: 0 2px 5px var(--primary-color);
     /* box-shadow: 0 0 8px 1px var(--primary-color);  */
-    position: fixed;
+    /* position: fixed; */
     top: 0;
     left: 0;
-    z-index: 100;
+    z-index: 1;
+    /* Увеличиваем z-index для надежности */
     transition: background-color 0.3s, box-shadow 0.3s;
-    box-sizing: border-box; 
+    box-sizing: border-box;
 }
 
 .header-logo-section {
     /* No specific flex properties needed, it will align left by default */
-    display: flex; 
+    display: flex;
     align-items: center;
 }
 
 .header-controls-section {
-    display: flex; /* Visible by default on desktop */
+    display: flex;
+    /* Visible by default on desktop */
     align-items: center;
-    gap: 15px; 
+    gap: 15px;
+}
+
+.header-profilr-link {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+    text-decoration: none;
+    color: var(--primary-color);
+    font-weight: bold;
+    transition: background 0.2s;
+    /* border: 1px solid var(--border-color);  */
+    height: 50px;
+    padding: 10px 5px;
+    background: var(--card-background-color);
+    border-radius: 5px;
+}
+
+.header-profilr-link:hover {
+    color: var(--text-color);
+    background: var(--primary-color-hover);
+}
+
+.avatar-mini {
+    position: relative;
+    height: 40px;
+    width: 40px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1px solid var(--primary-color);
+    background: var(--card-background-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-mini img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
 
 /* Burger Menu Button */
 .burger-menu-button {
-    display: none; 
+    display: none;
     background: transparent;
-    border: 2px solid var(--primary-color); /* Changed to primary-color */
+    border: 2px solid var(--primary-color);
+    /* Changed to primary-color */
     /* color: var(--text-color); Removed, spans handle icon color */
-    padding: 0; 
+    padding: 0;
     border-radius: 6px;
     cursor: pointer;
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s; 
-    line-height: 1; 
-    position: relative; 
-    width: 40px; 
-    height: 36px; 
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    line-height: 1;
+    position: relative;
+    width: 40px;
+    height: 36px;
     flex-direction: column;
-    justify-content: space-around; 
-    align-items: center; 
+    justify-content: space-around;
+    align-items: center;
 }
 
 .burger-menu-button span {
     display: block;
-    width: 22px; 
-    height: 2px; 
-    background-color: var(--primary-color); /* Changed to primary-color */
+    width: 22px;
+    height: 2px;
+    background-color: var(--primary-color);
+    /* Changed to primary-color */
     border-radius: 1px;
     transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out, background-color 0.3s ease-in-out;
 }
 
 .burger-menu-button:hover {
     background-color: var(--primary-color);
-    border-color: var(--primary-color); /* Keep border same as background on hover */
+    border-color: var(--primary-color);
+    /* Keep border same as background on hover */
 }
+
 .burger-menu-button:hover span {
-    background-color: var(--button-text-color); 
+    background-color: var(--button-text-color);
 }
 
 /* Active state for burger icon (X shape) */
 .burger-menu-button.active span:nth-child(1) {
-    transform: translateY(7px) rotate(45deg); 
+    transform: translateY(7px) rotate(45deg);
 }
+
 .burger-menu-button.active span:nth-child(2) {
     opacity: 0;
-    transform: translateX(-100%); 
+    transform: translateX(-100%);
 }
+
 .burger-menu-button.active span:nth-child(3) {
-    transform: translateY(-7px) rotate(-45deg); 
+    transform: translateY(-7px) rotate(-45deg);
 }
-.burger-menu-button.active:hover span { /* Ensure X parts also change color on hover */
+
+.burger-menu-button.active:hover span {
+    /* Ensure X parts also change color on hover */
     background-color: var(--button-text-color);
 }
 
 
 /* Mobile Menu Modal (Off-canvas) */
-#mobile-menu-modal { 
-    display: none; /* Initially hidden */
+#mobile-menu-modal {
+    display: none;
+    /* Initially hidden */
     flex-direction: column;
     align-items: flex-start;
     gap: 15px;
     position: fixed;
     top: 0;
-    right: -300px; /* Start off-screen for slide-in animation */
+    right: -300px;
+    /* Start off-screen for slide-in animation */
     width: 280px;
     max-width: 80%;
     height: 100%;
     background-color: var(--card-background-color);
-    box-shadow: -3px 0 10px rgba(0,0,0,0.15);
+    box-shadow: -3px 0 10px rgba(0, 0, 0, 0.15);
     z-index: 1001;
     padding: 20px;
     padding-top: 50px;
     box-sizing: border-box;
-    transition: right 0.3s ease-in-out, opacity 0.3s ease-in-out; /* Added opacity transition */
+    transition: right 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    /* Added opacity transition */
     overflow-y: auto;
-    opacity: 0; /* Start with opacity 0 for fade-in */
+    opacity: 0;
+    /* Start with opacity 0 for fade-in */
 }
 
-#mobile-menu-modal.open { 
-    right: 0; 
-    display: flex; 
-    opacity: 1; /* Fade to opacity 1 when open */
+#mobile-menu-modal.open {
+    right: 0;
+    display: flex;
+    opacity: 1;
+    /* Fade to opacity 1 when open */
 }
 
 .mobile-menu-close-button {
@@ -914,51 +1172,60 @@ input[type="text"][name="password"] {
 }
 
 .mobile-menu-modal .mobile-user-info .header-fullname {
-    display: block; 
-    text-align: center; 
-    font-size: 0.85em; 
+    display: block;
+    text-align: center;
+    font-size: 0.85em;
     opacity: 0.8;
 }
 
 
-#mobile-menu-modal .btn, 
-#mobile-menu-modal #theme-switcher-mobile { 
-    width: 100%; 
-    text-align: left; 
-    padding: 10px 15px; 
-    margin-bottom: 10px; 
-    background: transparent; 
-    color: var(--primary-color); 
-    border: 2px solid var(--primary-color); 
-    border-radius: 6px; 
-    font-weight: 500; 
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s; /* Added box-shadow to transition */
-    text-decoration: none; 
-    display: flex; 
-    align-items: center; 
-    outline: none; /* Remove default outline, we'll add a custom focus ring */
+#mobile-menu-modal .btn,
+#mobile-menu-modal #theme-switcher-mobile {
+    width: 100%;
+    text-align: left;
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    background: transparent;
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
+    border-radius: 6px;
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s;
+    /* Added box-shadow to transition */
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    outline: none;
+    /* Remove default outline, we'll add a custom focus ring */
 }
-#mobile-menu-modal .btn:hover, 
+
+#mobile-menu-modal .btn:hover,
 #mobile-menu-modal #theme-switcher-mobile:hover {
-    background-color: var(--primary-color); 
-    color: var(--button-text-color); 
-    border-color: var(--primary-color-hover); 
-    transform: scale(1.02); 
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    border-color: var(--primary-color-hover);
+    transform: scale(1.02);
 }
 
 #mobile-menu-modal .btn:active,
 #mobile-menu-modal #theme-switcher-mobile:active {
-    transform: scale(0.98); /* Subtle shrink on press */
+    transform: scale(0.98);
+    /* Subtle shrink on press */
     /* Keep other styles like hover or default, active is brief */
 }
 
 #mobile-menu-modal .btn:focus,
 #mobile-menu-modal #theme-switcher-mobile:focus {
-    background: transparent; /* Ensure background is not from hover */
-    color: var(--primary-color); /* Ensure text color is not from hover */
-    border-color: var(--primary-color); /* Ensure border color is not from hover */
-    transform: none; /* Ensure transform is not from hover */
-    box-shadow: 0 0 0 0.2rem var(--focus-ring-color); /* Custom focus ring */
+    background: transparent;
+    /* Ensure background is not from hover */
+    color: var(--primary-color);
+    /* Ensure text color is not from hover */
+    border-color: var(--primary-color);
+    /* Ensure border color is not from hover */
+    transform: none;
+    /* Ensure transform is not from hover */
+    box-shadow: 0 0 0 0.2rem var(--focus-ring-color);
+    /* Custom focus ring */
 }
 
 /* Specific for :focus-visible if you want to only show ring for keyboard users */
@@ -969,46 +1236,50 @@ input[type="text"][name="password"] {
 }
 */
 
-#mobile-menu-modal .btn i, 
+#mobile-menu-modal .btn i,
 #mobile-menu-modal #theme-switcher-mobile i {
-    margin-right: 10px; 
+    margin-right: 10px;
     /* font-size: 1em; /* Ensure icon size is appropriate */
 }
 
 
 /* Backdrop for modal */
-#modal-backdrop { /* Changed from .modal-backdrop to #modal-backdrop */
+#modal-backdrop {
+    /* Changed from .modal-backdrop to #modal-backdrop */
     display: none;
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0,0,0,0.4); 
-    z-index: 1000; 
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
 }
 
-#modal-backdrop.open { /* Changed from .modal-backdrop.open */
+#modal-backdrop.open {
+    /* Changed from .modal-backdrop.open */
     display: block;
 }
 
 .back-link:after,
 .back-link:visited,
-.back-link:link
-{
+.back-link:link {
     text-decoration: none;
     color: var(--primary-color);
 }
 
-.back-link:hover{
+.back-link:hover {
     color: var(--primary-color-hover);
     text-decoration: underline;
 }
+
 /* ---------- HEADER STYLES (Responsive part) ---------- */
 /* Ensure existing media queries correctly hide/show burger vs desktop controls */
 @media (max-width: 768px) {
     .header-container {
-        padding: 10px 15px;
+        height: 60px;
+        /* Меньшая высота на планшетах */
+        padding: 0 15px;
     }
 
     .header-logo-section {
@@ -1016,18 +1287,31 @@ input[type="text"][name="password"] {
     }
 
     .header-controls-section {
-        display: none; /* Hide controls on mobile, burger menu will replace this */
+        display: none;
+        /* Hide controls on mobile, burger menu will replace this */
     }
 
     .burger-menu-button {
-        display: flex; /* Ensure burger menu button is displayed */
+        display: flex;
+        /* Ensure burger menu button is displayed */
     }
 }
 
-@media (max-width: 600px) { /* Mobile phones */
+@media (max-width: 600px) {
+
+    /* Mobile phones */
+    .header-container {
+        height: 55px;
+        /* Еще меньше на мобильных */
+        padding: 0 10px;
+    }
+
     .container {
-        width: 100%;
-        border-radius: 0; 
+        width: calc(100% - 10px);
+        max-width: calc(100vw - 10px);
+        border-radius: 0;
+        margin: 5px auto;
+        padding: 15px 10px;
     }
 
     h1 {
@@ -1147,19 +1431,124 @@ input[type="text"][name="password"] {
     padding: 20px;
     text-align: center;
     transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative; /* For status indicator positioning */
 }
 
-.service-card a { /* Ensure 'a' tag can receive focus for :active to work reliably on click */
-    display: block; /* Make the link fill the card area for better click interaction */
+/* Service Status Indicator */
+.service-status-indicator {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 10;
+}
+
+.service-status-indicator .status-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+    animation: pulse 2s infinite;
+}
+
+/* Status colors */
+.service-status-indicator[data-status="healthy"] .status-dot {
+    background-color: #10b981;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+}
+
+.service-status-indicator[data-status="unhealthy"] .status-dot {
+    background-color: #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+}
+
+.service-status-indicator[data-status="offline"] .status-dot {
+    background-color: #ef4444;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+    animation: none; /* No pulse for offline */
+}
+
+.service-status-indicator[data-status="loading"] .status-dot {
+    background-color: #6b7280;
+    box-shadow: 0 0 8px rgba(107, 114, 128, 0.4);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+/* Inactive Service Overlay */
+.service-inactive-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    backdrop-filter: blur(3px);
+    pointer-events: none; /* Allow clicks to pass through */
+}
+
+.service-card.inactive .service-inactive-overlay {
+    pointer-events: all; /* Block clicks for inactive services */
+}
+
+.service-card.inactive a {
+    pointer-events: none; /* Prevent link clicks */
+    cursor: not-allowed;
+}
+
+.inactive-label {
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffffff;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+    letter-spacing: 2px;
+    padding: 10px 20px;
+    background: rgba(239, 68, 68, 0.3);
+    border-radius: 10px;
+    border: 2px solid rgba(239, 68, 68, 0.6);
+}
+
+
+.service-card a {
+    /* Ensure 'a' tag can receive focus for :active to work reliably on click */
+    display: block;
+    /* Make the link fill the card area for better click interaction */
     text-decoration: none;
     color: inherit;
-    border-radius: inherit; /* If service-card has rounded corners, link should too */
+    border-radius: inherit;
+    /* If service-card has rounded corners, link should too */
 }
 
 
-.service-card:hover {
+/* Hover effect only for active cards */
+.service-card:hover:not(.inactive) {
     transform: translateY(-5px);
-    box-shadow: 0 0 8px 1px var(--primary-color); /* Subtle glow */
+    box-shadow: 0 0 8px 1px var(--primary-color);
+    /* Subtle glow */
+}
+
+/* No hover effect for inactive cards */
+.service-card.inactive:hover {
+    transform: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    cursor: not-allowed;
 }
 
 .service-card h3 {
@@ -1179,39 +1568,74 @@ input[type="text"][name="password"] {
     transition: color 0.3s;
 }
 
-/* Logo SVG specific styles */
-.logo-svg { /* Styles for the embedded SVG logo */
-    /* height: 40px; Adjust to match your desired logo height */
-    width: 100px;
-    vertical-align: middle; /* Helps align with adjacent elements if any */
+.service-manage-btn {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--light-border-color);
 }
 
-/* Ensure logo in header also respects dark theme if needed */
-.dark-theme .logo {
-    /* filter: var(--logo-filter); This rule is no longer needed and can be removed */
+.manage-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    background-color: var(--manage-button-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 15px;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.manage-btn:hover {
+    background-color: var(--manage-button-color-hover);
+    transform: translateY(-1px);
+    color: white;
+}
+
+.manage-btn i {
+    font-size: 10px;
+}
+
+/* Logo SVG specific styles */
+.logo-svg {
+    /* Styles for the embedded SVG logo */
+    /* height: 40px; Adjust to match your desired logo height */
+    width: 100px;
+    vertical-align: middle;
+    /* Helps align with adjacent elements if any */
 }
 
 
 /* ---------- RESPONSIVE STYLES ---------- */
-@media (max-width: 768px) { /* Tablet and smaller */
+@media (max-width: 768px) {
+
+    /* Tablet and smaller */
     .container {
         width: 95%;
-        padding: 15px; 
+        padding: 15px;
         /* margin-top: 100px; Removed, JS will handle this via padding-top */
     }
 
-    .header-controls-section { /* Hide desktop controls on mobile */
-        display: none !important; 
+    .header-controls-section {
+        /* Hide desktop controls on mobile */
+        display: none !important;
     }
-    .burger-menu-button { /* Show burger button on mobile */
-        display: flex; /* Crucial: set to flex to enable its flex properties for spans */
+
+    .burger-menu-button {
+        /* Show burger button on mobile */
+        display: flex;
+        /* Crucial: set to flex to enable its flex properties for spans */
     }
 }
 
-@media (max-width: 600px) { /* Mobile phones */
+@media (max-width: 600px) {
+
+    /* Mobile phones */
     .container {
         width: 100%;
-        padding: 10px; /* Base padding, JS will adjust padding-top */
+        padding: 10px;
+        /* Base padding, JS will adjust padding-top */
     }
 
     h1 {
@@ -1266,4 +1690,572 @@ input[type="text"][name="password"] {
     .logo-img {
         min-width: 70px;
     }
+}
+
+/* Login page password toggle and forgot password styles */
+.login-form .password-wrapper {
+    position: relative;
+    display: block;
+    width: 100%;
+}
+
+.login-form .password-wrapper input {
+    width: 100%;
+    padding-right: 45px;
+    box-sizing: border-box;
+}
+
+/* Отключаем встроенные иконки браузера для полей пароля */
+
+.login-form .password-wrapper input[type="password"]::-webkit-credentials-auto-fill-button,
+.login-form .password-wrapper input[type="password"]::-webkit-contacts-auto-fill-button,
+.login-form .password-wrapper input[type="password"]::-webkit-strong-password-auto-fill-button {
+    display: none !important;
+}
+
+.login-form .password-wrapper input[type="password"]::-ms-reveal,
+.login-form .password-wrapper input[type="password"]::-ms-clear {
+    display: none !important;
+}
+
+.login-form .eye-toggle {
+    position: absolute;
+    right: 9px;
+    top: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--primary-color);
+    font-size: 16px;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    z-index: 1001;
+    margin-top: 0px;
+}
+
+.login-form .eye-toggle:hover {
+    color: var(--text-color);
+}
+
+
+
+.login-form .eye-toggle i {
+    pointer-events: none;
+}
+
+.form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+.forgot-password-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+.forgot-password-link:hover {
+    color: var(--primary-color-hover);
+    text-decoration: underline;
+}
+
+/* Password recovery form styles */
+.recovery-form {
+    background: var(--card-background-color);
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.recovery-form h2 {
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.recovery-form .form-group {
+    margin-bottom: 20px;
+}
+
+.recovery-form input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--input-border-color);
+    border-radius: 8px;
+    font-size: 16px;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.recovery-form input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.back-to-login {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.back-to-login a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+.back-to-login a:hover {
+    color: var(--primary-color-hover);
+    text-decoration: underline;
+}
+
+/* Password recovery form validation styles */
+.recovery-form .password-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.recovery-form .password-input-container input[type="password"],
+.recovery-form .password-input-container input[type="text"] {
+    padding-right: 45px;
+    /* Space for eye button */
+    width: 100%;
+}
+
+/* Отключаем встроенные браузерные кнопки показа пароля для recovery-form */
+.recovery-form .password-input-container input[type="password"]::-webkit-credentials-auto-fill-button,
+.recovery-form .password-input-container input[type="password"]::-webkit-contacts-auto-fill-button,
+.recovery-form .password-input-container input[type="password"]::-webkit-strong-password-auto-fill-button {
+    display: none !important;
+}
+
+.recovery-form .password-input-container input[type="password"]::-ms-reveal,
+.recovery-form .password-input-container input[type="password"]::-ms-clear {
+    display: none !important;
+}
+
+.recovery-form .password-toggle-btn {
+    position: absolute;
+    right: 12px;
+    top: 9px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 16px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    transition: color 0.2s ease;
+    z-index: 2;
+    background: transparent !important;
+}
+
+.recovery-form .password-toggle-btn:hover {
+    background: var(--primary-color) !important;
+    color: var(--text-color) !important;
+}
+
+/* Password validation states for recovery form */
+.recovery-form .form-group.has-error input[type="password"],
+.recovery-form .form-group.has-error input[type="text"] {
+    border-color: var(--input-error-color) !important;
+    box-shadow: 0 0 0 3px var(--input-error-focus-ring) !important;
+}
+
+.recovery-form .form-group.has-error input[type="password"]:focus,
+.recovery-form .form-group.has-error input[type="text"]:focus {
+    border-color: var(--input-error-color) !important;
+    box-shadow: 0 0 0 3px var(--input-error-focus-ring) !important;
+    outline: none;
+}
+
+.recovery-form .form-group.has-error .field-hint {
+    color: var(--input-error-color);
+    display: block;
+}
+
+.recovery-form .form-group.has-success input[type="password"],
+.recovery-form .form-group.has-success input[type="text"] {
+    border-color: var(--input-success-color) !important;
+    box-shadow: 0 0 0 3px var(--input-success-focus-ring) !important;
+}
+
+.recovery-form .form-group.has-success input[type="password"]:focus,
+.recovery-form .form-group.has-success input[type="text"]:focus {
+    border-color: var(--input-success-color) !important;
+    box-shadow: 0 0 0 3px var(--input-success-focus-ring) !important;
+    outline: none;
+}
+
+.recovery-form .form-group.has-success .field-hint {
+    color: var(--input-success-color);
+    display: block;
+}
+
+.recovery-form .field-hint {
+    font-size: 12px;
+    margin-top: 4px;
+    display: none;
+    transition: all 0.2s ease;
+}
+
+/* Password recovery result page styles */
+.recovery-result {
+    background: var(--card-background-color);
+    border-radius: 12px;
+    padding: 40px 30px;
+    max-width: 500px;
+    margin: 0 auto;
+    text-align: center;
+    box-shadow: var(--shadow-light);
+    border: 1px solid var(--light-border-color);
+}
+
+.result-icon {
+    margin-bottom: 20px;
+}
+
+.result-icon i {
+    font-size: 64px;
+    margin-bottom: 10px;
+}
+
+.result-icon.success i {
+    color: var(--input-success-color);
+}
+
+.result-icon.error i {
+    color: var(--input-error-color);
+}
+
+.recovery-result h2 {
+    color: var(--text-color);
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.result-message {
+    color: var(--text-color);
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+.result-message.error {
+    color: var(--input-error-color);
+    background: rgba(239, 68, 68, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid var(--input-error-color);
+}
+
+.result-note {
+    color: var(--lighter-text-color);
+    font-size: 14px;
+    margin-bottom: 30px;
+    font-style: italic;
+}
+
+.admin-contacts {
+    background: var(--background-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0 30px 0;
+    border: 1px solid var(--light-border-color);
+}
+
+.admin-contacts h3 {
+    color: var(--text-color);
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.contact-item:last-child {
+    margin-bottom: 0;
+}
+
+.contact-item i {
+    color: var(--primary-color);
+    width: 20px;
+    text-align: center;
+}
+
+.recovery-result .back-to-login {
+    margin-top: 30px;
+}
+
+.recovery-result .back-to-login .btn {
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.recovery-result .back-to-login .btn.primary {
+    background: var(--primary-color);
+    color: var(--button-text-color);
+    border: none;
+}
+
+.recovery-result .back-to-login .btn.primary:hover {
+    background: var(--primary-color-hover);
+    transform: translateY(-1px);
+}
+
+/* Tooltip styles for password toggle buttons */
+.password-tooltip {
+    position: relative;
+}
+
+.password-tooltip::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-color);
+    color: var(--background-color);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.password-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: var(--text-color);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.password-tooltip:hover::before,
+.password-tooltip:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Special handling for login form eye-toggle to maintain absolute positioning */
+.login-form .eye-toggle {
+    position: absolute !important;
+}
+
+/* Multi-select dropdown with checkboxes */
+.custom-multiselect {
+    position: relative;
+    display: block;
+    width: 100%;
+}
+
+.multiselect-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--input-border-color);
+    border-radius: 4px;
+    background-color: var(--input-background-color);
+    color: var(--input-text-color);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.multiselect-toggle:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+.multiselect-toggle:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--focus-ring-color);
+}
+
+.multiselect-toggle.disabled {
+    background-color: #f5f5f5;
+    color: #999;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.multiselect-toggle-text {
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 400;
+}
+
+.multiselect-toggle-text.placeholder {
+    color: #999;
+    font-style: italic;
+}
+
+.multiselect-arrow {
+    margin-left: 8px;
+    transition: transform 0.2s ease;
+    color: var(--primary-color);
+    font-size: 12px;
+}
+
+.multiselect-toggle.open .multiselect-arrow {
+    transform: rotate(180deg);
+}
+
+.multiselect-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--card-background-color);
+    border: 1px solid var(--input-border-color);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.multiselect-dropdown.open {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.multiselect-header {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--light-background-color);
+    font-weight: 600;
+}
+
+.multiselect-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    border-bottom: 1px solid var(--light-border-color);
+}
+
+.multiselect-option:last-child {
+    border-bottom: none;
+}
+
+.multiselect-option:hover {
+    background-color: var(--table-row-hover-background-color);
+}
+
+.multiselect-option input[type="checkbox"] {
+    margin-right: 10px;
+    margin-top: 2px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+    width: auto !important;
+}
+
+.multiselect-option-label {
+    flex: 1;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--text-color);
+}
+
+.multiselect-select-all {
+    font-weight: 600;
+    border-bottom: 2px solid var(--primary-color);
+    background-color: var(--light-background-color);
+}
+
+.multiselect-select-all .multiselect-option-label {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.multiselect-select-all:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.multiselect-select-all:hover .multiselect-option-label {
+    color: white;
+}
+
+/* Loading state */
+.multiselect-loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-color-muted);
+    font-style: italic;
+    font-size: 14px;
+}
+
+/* Error state */
+.multiselect-error {
+    padding: 20px;
+    text-align: center;
+    color: var(--danger-color);
+    font-size: 14px;
+    background-color: var(--flash-danger-background);
 }
