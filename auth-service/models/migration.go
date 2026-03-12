@@ -51,6 +51,101 @@ func EnsureCriticalRolesIntegrity() {
 	log.Println("[INTEGRITY] Critical roles integrity check completed.")
 }
 
+// EnsureExternalRolesForAllServices ensures that all registered services
+// (except "auth" itself) have:
+//  1. External permissions registered in auth-service (auth.<serviceKey>.*)
+//  2. A default "user_manager" external role with full management permissions
+//
+// This function is idempotent and safe to run on every startup.
+// It fills in missing data for services restored from backup or created before
+// the external role system was implemented.
+func EnsureExternalRolesForAllServices() {
+	log.Println("[EXTERNAL_ROLES] Ensuring external roles and permissions for all services...")
+
+	services, err := GetAllServices()
+	if err != nil {
+		log.Printf("[EXTERNAL_ROLES] Failed to get services: %v", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for _, service := range services {
+		if service.Key == "auth" || service.Key == "" {
+			continue
+		}
+
+		// 1. Ensure external permissions exist (auth.<serviceKey>.users.view, etc.)
+		if err := RegisterExternalServicePermissions(service.Key, service.Name); err != nil {
+			log.Printf("[EXTERNAL_ROLES] Warning: failed to register external permissions for %s: %v", service.Key, err)
+		}
+
+		// 2. Ensure a default "user_manager" external role exists for this service
+		ensureExternalRole(ctx, service.Key, "user_manager",
+			fmt.Sprintf("Менеджер пользователей (%s)", service.Name),
+			[]string{
+				fmt.Sprintf("auth.%s.users.view", service.Key),
+				fmt.Sprintf("auth.%s.users.add", service.Key),
+				fmt.Sprintf("auth.%s.users.edit", service.Key),
+				fmt.Sprintf("auth.%s.users.delete", service.Key),
+				fmt.Sprintf("auth.%s.roles.view", service.Key),
+				fmt.Sprintf("auth.%s.roles.assign", service.Key),
+				fmt.Sprintf("auth.%s.service_roles.assign", service.Key),
+			},
+		)
+	}
+
+	log.Println("[EXTERNAL_ROLES] External roles check completed.")
+}
+
+// ensureExternalRole creates an external role in auth-service for managing
+// the given service, if it doesn't already exist.
+func ensureExternalRole(ctx context.Context, managedService, roleName, description string, permissions []string) {
+	// Check if role already exists
+	filter := bson.M{
+		"$or": []bson.M{
+			{"service": "auth", "name": roleName, "managed_service": managedService},
+			{"service_key": "auth", "name": roleName, "managed_service": managedService},
+		},
+	}
+
+	count, err := serviceRolesCol.CountDocuments(ctx, filter)
+	if err != nil {
+		log.Printf("[EXTERNAL_ROLES] Error checking role %s for %s: %v", roleName, managedService, err)
+		return
+	}
+	if count > 0 {
+		// Role already exists, nothing to do
+		return
+	}
+
+	role := bson.M{
+		"_id":             primitive.NewObjectID(),
+		"service":         "auth",
+		"name":            roleName,
+		"display_name":    description,
+		"description":     description,
+		"permissions":     permissions,
+		"role_type":       RoleTypeExternal,
+		"managed_service": managedService,
+		"createdAt":       time.Now(),
+		"updatedAt":       time.Now(),
+	}
+
+	_, err = serviceRolesCol.InsertOne(ctx, role)
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			log.Printf("[EXTERNAL_ROLES] Role %s for %s already exists (duplicate key)", roleName, managedService)
+			return
+		}
+		log.Printf("[EXTERNAL_ROLES] Failed to create role %s for %s: %v", roleName, managedService, err)
+		return
+	}
+
+	log.Printf("[EXTERNAL_ROLES] ✅ Created external role '%s' for service '%s' with %d permissions", roleName, managedService, len(permissions))
+}
+
 // ensureAuthRoleHasPermission makes sure a role in auth service exists with
 // at least the given permissions. Creates the role if missing, adds permissions
 // if they are absent.

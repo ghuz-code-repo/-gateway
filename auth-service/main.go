@@ -141,6 +141,10 @@ func main() {
 	// migrate system/admin → auth/GOD, and fix legacy data formats.
 	models.EnsureCriticalRolesIntegrity()
 
+	// Ensure external roles and permissions exist for all registered services.
+	// This fills in missing data for services restored from backup.
+	models.EnsureExternalRolesForAllServices()
+
 	// ADR-001: Perform migration to new schema
 	log.Println("Checking for ADR-001 schema migration...")
 	migrationResult, err := models.MigrateToADR001Schema()
