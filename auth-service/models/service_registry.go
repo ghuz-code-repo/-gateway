@@ -66,6 +66,8 @@ func RegisterServiceInstance(serviceKey, containerName, internalURL, healthCheck
 		update := bson.M{
 			"$set": bson.M{
 				"service_key":       serviceKey,
+				"container_name":    containerName,
+				"internal_url":      internalURL,
 				"health_check_path": healthCheckPath,
 				"status":            "active",
 				"last_heartbeat":    now,
