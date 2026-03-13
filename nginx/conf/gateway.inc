@@ -431,35 +431,6 @@ server {
     }
     
     # ================================================================
-    # EXTERNAL SERVICES (outside gateway service discovery)
-    # ================================================================
-
-    # Apartment Finder — standalone analytics service
-    # NOTE: variable-based proxy_pass does NOT strip location prefix,
-    # so we use explicit rewrite to strip /finder before proxying.
-    location /finder/ {
-        set $apartment_upstream http://apartment-finder-app:5000;
-        rewrite ^/finder(/.*)$ $1 break;
-        proxy_pass $apartment_upstream;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Prefix /finder;
-    }
-
-    # Apartment Finder static files
-    location /finder/static/ {
-        set $apartment_static_upstream http://apartment-finder-app:5000;
-        rewrite ^/finder(/.*)$ $1 break;
-        proxy_pass $apartment_static_upstream;
-        proxy_set_header Host $host;
-        proxy_cache_valid 200 1h;
-        add_header Cache-Control "public, max-age=3600" always;
-        expires 1h;
-    }
-
-    # ================================================================
     # DYNAMIC SERVICE DISCOVERY (master file in dynamic/services.conf)
     # ================================================================
     # Include dynamic service discovery master config
