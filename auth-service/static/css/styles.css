@@ -1588,13 +1588,14 @@ a.service-link > .service-card {
     z-index: 2;
 }
 
-.manage-btn {
+button.manage-btn {
     display: inline-flex;
     align-items: center;
     gap: 5px;
     padding: 5px 10px;
     font-size: 12px;
     font-family: inherit;
+    font-weight: normal;
     background-color: var(--manage-button-color);
     color: white;
     text-decoration: none;
@@ -1604,7 +1605,7 @@ a.service-link > .service-card {
     transition: background-color 0.2s, transform 0.1s;
 }
 
-.manage-btn:hover {
+button.manage-btn:hover {
     background-color: var(--manage-button-color-hover);
     transform: translateY(-1px);
     color: white;
