@@ -1592,6 +1592,7 @@ button.manage-btn {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    width: auto;
     padding: 5px 10px;
     font-size: 12px;
     font-family: inherit;
