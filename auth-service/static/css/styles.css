@@ -1592,12 +1592,23 @@ button.manage-btn {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
     font-family: inherit;
+    font-weight: 500;
+    background-color: var(--manage-button-color);
+    color: white;
+    text-decoration: none;
+    border: none;
+    border-radius: 15px;
     cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
 }
 
 button.manage-btn:hover {
+    background-color: var(--manage-button-color-hover);
     transform: translateY(-1px);
+    color: white;
 }
 
 .manage-btn i {
