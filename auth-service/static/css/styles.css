@@ -1581,6 +1581,7 @@ a.service-link > .service-card {
 }
 
 .service-manage-btn {
+
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px solid var(--light-border-color);
@@ -1591,8 +1592,9 @@ a.service-link > .service-card {
 button.manage-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
-    width: auto;
+    width: 100%;
     padding: 5px 10px;
     font-size: 12px;
     font-family: inherit;
@@ -1601,7 +1603,6 @@ button.manage-btn {
     color: white;
     text-decoration: none;
     border: none;
-    border-radius: 15px;
     cursor: pointer;
     transition: background-color 0.2s, transform 0.1s;
 }
