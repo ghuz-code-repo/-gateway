@@ -91,7 +91,7 @@
                         <p class="service-description">{{ .description }}</p>
                     {{ if .canManage }}
                     <div class="service-manage-btn">
-                        <button type="button" class="btn manage-btn" title="Управлять сервисом"
+                        <button type="button" class="manage-btn" title="Управлять сервисом"
                                 onclick="event.preventDefault(); event.stopPropagation(); window.location.href='/services/{{ .serviceKey }}';">
                             <i class="fas fa-cog"></i> Управлять
                         </button>
