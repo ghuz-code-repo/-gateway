@@ -374,12 +374,26 @@ func InitDB(uri, dbName string) error {
 		log.Printf("Warning: Failed to create service key index: %v", err)
 	}
 
-	// Create compound unique index for user_service_roles (user_id, service_key, role_name)
+	// Drop old user_service_roles index that doesn't include managed_service
+	// Old index: (user_id, service_key, role_name) — prevents assigning same external role to multiple services
+	// New index: (user_id, service_key, role_name, managed_service) — allows it
+	for _, oldIdx := range []string{"user_id_1_service_key_1_role_name_1"} {
+		_, dropErr := userServiceRolesCol.Indexes().DropOne(ctx, oldIdx)
+		if dropErr != nil {
+			log.Printf("Info: Could not drop old %s index from user_service_roles (may not exist): %v", oldIdx, dropErr)
+		} else {
+			log.Printf("Info: Successfully dropped old %s index from user_service_roles", oldIdx)
+		}
+	}
+
+	// Create compound unique index for user_service_roles (user_id, service_key, role_name, managed_service)
+	// managed_service is needed so the same external role name can be assigned for different target services
 	_, err = userServiceRolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "user_id", Value: 1},
 			{Key: "service_key", Value: 1},
 			{Key: "role_name", Value: 1},
+			{Key: "managed_service", Value: 1},
 		},
 		Options: options.Index().SetUnique(true),
 	})

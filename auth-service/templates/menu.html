@@ -72,40 +72,42 @@
         
         <div class="services-list">
             {{ range .serviceInfos }}
-            <div class="service-card" data-service-key="{{ .serviceKey }}">
-                <!-- Status Indicator -->
-                <div class="service-status-indicator" data-status="loading">
-                    <span class="status-dot" title="Проверка статуса..."></span>
-                </div>
-                
-                <!-- Inactive Overlay (hidden by default) -->
-                <div class="service-inactive-overlay" style="display: none;">
-                    <div class="inactive-label">НЕАКТИВЕН</div>
-                </div>
-                
-                <a href="/{{ .id }}/" class="service-link" data-service="{{ .id }}">
-                    <div class="service-icon">
-                        {{ if eq .id "calculators" }}
-                            <i class="fas fa-calculator"></i>
-                        {{ else if eq .id "referal" }}
-                            <i class="fas fa-users"></i>
-                        {{ else if eq .id "sample" }}
-                            <i class="fas fa-cube"></i>
-                        {{ else }}
-                            <i class="fas fa-{{ .icon }}"></i>
-                        {{ end }}
+            <a href="/{{ .id }}/" class="service-link" data-service="{{ .id }}">
+                <div class="service-card" data-service-key="{{ .serviceKey }}">
+                    <!-- Status Indicator -->
+                    <div class="service-status-indicator" data-status="loading">
+                        <span class="status-dot" title="Проверка статуса..."></span>
                     </div>
-                    <h3>{{ .displayName }}</h3>
-                    <p class="service-description">{{ .description }}</p>
-                </a>
-                {{ if .canManage }}
-                <div class="service-manage-btn">
-                    <a href="/services/{{ .serviceKey }}" class="btn manage-btn" title="Управлять сервисом">
-                        <i class="fas fa-cog"></i> Управлять
-                    </a>
+                    
+                    <!-- Inactive Overlay (hidden by default) -->
+                    <div class="service-inactive-overlay" style="display: none;">
+                        <div class="inactive-label">НЕАКТИВЕН</div>
+                    </div>
+                    
+                        <!-- TODO: change this piece of shit-->
+                        <div class="service-icon">
+                            {{ if eq .id "apartment" }}
+                                <i class="fas fa-calculator"></i>
+                            {{ else if eq .id "referal" }}
+                                <i class="fas fa-users"></i>
+                            {{ else if eq .id "client-service" }}
+                                <i class="fas fa-cube"></i>
+                            {{ else }}
+                                <i class="fas fa-{{ .icon }}"></i>
+                            {{ end }}
+                        </div>
+                        <h3>{{ .displayName }}</h3>
+                        <p class="service-description">{{ .description }}</p>
+                    {{ if .canManage }}
+                    <div class="service-manage-btn">
+                        <a href="/services/{{ .serviceKey }}" class="btn manage-btn" title="Управлять сервисом">
+                            <i class="fas fa-cog"></i> Управлять
+                        </a>
+                    </div>
+                    {{ end }}
                 </div>
-                {{ end }}
-            </div>
+            </a>
+
             {{ end }}
             
             <!-- Личный кабинет - всегда доступен -->
