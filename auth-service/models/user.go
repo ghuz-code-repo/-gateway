@@ -1407,39 +1407,91 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 		externalRoleNames[extRole.Name] = true
 	}
 
-	// Batch-load auth role assignments for all users in one query (eliminates N+1)
-	var authRolesByUser map[primitive.ObjectID][]UserServiceRole
-	if len(externalRoleNames) > 0 && len(aggResults) > 0 {
-		userIDs := make([]primitive.ObjectID, len(aggResults))
-		for i, r := range aggResults {
-			userIDs[i] = r.User.ID
-		}
-		authRolesByUser, err = GetUserServiceRolesByUserIDs(userIDs, "auth")
-		if err != nil {
-			log.Printf("GetUsersWithServiceRolesNew: Warning: failed to batch-load auth roles: %v", err)
-			authRolesByUser = make(map[primitive.ObjectID][]UserServiceRole)
-		}
-	}
-
-	results := make([]UserWithServiceRoles, 0, len(aggResults))
+	// Build a map of users already found by aggregation (internal roles)
+	userMap := make(map[primitive.ObjectID]*UserWithServiceRoles, len(aggResults))
 	for _, r := range aggResults {
-		userWithRoles := UserWithServiceRoles{
+		u := UserWithServiceRoles{
 			User:         r.User,
 			ServiceRoles: r.Roles,
 		}
+		userMap[r.User.ID] = &u
+	}
 
-		// Check external roles from batch-loaded data
-		// IMPORTANT: must filter by ManagedService == serviceKey to avoid showing
-		// roles assigned for other services (e.g. user_manager for client-service on referal page)
-		if len(externalRoleNames) > 0 {
-			for _, assignment := range authRolesByUser[r.User.ID] {
-				if assignment.IsActive && externalRoleNames[assignment.RoleName] && assignment.ManagedService == serviceKey {
-					userWithRoles.ExternalRoles = append(userWithRoles.ExternalRoles, assignment.RoleName)
+	// Find users with external roles for this service (service_key="auth", managed_service=serviceKey)
+	if len(externalRoleNames) > 0 {
+		extCtx, extCancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+		defer extCancel()
+
+		extPipeline := []bson.M{
+			{"$match": bson.M{
+				"service_key":     "auth",
+				"managed_service": serviceKey,
+				"is_active":       true,
+			}},
+			{"$group": bson.M{
+				"_id":   "$user_id",
+				"roles": bson.M{"$push": "$role_name"},
+			}},
+		}
+		extCursor, extErr := userServiceRolesCol.Aggregate(extCtx, extPipeline)
+		if extErr == nil {
+			defer extCursor.Close(extCtx)
+			type extAggResult struct {
+				UserID primitive.ObjectID `bson:"_id"`
+				Roles  []string           `bson:"roles"`
+			}
+			var extResults []extAggResult
+			if extCursor.All(extCtx, &extResults) == nil {
+				// Collect user IDs of external-only users (not yet in userMap)
+				var missingUserIDs []primitive.ObjectID
+				for _, er := range extResults {
+					if _, exists := userMap[er.UserID]; !exists {
+						missingUserIDs = append(missingUserIDs, er.UserID)
+					}
+				}
+
+				// Load missing users from users collection
+				if len(missingUserIDs) > 0 {
+					usrCtx, usrCancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+					defer usrCancel()
+					usrCursor, usrErr := usersCol.Find(usrCtx, bson.M{"_id": bson.M{"$in": missingUserIDs}})
+					if usrErr == nil {
+						defer usrCursor.Close(usrCtx)
+						var missingUsers []User
+						if usrCursor.All(usrCtx, &missingUsers) == nil {
+							missingUserMap := make(map[primitive.ObjectID]User, len(missingUsers))
+							for _, u := range missingUsers {
+								missingUserMap[u.ID] = u
+							}
+							for _, er := range extResults {
+								if _, exists := userMap[er.UserID]; !exists {
+									if usr, found := missingUserMap[er.UserID]; found {
+										u := UserWithServiceRoles{User: usr}
+										userMap[er.UserID] = &u
+									}
+								}
+							}
+						}
+					}
+				}
+
+				// Assign external roles filtering by externalRoleNames
+				for _, er := range extResults {
+					if u, exists := userMap[er.UserID]; exists {
+						for _, roleName := range er.Roles {
+							if externalRoleNames[roleName] {
+								u.ExternalRoles = append(u.ExternalRoles, roleName)
+							}
+						}
+					}
 				}
 			}
 		}
+	}
 
-		results = append(results, userWithRoles)
+	results := make([]UserWithServiceRoles, 0, len(userMap))
+	for _, u := range userMap {
+		results = append(results, *u)
 	}
 
 	log.Printf("GetUsersWithServiceRolesNew: Returning %d users for service %s", len(results), serviceKey)

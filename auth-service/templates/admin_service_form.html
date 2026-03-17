@@ -415,9 +415,13 @@
                                             <div class="user-email">{{ .Email }}</div>
                                             <div class="user-roles">
                                                 Роли: 
-                                                {{ if .ServiceRoles }}
+                                                {{ if or .ServiceRoles .ExternalRoles }}
                                                     {{ range $index, $role := .ServiceRoles }}
-                                                        {{ if $index }}, {{ end }}{{ $role }}
+                                                        {{ if $index }}, {{ end }}<span class="role-badge internal">{{ $role }}</span>
+                                                    {{ end }}
+                                                    {{ if and .ServiceRoles .ExternalRoles }}, {{ end }}
+                                                    {{ range $index, $role := .ExternalRoles }}
+                                                        {{ if $index }}, {{ end }}<span class="role-badge external">{{ $role }}</span>
                                                     {{ end }}
                                                 {{ else }}
                                                     нет ролей
@@ -3575,6 +3579,24 @@
     });
     </script>
     <style>
+        /* Role Badge Styles */
+        .role-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        .role-badge.internal {
+            background: rgba(212, 175, 55, 0.15);
+            color: var(--primary-color);
+        }
+        .role-badge.external {
+            background: rgba(108, 117, 125, 0.15);
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        
         /* Permission Category Styles */
         .permission-category-section {
             width: 100%;
