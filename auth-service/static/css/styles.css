@@ -1427,6 +1427,8 @@ input[type="file"]:hover {
 /* Wrapper link around service cards — must behave as a seamless grid item */
 .services-list > a.service-link {
     display: contents;
+    text-decoration: none;
+    color: inherit;
 }
 
 .service-card {
@@ -1577,6 +1579,8 @@ input[type="file"]:hover {
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px solid var(--light-border-color);
+    position: relative;
+    z-index: 2;
 }
 
 .manage-btn {

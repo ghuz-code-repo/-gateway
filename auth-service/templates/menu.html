@@ -91,7 +91,8 @@
                         <p class="service-description">{{ .description }}</p>
                     {{ if .canManage }}
                     <div class="service-manage-btn">
-                        <a href="/services/{{ .serviceKey }}" class="btn manage-btn" title="Управлять сервисом">
+                        <a href="/services/{{ .serviceKey }}" class="btn manage-btn" title="Управлять сервисом"
+                           onclick="event.stopPropagation(); event.preventDefault(); window.location.href=this.href;">
                             <i class="fas fa-cog"></i> Управлять
                         </a>
                     </div>
@@ -102,27 +103,27 @@
             {{ end }}
             
             <!-- Личный кабинет - всегда доступен -->
-            <div class="service-card">
-                <a href="/profile">
+            <a href="/profile" class="service-link">
+                <div class="service-card">
                     <div class="service-icon">
                         <i class="fas fa-user-circle"></i>
                     </div>
                     <h3>Личный кабинет</h3>
                     <p class="service-description">Управление профилем и настройками пользователя</p>
-                </a>
-            </div>
+                </div>
+            </a>
             
             {{ if .canViewSystemSettings }}
             <!-- Настройки системы -->
-            <div class="service-card">
-                <a href="/settings">
+            <a href="/settings" class="service-link">
+                <div class="service-card">
                     <div class="service-icon">
                         <i class="fas fa-cog"></i>
                     </div>
                     <h3>Настройки системы</h3>
                     <p class="service-description">Управление пользователями, ролями, разрешениями и сервисами</p>
-                </a>
-            </div>
+                </div>
+            </a>
             {{ end }}
         </div>
     </div>
