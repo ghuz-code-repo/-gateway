@@ -1,23 +1,88 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ошибка</title>
+    <title>Ошибка - Golden House</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
     <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"> <!-- Added Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-      body {
-        visibility: hidden;
-        opacity: 0;
-        transition: opacity .05s ease-in-out;
-      }
+        body {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity .05s ease-in-out;
+        }
+        .error-container {
+            max-width: 600px;
+            margin: 100px auto;
+            text-align: center;
+            padding: 40px;
+            background: var(--card-background-color);
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 1;
+        }
+        .error-icon {
+            font-size: 80px;
+            color: #dc3545;
+            margin-bottom: 20px;
+        }
+        .error-title {
+            font-size: 2rem;
+            color: var(--text-color);
+            margin-bottom: 16px;
+        }
+        .error-text {
+            font-size: 1.1rem;
+            color: var(--text-color);
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .action-buttons .btn {
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .action-buttons .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
     <script>
         (function() {
-            const theme = localStorage.getItem('theme');
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+            function getSystemTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
+            const cookieTheme = getCookie('gh_theme');
+            let theme = cookieTheme || getSystemTheme();
             if (theme === 'dark') {
                 document.documentElement.classList.add('dark-theme');
             } else {
@@ -29,23 +94,38 @@
             });
         })();
     </script>
+
     <div id="particles-js"></div>
-    <div class="container">
-        <h1>ОШИБКА</h1>
-        <div class="error-message">
-            {{.error}}
+
+    <div class="error-container">
+        <div class="error-icon">
+            <i class="fas fa-exclamation-triangle"></i>
         </div>
-        <a href="javascript:history.back()" class="btn">Назад</a>
-        <a href="/menu" class="btn">Перейти в меню</a>
+
+        <h1 class="error-title">Ошибка</h1>
+
+        <div class="error-text">
+            <p>{{.error}}</p>
+        </div>
+
+        <div class="action-buttons">
+            <a href="javascript:history.back()" class="btn secondary">
+                <i class="fas fa-arrow-left"></i>
+                Назад
+            </a>
+            <a href="/menu" class="btn primary">
+                <i class="fas fa-home"></i>
+                Перейти в меню
+            </a>
+        </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-<script src="/static/js/theme-switcher.js"></script>
-<script src="/static/js/layout-adjust.js"></script>
-<script src="/static/js/mobile-menu.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
     <script>
     particlesJS('particles-js', {
         "particles": {
-            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } }, // Было 50, стало 120
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
             "color": { "value": "#c4a668" },
             "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
             "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
