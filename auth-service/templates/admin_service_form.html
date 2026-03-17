@@ -164,6 +164,20 @@
                         <textarea id="description" name="description" rows="3" 
                                   placeholder="Описание функциональности сервиса">{{ .service.Description }}</textarea>
                     </div>
+
+                    <div class="form-group">
+                        <label for="icon">Иконка (Font Awesome)</label>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div id="iconPreview" style="font-size: 28px; color: var(--primary-color); width: 40px; text-align: center;">
+                                <i class="fas fa-{{ if .service.Icon }}{{ .service.Icon }}{{ else }}link{{ end }}"></i>
+                            </div>
+                            <input type="text" id="icon" name="icon" value="{{ .service.Icon }}"
+                                   placeholder="например: users, gift, cube, calculator"
+                                   oninput="document.getElementById('iconPreview').innerHTML = '<i class=\'fas fa-' + (this.value || 'link') + '\'></i>';"
+                                   style="flex: 1;">
+                        </div>
+                        <small>Название иконки Font Awesome без префикса "fa-". <a href="https://fontawesome.com/v5/search?m=free&s=solid" target="_blank" rel="noopener">Каталог иконок</a></small>
+                    </div>
                     
                     <div class="form-actions">
                         <button type="submit" class="btn primary">Обновить сервис</button>

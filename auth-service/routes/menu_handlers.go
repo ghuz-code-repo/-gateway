@@ -157,8 +157,14 @@ func getServiceDescription(serviceKey string) string {
 }
 
 // getIconForService returns an appropriate Font Awesome icon for each service
-func getIconForService(service string) string {
-	// Default icon mapping for known services
+func getIconForService(serviceKey string) string {
+	// Try to get the icon from services collection (authoritative source)
+	service, err := models.GetServiceByKey(serviceKey)
+	if err == nil && service != nil && service.Icon != "" {
+		return service.Icon
+	}
+
+	// Default icon mapping for known services (fallback)
 	iconMap := map[string]string{
 		"client-service":   "users",
 		"referal":          "gift",
@@ -167,7 +173,7 @@ func getIconForService(service string) string {
 		"AppartmentFinder": "building",
 		"auth":             "shield-alt",
 	}
-	if icon, ok := iconMap[service]; ok {
+	if icon, ok := iconMap[serviceKey]; ok {
 		return icon
 	}
 	return "link"

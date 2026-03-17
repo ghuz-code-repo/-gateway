@@ -84,17 +84,8 @@
                         <div class="inactive-label">НЕАКТИВЕН</div>
                     </div>
                     
-                        <!-- TODO: change this piece of shit-->
                         <div class="service-icon">
-                            {{ if eq .id "apartment" }}
-                                <i class="fas fa-calculator"></i>
-                            {{ else if eq .id "referal" }}
-                                <i class="fas fa-users"></i>
-                            {{ else if eq .id "client-service" }}
-                                <i class="fas fa-cube"></i>
-                            {{ else }}
-                                <i class="fas fa-{{ .icon }}"></i>
-                            {{ end }}
+                            <i class="fas fa-{{ .icon }}"></i>
                         </div>
                         <h3>{{ .displayName }}</h3>
                         <p class="service-description">{{ .description }}</p>

@@ -42,6 +42,7 @@ type Service struct {
 	Key                  string             `bson:"key" json:"key" validate:"required"`               // e.g. "referal"
 	Name                 string             `bson:"name" json:"name"`                                 // Display name
 	Description          string             `bson:"description" json:"description"`                   // Service description
+	Icon                 string             `bson:"icon,omitempty" json:"icon,omitempty"`             // Font Awesome icon name (e.g. "users", "gift")
 	AvailablePermissions []PermissionDef    `bson:"availablePermissions" json:"availablePermissions"` // Canonical list of permissions
 	Status               string             `bson:"status" json:"status"`                             // active, deprecated, disabled
 	CreatedAt            time.Time          `bson:"created_at" json:"created_at"`                     // Creation timestamp
@@ -353,7 +354,7 @@ func GetServiceByName(name string) (*Service, error) {
 }
 
 // UpdateService updates an existing service with new schema
-func UpdateService(id primitive.ObjectID, key, name, description string, availablePermissions []PermissionDef) error {
+func UpdateService(id primitive.ObjectID, key, name, description, icon string, availablePermissions []PermissionDef) error {
 	ctx := context.Background()
 
 	_, err := servicesCol.UpdateOne(
@@ -364,6 +365,7 @@ func UpdateService(id primitive.ObjectID, key, name, description string, availab
 				"key":                  key,
 				"name":                 name,
 				"description":          description,
+				"icon":                 icon,
 				"availablePermissions": availablePermissions,
 				"updated_at":           time.Now(),
 			},
