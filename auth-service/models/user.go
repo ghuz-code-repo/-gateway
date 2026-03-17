@@ -1429,9 +1429,11 @@ func GetUsersWithServiceRolesNew(serviceKey string) ([]UserWithServiceRoles, err
 		}
 
 		// Check external roles from batch-loaded data
+		// IMPORTANT: must filter by ManagedService == serviceKey to avoid showing
+		// roles assigned for other services (e.g. user_manager for client-service on referal page)
 		if len(externalRoleNames) > 0 {
 			for _, assignment := range authRolesByUser[r.User.ID] {
-				if assignment.IsActive && externalRoleNames[assignment.RoleName] {
+				if assignment.IsActive && externalRoleNames[assignment.RoleName] && assignment.ManagedService == serviceKey {
 					userWithRoles.ExternalRoles = append(userWithRoles.ExternalRoles, assignment.RoleName)
 				}
 			}

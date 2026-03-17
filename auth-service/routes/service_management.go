@@ -1028,10 +1028,12 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 		}
 
 		// Get current external roles for this user in auth service
+		// IMPORTANT: must filter by ManagedService == serviceKey to avoid
+		// seeing roles assigned for other services as "current" for this service
 		currentExternalRoles := make(map[string]bool)
 		if currentAssignments != nil {
 			for _, assignment := range currentAssignments {
-				if assignment.ServiceKey == "auth" && assignment.IsActive {
+				if assignment.ServiceKey == "auth" && assignment.IsActive && assignment.ManagedService == serviceKey {
 					if externalRoleNamesSet[assignment.RoleName] {
 						currentExternalRoles[assignment.RoleName] = true
 					}

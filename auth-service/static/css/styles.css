@@ -1424,6 +1424,11 @@ input[type="file"]:hover {
     max-width: 800px;
 }
 
+/* Wrapper link around service cards — must behave as a seamless grid item */
+.services-list > a.service-link {
+    display: contents;
+}
+
 .service-card {
     background-color: var(--card-background-color);
     border-radius: 20px;
