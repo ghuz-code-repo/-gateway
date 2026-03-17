@@ -4,6 +4,7 @@ import (
 	"auth-service/models"
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 )
@@ -101,6 +102,11 @@ func menuHandler(c *gin.Context) {
 			serviceInfos = append(serviceInfos, serviceInfo)
 		}
 	}
+
+	// Sort service cards alphabetically by service key
+	sort.Slice(serviceInfos, func(i, j int) bool {
+		return serviceInfos[i]["id"].(string) < serviceInfos[j]["id"].(string)
+	})
 
 	// Check if user has permission to view system settings (must be system admin)
 	// NEW: Check if user can view system settings

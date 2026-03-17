@@ -1424,11 +1424,24 @@ input[type="file"]:hover {
     max-width: 800px;
 }
 
-/* Wrapper link around service cards — must behave as a seamless grid item */
+/* Wrapper link around service cards — the link IS the grid item */
 .services-list > a.service-link {
-    display: contents;
+    display: flex;
     text-decoration: none;
     color: inherit;
+    border-radius: 20px;
+    cursor: pointer;
+}
+
+/* When inside a link wrapper, the card fills the link */
+.services-list > a.service-link > .service-card {
+    flex: 1;
+}
+
+/* Hover effect on the link wrapper lifts the card inside */
+.services-list > a.service-link:hover > .service-card:not(.inactive) {
+    transform: translateY(-5px);
+    box-shadow: 0 0 8px 1px var(--primary-color);
 }
 
 .service-card {
