@@ -1563,12 +1563,16 @@ document.addEventListener('submit', function(e) {
         }
         
         const formData = new FormData(e.target);
-        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const btnMap = { 'profileForm': 'footerSaveProfile', 'passwordForm': 'footerChangePassword' };
+        const submitBtn = document.getElementById(btnMap[e.target.id]) || e.target.querySelector('button[type="submit"]');
         
         // Add loading state
-        const originalText = submitBtn.textContent;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Сохранение...';
+        let originalHTML = '';
+        if (submitBtn) {
+            originalHTML = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Сохранение...';
+        }
         
         fetch(e.target.action || '/profile', {
             method: 'POST',
@@ -1611,8 +1615,10 @@ document.addEventListener('submit', function(e) {
             showNotification(error.message || 'Ошибка при сохранении профиля', 'error');
         })
         .finally(() => {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalHTML;
+            }
         });
     }
 });
