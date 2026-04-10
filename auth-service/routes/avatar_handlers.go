@@ -1,4 +1,4 @@
-package routes
+﻿package routes
 
 import (
 	"auth-service/models"
@@ -129,8 +129,8 @@ func uploadAvatarHandler(c *gin.Context) {
 
 	// Parse crop coordinates if provided
 	var cropCoords *models.CropCoords
-	log.Printf("DEBUG: Checking for crop coordinates in POST form data")
-	log.Printf("DEBUG: crop_x='%s', crop_y='%s', crop_width='%s', crop_height='%s'",
+	debugLog("DEBUG: Checking for crop coordinates in POST form data")
+	debugLog("DEBUG: crop_x='%s', crop_y='%s', crop_width='%s', crop_height='%s'",
 		c.PostForm("crop_x"), c.PostForm("crop_y"), c.PostForm("crop_width"), c.PostForm("crop_height"))
 
 	if cropX := c.PostForm("crop_x"); cropX != "" {
@@ -139,7 +139,7 @@ func uploadAvatarHandler(c *gin.Context) {
 		width, _ := strconv.ParseFloat(c.PostForm("crop_width"), 64)
 		height, _ := strconv.ParseFloat(c.PostForm("crop_height"), 64)
 
-		log.Printf("DEBUG: Parsed coordinates: x=%f, y=%f, width=%f, height=%f", x, y, width, height)
+		debugLog("DEBUG: Parsed coordinates: x=%f, y=%f, width=%f, height=%f", x, y, width, height)
 
 		// Validate coordinates are reasonable
 		if x >= 0 && y >= 0 && width > 0 && height > 0 && x <= 1 && y <= 1 && width <= 1 && height <= 1 {
@@ -151,20 +151,20 @@ func uploadAvatarHandler(c *gin.Context) {
 			}
 
 			if isCropUpdate {
-				log.Printf("DEBUG: Crop coordinates received for crop update: x=%f, y=%f, width=%f, height=%f", x, y, width, height)
+				debugLog("DEBUG: Crop coordinates received for crop update: x=%f, y=%f, width=%f, height=%f", x, y, width, height)
 			} else {
-				log.Printf("DEBUG: Crop coordinates received for new file upload: x=%f, y=%f, width=%f, height=%f", x, y, width, height)
+				debugLog("DEBUG: Crop coordinates received for new file upload: x=%f, y=%f, width=%f, height=%f", x, y, width, height)
 			}
 		} else {
-			log.Printf("DEBUG: Invalid crop coordinates received: x=%f, y=%f, width=%f, height=%f", x, y, width, height)
+			debugLog("DEBUG: Invalid crop coordinates received: x=%f, y=%f, width=%f, height=%f", x, y, width, height)
 		}
 	} else {
-		log.Printf("DEBUG: No crop_x parameter found in form data")
+		debugLog("DEBUG: No crop_x parameter found in form data")
 	}
 
 	if !isCropUpdate && cropCoords == nil {
 		// For new file upload without coordinates, reset to default
-		log.Printf("DEBUG: New file upload without crop coordinates - will use default center crop")
+		debugLog("DEBUG: New file upload without crop coordinates - will use default center crop")
 	}
 
 	// Process image: create resized avatar from original
@@ -188,14 +188,14 @@ func uploadAvatarHandler(c *gin.Context) {
 		relativeOriginalPath = fmt.Sprintf("/data/%s/%s", user.ID.Hex(), originalFilename)
 	}
 
-	log.Printf("DEBUG: About to update avatar in database:")
-	log.Printf("DEBUG: User ID: %s", user.ID.Hex())
-	log.Printf("DEBUG: relativeCroppedPath: '%s'", relativeCroppedPath)
-	log.Printf("DEBUG: relativeOriginalPath: '%s'", relativeOriginalPath)
-	log.Printf("DEBUG: cropCoords: %+v", cropCoords)
-	log.Printf("DEBUG: isCropUpdate: %v", isCropUpdate)
-	log.Printf("DEBUG: Current user avatar path before update: '%s'", user.AvatarPath)
-	log.Printf("DEBUG: Current user crop coordinates before update: %+v", user.CropCoordinates)
+	debugLog("DEBUG: About to update avatar in database:")
+	debugLog("DEBUG: User ID: %s", user.ID.Hex())
+	debugLog("DEBUG: relativeCroppedPath: '%s'", relativeCroppedPath)
+	debugLog("DEBUG: relativeOriginalPath: '%s'", relativeOriginalPath)
+	debugLog("DEBUG: cropCoords: %+v", cropCoords)
+	debugLog("DEBUG: isCropUpdate: %v", isCropUpdate)
+	debugLog("DEBUG: Current user avatar path before update: '%s'", user.AvatarPath)
+	debugLog("DEBUG: Current user crop coordinates before update: %+v", user.CropCoordinates)
 
 	err = models.UpdateUserAvatarWithCrop(user.ID, relativeCroppedPath, relativeOriginalPath, cropCoords)
 	if err != nil {
@@ -204,15 +204,15 @@ func uploadAvatarHandler(c *gin.Context) {
 		return
 	}
 
-	log.Printf("DEBUG: Successfully updated avatar in database")
+	debugLog("DEBUG: Successfully updated avatar in database")
 
 	// Fetch updated user to verify changes
 	updatedUser, err := models.GetUserByID(user.ID.Hex())
 	if err != nil {
 		log.Printf("Warning: Could not fetch updated user for verification: %v", err)
 	} else {
-		log.Printf("DEBUG: After update - user avatar path: '%s'", updatedUser.AvatarPath)
-		log.Printf("DEBUG: After update - user crop coordinates: %+v", updatedUser.CropCoordinates)
+		debugLog("DEBUG: After update - user avatar path: '%s'", updatedUser.AvatarPath)
+		debugLog("DEBUG: After update - user crop coordinates: %+v", updatedUser.CropCoordinates)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -260,13 +260,13 @@ func removeAvatarHandler(c *gin.Context) {
 func getOriginalAvatarHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 
-	log.Printf("DEBUG: getOriginalAvatarHandler called for user %s", user.ID.Hex())
-	log.Printf("DEBUG: User original avatar path: '%s'", user.OriginalAvatarPath)
-	log.Printf("DEBUG: User current avatar path: '%s'", user.AvatarPath)
-	log.Printf("DEBUG: User crop coordinates: %+v", user.CropCoordinates)
+	debugLog("DEBUG: getOriginalAvatarHandler called for user %s", user.ID.Hex())
+	debugLog("DEBUG: User original avatar path: '%s'", user.OriginalAvatarPath)
+	debugLog("DEBUG: User current avatar path: '%s'", user.AvatarPath)
+	debugLog("DEBUG: User crop coordinates: %+v", user.CropCoordinates)
 
 	if user.OriginalAvatarPath == "" {
-		log.Printf("DEBUG: No original avatar path found for user")
+		debugLog("DEBUG: No original avatar path found for user")
 		c.JSON(http.StatusNotFound, gin.H{"error": "No original avatar found"})
 		return
 	}
@@ -274,12 +274,12 @@ func getOriginalAvatarHandler(c *gin.Context) {
 	// Check if original avatar file exists
 	avatarFile := "." + user.OriginalAvatarPath
 	if _, err := os.Stat(avatarFile); os.IsNotExist(err) {
-		log.Printf("DEBUG: Original avatar file not found: %s", avatarFile)
+		debugLog("DEBUG: Original avatar file not found: %s", avatarFile)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Original avatar file not found"})
 		return
 	}
 
-	log.Printf("DEBUG: Original avatar file exists: %s", avatarFile)
+	debugLog("DEBUG: Original avatar file exists: %s", avatarFile)
 
 	// Return info about original avatar and current crop coordinates
 	response := gin.H{
@@ -296,12 +296,12 @@ func getOriginalAvatarHandler(c *gin.Context) {
 			"width":  user.CropCoordinates.Width,
 			"height": user.CropCoordinates.Height,
 		}
-		log.Printf("DEBUG: Added crop coordinates to response: %+v", user.CropCoordinates)
+		debugLog("DEBUG: Added crop coordinates to response: %+v", user.CropCoordinates)
 	} else {
-		log.Printf("DEBUG: No crop coordinates found for user")
+		debugLog("DEBUG: No crop coordinates found for user")
 	}
 
-	log.Printf("DEBUG: Returning response: %+v", response)
+	debugLog("DEBUG: Returning response: %+v", response)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -326,7 +326,7 @@ func getOriginalAvatarFileHandler(c *gin.Context) {
 
 // processAvatar creates a resized and optionally cropped avatar from the original image
 func processAvatar(originalPath, avatarPath string, cropCoords *models.CropCoords) error {
-	log.Printf("DEBUG: processAvatar called - originalPath: %s, avatarPath: %s, cropCoords: %+v", originalPath, avatarPath, cropCoords)
+	debugLog("DEBUG: processAvatar called - originalPath: %s, avatarPath: %s, cropCoords: %+v", originalPath, avatarPath, cropCoords)
 
 	// Open the original image
 	src, err := imaging.Open(originalPath)
@@ -338,7 +338,7 @@ func processAvatar(originalPath, avatarPath string, cropCoords *models.CropCoord
 	bounds := src.Bounds()
 	originalWidth := bounds.Dx()
 	originalHeight := bounds.Dy()
-	log.Printf("DEBUG: Original image dimensions: %dx%d", originalWidth, originalHeight)
+	debugLog("DEBUG: Original image dimensions: %dx%d", originalWidth, originalHeight)
 
 	var processed image.Image = src
 
@@ -350,7 +350,7 @@ func processAvatar(originalPath, avatarPath string, cropCoords *models.CropCoord
 		width := int(cropCoords.Width * float64(originalWidth))
 		height := int(cropCoords.Height * float64(originalHeight))
 
-		log.Printf("DEBUG: Crop coordinates (absolute): x=%d, y=%d, width=%d, height=%d", x, y, width, height)
+		debugLog("DEBUG: Crop coordinates (absolute): x=%d, y=%d, width=%d, height=%d", x, y, width, height)
 
 		// Ensure crop coordinates are within image bounds
 		if x < 0 {
@@ -366,7 +366,7 @@ func processAvatar(originalPath, avatarPath string, cropCoords *models.CropCoord
 			height = originalHeight - y
 		}
 
-		log.Printf("DEBUG: Adjusted crop coordinates: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
+		debugLog("DEBUG: Adjusted crop coordinates: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
 
 		// Crop the image to user's selection
 		cropRect := image.Rect(x, y, x+width, y+height)
@@ -376,7 +376,7 @@ func processAvatar(originalPath, avatarPath string, cropCoords *models.CropCoord
 		bounds = processed.Bounds()
 		croppedWidth := bounds.Dx()
 		croppedHeight := bounds.Dy()
-		log.Printf("DEBUG: Dimensions after crop: %dx%d", croppedWidth, croppedHeight)
+		debugLog("DEBUG: Dimensions after crop: %dx%d", croppedWidth, croppedHeight)
 
 		// For user-defined crop, resize maintaining aspect ratio up to 200px max
 		avatarSize := 200
@@ -392,9 +392,9 @@ func processAvatar(originalPath, avatarPath string, cropCoords *models.CropCoord
 
 		processed = finalImage
 		finalBounds := processed.Bounds()
-		log.Printf("DEBUG: Final dimensions: %dx%d (maintaining user crop aspect ratio)", finalBounds.Dx(), finalBounds.Dy())
+		debugLog("DEBUG: Final dimensions: %dx%d (maintaining user crop aspect ratio)", finalBounds.Dx(), finalBounds.Dy())
 	} else {
-		log.Printf("DEBUG: No crop coordinates provided, using automatic center crop")
+		debugLog("DEBUG: No crop coordinates provided, using automatic center crop")
 
 		// No crop coordinates - make the image square by cropping from center, then resize
 		bounds = processed.Bounds()
@@ -419,12 +419,12 @@ func processAvatar(originalPath, avatarPath string, cropCoords *models.CropCoord
 			squareSize = width // Already square
 		}
 
-		log.Printf("DEBUG: Made square with size: %d", squareSize)
+		debugLog("DEBUG: Made square with size: %d", squareSize)
 
 		// Now resize to final avatar size
 		avatarSize := 200
 		processed = imaging.Resize(processed, avatarSize, avatarSize, imaging.Lanczos)
-		log.Printf("DEBUG: Final resize to: %dx%d (auto crop)", avatarSize, avatarSize)
+		debugLog("DEBUG: Final resize to: %dx%d (auto crop)", avatarSize, avatarSize)
 	}
 
 	// Save the processed avatar
@@ -439,7 +439,7 @@ func processAvatar(originalPath, avatarPath string, cropCoords *models.CropCoord
 
 // handleCropUpdate handles crop update for existing avatar
 func handleCropUpdate(c *gin.Context, user *models.User) {
-	log.Printf("DEBUG: handleCropUpdate called for user %s", user.ID.Hex())
+	debugLog("DEBUG: handleCropUpdate called for user %s", user.ID.Hex())
 
 	// Check if user has an original avatar file
 	if user.OriginalAvatarPath == "" {
@@ -492,12 +492,12 @@ func handleCropUpdate(c *gin.Context, user *models.User) {
 	relativeCroppedPath := fmt.Sprintf("/avatar/%s", user.ID.Hex()) // Always use new endpoint
 	relativeOriginalPath := user.OriginalAvatarPath
 
-	log.Printf("DEBUG: About to update avatar in database:")
-	log.Printf("DEBUG: User ID: %s", user.ID.Hex())
-	log.Printf("DEBUG: relativeCroppedPath: '%s'", relativeCroppedPath)
-	log.Printf("DEBUG: relativeOriginalPath: '%s'", relativeOriginalPath)
-	log.Printf("DEBUG: cropCoords: %+v", cropCoords)
-	log.Printf("DEBUG: isCropUpdate: true")
+	debugLog("DEBUG: About to update avatar in database:")
+	debugLog("DEBUG: User ID: %s", user.ID.Hex())
+	debugLog("DEBUG: relativeCroppedPath: '%s'", relativeCroppedPath)
+	debugLog("DEBUG: relativeOriginalPath: '%s'", relativeOriginalPath)
+	debugLog("DEBUG: cropCoords: %+v", cropCoords)
+	debugLog("DEBUG: isCropUpdate: true")
 
 	err = models.UpdateUserAvatarWithCrop(user.ID, relativeCroppedPath, relativeOriginalPath, cropCoords)
 	if err != nil {
@@ -520,60 +520,60 @@ func handleCropUpdate(c *gin.Context, user *models.User) {
 func adminUploadAvatarHandler(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ID пользователя"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµ СѓРєР°Р·Р°РЅ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
 		return
 	}
 
 	// Get target user
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
 		return
 	}
 
 	targetUser, err := models.GetUserByID(objID.Hex())
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
 		return
 	}
 
-	log.Printf("DEBUG: adminUploadAvatarHandler called for user %s", targetUser.ID.Hex())
-	log.Printf("DEBUG: Request method: %s", c.Request.Method)
-	log.Printf("DEBUG: Content-Type: %s", c.Request.Header.Get("Content-Type"))
+	debugLog("DEBUG: adminUploadAvatarHandler called for user %s", targetUser.ID.Hex())
+	debugLog("DEBUG: Request method: %s", c.Request.Method)
+	debugLog("DEBUG: Content-Type: %s", c.Request.Header.Get("Content-Type"))
 
 	// Parse multipart form with 99MB limit
 	err = c.Request.ParseMultipartForm(99 << 20) // 99MB
 	if err != nil {
 		log.Printf("Failed to parse multipart form: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка обработки формы"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РћС€РёР±РєР° РѕР±СЂР°Р±РѕС‚РєРё С„РѕСЂРјС‹"})
 		return
 	}
 
 	// Check if this is a crop update
 	cropUpdate := c.Request.FormValue("crop_update")
-	log.Printf("DEBUG: crop_update value: '%s'", cropUpdate)
+	debugLog("DEBUG: crop_update value: '%s'", cropUpdate)
 
 	if cropUpdate == "true" {
-		log.Printf("DEBUG: Processing crop update for existing avatar")
+		debugLog("DEBUG: Processing crop update for existing avatar")
 		adminHandleCropUpdate(c, targetUser)
 		return
 	}
 
 	// Handle new file upload
-	log.Printf("DEBUG: Processing new file upload")
+	debugLog("DEBUG: Processing new file upload")
 	file, header, err := c.Request.FormFile("avatar")
 	if err != nil {
 		log.Printf("No file found in request: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Файл не найден"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
 		return
 	}
 	defer file.Close()
 
-	log.Printf("DEBUG: File received - Name: %s, Size: %d", header.Filename, header.Size)
+	debugLog("DEBUG: File received - Name: %s, Size: %d", header.Filename, header.Size)
 
 	// Validate file size (99MB)
 	if header.Size > 99*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Файл слишком большой (максимум 99MB)"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Р¤Р°Р№Р» СЃР»РёС€РєРѕРј Р±РѕР»СЊС€РѕР№ (РјР°РєСЃРёРјСѓРј 99MB)"})
 		return
 	}
 
@@ -581,7 +581,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	userDir := fmt.Sprintf("./data/%s", targetUser.ID.Hex())
 	if err := os.MkdirAll(userDir, 0755); err != nil {
 		log.Printf("Failed to create user directory: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания директории"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РґРёСЂРµРєС‚РѕСЂРёРё"})
 		return
 	}
 
@@ -592,7 +592,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	out, err := os.Create(originalPath)
 	if err != nil {
 		log.Printf("Failed to create original file: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения файла"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ С„Р°Р№Р»Р°"})
 		return
 	}
 	defer out.Close()
@@ -600,11 +600,11 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	_, err = io.Copy(out, file)
 	if err != nil {
 		log.Printf("Failed to copy file: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка копирования файла"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РєРѕРїРёСЂРѕРІР°РЅРёСЏ С„Р°Р№Р»Р°"})
 		return
 	}
 
-	log.Printf("DEBUG: Original file saved to: %s", originalPath)
+	debugLog("DEBUG: Original file saved to: %s", originalPath)
 
 	// Parse crop coordinates
 	var cropCoords *models.CropCoords
@@ -613,7 +613,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	width := c.PostForm("crop_width")
 	height := c.PostForm("crop_height")
 
-	log.Printf("DEBUG: Crop coordinates - crop_x: %s, crop_y: %s, crop_width: %s, crop_height: %s", x, y, width, height)
+	debugLog("DEBUG: Crop coordinates - crop_x: %s, crop_y: %s, crop_width: %s, crop_height: %s", x, y, width, height)
 
 	if x != "" && y != "" && width != "" && height != "" {
 		cropCoords = &models.CropCoords{}
@@ -629,28 +629,28 @@ func adminUploadAvatarHandler(c *gin.Context) {
 		if cropCoords.Height, err = strconv.ParseFloat(height, 64); err != nil {
 			log.Printf("Invalid crop height: %v", err)
 		}
-		log.Printf("DEBUG: Parsed crop coordinates: %+v", cropCoords)
+		debugLog("DEBUG: Parsed crop coordinates: %+v", cropCoords)
 	}
 
 	// Process and save cropped avatar
 	avatarPath := filepath.Join(userDir, "avatar.jpg")
 	if err := processAvatar(originalPath, avatarPath, cropCoords); err != nil {
 		log.Printf("Failed to process avatar: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обработки изображения"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РѕР±СЂР°Р±РѕС‚РєРё РёР·РѕР±СЂР°Р¶РµРЅРёСЏ"})
 		return
 	}
 
-	log.Printf("DEBUG: Avatar processed and saved to: %s", avatarPath)
+	debugLog("DEBUG: Avatar processed and saved to: %s", avatarPath)
 
 	// Update user's avatar path in database using new endpoint
 	relativeAvatarPath := fmt.Sprintf("/avatar/%s", targetUser.ID.Hex())
 	if err := models.UpdateUserAvatar(targetUser.ID, relativeAvatarPath); err != nil {
 		log.Printf("Failed to update user avatar path: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обновления профиля"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РїСЂРѕС„РёР»СЏ"})
 		return
 	}
 
-	log.Printf("DEBUG: Avatar path updated in database: %s", relativeAvatarPath)
+	debugLog("DEBUG: Avatar path updated in database: %s", relativeAvatarPath)
 
 	// Return success response
 	relativeCroppedPath := fmt.Sprintf("/avatar/%s", targetUser.ID.Hex())
@@ -658,7 +658,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":       true,
-		"message":       "Аватар успешно загружен",
+		"message":       "РђРІР°С‚Р°СЂ СѓСЃРїРµС€РЅРѕ Р·Р°РіСЂСѓР¶РµРЅ",
 		"avatar_path":   relativeCroppedPath,
 		"original_path": relativeOriginalPath,
 	})
@@ -666,7 +666,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 
 // adminHandleCropUpdate handles crop update for existing avatar (admin access)
 func adminHandleCropUpdate(c *gin.Context, user *models.User) {
-	log.Printf("DEBUG: adminHandleCropUpdate called for user %s", user.ID.Hex())
+	debugLog("DEBUG: adminHandleCropUpdate called for user %s", user.ID.Hex())
 
 	// Parse crop coordinates
 	x := c.Request.FormValue("crop_x")
@@ -674,10 +674,10 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 	width := c.Request.FormValue("crop_width")
 	height := c.Request.FormValue("crop_height")
 
-	log.Printf("DEBUG: Crop coordinates - x: %s, y: %s, width: %s, height: %s", x, y, width, height)
+	debugLog("DEBUG: Crop coordinates - x: %s, y: %s, width: %s, height: %s", x, y, width, height)
 
 	if x == "" || y == "" || width == "" || height == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Отсутствуют координаты обрезки"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РћС‚СЃСѓС‚СЃС‚РІСѓСЋС‚ РєРѕРѕСЂРґРёРЅР°С‚С‹ РѕР±СЂРµР·РєРё"})
 		return
 	}
 
@@ -685,23 +685,23 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 	var err error
 
 	if cropCoords.X, err = strconv.ParseFloat(x, 64); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная координата X"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅР°СЏ РєРѕРѕСЂРґРёРЅР°С‚Р° X"})
 		return
 	}
 	if cropCoords.Y, err = strconv.ParseFloat(y, 64); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная координата Y"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅР°СЏ РєРѕРѕСЂРґРёРЅР°С‚Р° Y"})
 		return
 	}
 	if cropCoords.Width, err = strconv.ParseFloat(width, 64); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная ширина"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅР°СЏ С€РёСЂРёРЅР°"})
 		return
 	}
 	if cropCoords.Height, err = strconv.ParseFloat(height, 64); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная высота"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅР°СЏ РІС‹СЃРѕС‚Р°"})
 		return
 	}
 
-	log.Printf("DEBUG: Parsed crop coordinates: %+v", cropCoords)
+	debugLog("DEBUG: Parsed crop coordinates: %+v", cropCoords)
 
 	// Find original file
 	userDir := fmt.Sprintf("./data/%s", user.ID.Hex())
@@ -718,22 +718,22 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 	}
 
 	if originalPath == "" {
-		log.Printf("DEBUG: No original file found in %s", userDir)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Оригинальный файл не найден"})
+		debugLog("DEBUG: No original file found in %s", userDir)
+		c.JSON(http.StatusNotFound, gin.H{"error": "РћСЂРёРіРёРЅР°Р»СЊРЅС‹Р№ С„Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
 		return
 	}
 
-	log.Printf("DEBUG: Found original file: %s", originalPath)
+	debugLog("DEBUG: Found original file: %s", originalPath)
 
 	// Process and save cropped avatar directly
 	avatarPath := filepath.Join(userDir, "avatar.jpg")
 	if err := processAvatar(originalPath, avatarPath, cropCoords); err != nil {
 		log.Printf("Failed to process avatar: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обработки изображения"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РѕР±СЂР°Р±РѕС‚РєРё РёР·РѕР±СЂР°Р¶РµРЅРёСЏ"})
 		return
 	}
 
-	log.Printf("DEBUG: Avatar reprocessed and saved to: %s", avatarPath)
+	debugLog("DEBUG: Avatar reprocessed and saved to: %s", avatarPath)
 
 	// Update the database with crop coordinates and avatar path using new endpoint
 	user.CropCoordinates = cropCoords
@@ -745,11 +745,11 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 
 	if err := models.UpdateUserAvatarWithCrop(user.ID, relativeAvatarPath, relativeOriginalPath, cropCoords); err != nil {
 		log.Printf("Failed to save crop coordinates and avatar path: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения изменений аватара"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РёР·РјРµРЅРµРЅРёР№ Р°РІР°С‚Р°СЂР°"})
 		return
 	}
 
-	log.Printf("DEBUG: Avatar path and crop coordinates saved to database")
+	debugLog("DEBUG: Avatar path and crop coordinates saved to database")
 
 	// Return success response with updated avatar path and timestamp
 	relativeCroppedPathForResponse := fmt.Sprintf("/avatar/%s?t=%d", user.ID.Hex(), time.Now().Unix())
@@ -757,7 +757,7 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":       true,
-		"message":       "Обрезка аватара обновлена",
+		"message":       "РћР±СЂРµР·РєР° Р°РІР°С‚Р°СЂР° РѕР±РЅРѕРІР»РµРЅР°",
 		"avatar_path":   relativeCroppedPathForResponse,
 		"original_path": relativeOriginalPathForResponse,
 	})
@@ -767,20 +767,20 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 func adminRemoveAvatarHandler(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ID пользователя"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµ СѓРєР°Р·Р°РЅ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
 		return
 	}
 
 	// Get target user
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
 		return
 	}
 
 	targetUser, err := models.GetUserByID(objID.Hex())
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
 		return
 	}
 
@@ -805,13 +805,13 @@ func adminRemoveAvatarHandler(c *gin.Context) {
 	// Update user's avatar path in database
 	if err := models.UpdateUserAvatar(targetUser.ID, ""); err != nil {
 		log.Printf("Failed to update user avatar path: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обновления профиля"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РїСЂРѕС„РёР»СЏ"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Аватар удален",
+		"message": "РђРІР°С‚Р°СЂ СѓРґР°Р»РµРЅ",
 	})
 }
 
@@ -819,52 +819,52 @@ func adminRemoveAvatarHandler(c *gin.Context) {
 func adminGetOriginalAvatarHandler(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ID пользователя"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµ СѓРєР°Р·Р°РЅ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
 		return
 	}
 
-	log.Printf("DEBUG: adminGetOriginalAvatarHandler called for user ID: %s", userID)
+	debugLog("DEBUG: adminGetOriginalAvatarHandler called for user ID: %s", userID)
 
 	// Get target user - fetch fresh data from database
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
 		return
 	}
 
 	targetUser, err := models.GetUserByID(objID.Hex())
 	if err != nil {
-		log.Printf("DEBUG: User not found: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
+		debugLog("DEBUG: User not found: %v", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
 		return
 	}
 
-	log.Printf("DEBUG: Target user loaded - avatar path: '%s', original path: '%s'", targetUser.AvatarPath, targetUser.OriginalAvatarPath)
-	log.Printf("DEBUG: Target user crop coordinates: %+v", targetUser.CropCoordinates)
+	debugLog("DEBUG: Target user loaded - avatar path: '%s', original path: '%s'", targetUser.AvatarPath, targetUser.OriginalAvatarPath)
+	debugLog("DEBUG: Target user crop coordinates: %+v", targetUser.CropCoordinates)
 
 	// Find original file
 	userDir := fmt.Sprintf("./data/%s", targetUser.ID.Hex())
-	log.Printf("DEBUG: Looking for original files in: %s", userDir)
+	debugLog("DEBUG: Looking for original files in: %s", userDir)
 
 	extensions := []string{".jpg", ".jpeg", ".png", ".gif"}
 	for _, ext := range extensions {
 		originalPath := filepath.Join(userDir, "original"+ext)
-		log.Printf("DEBUG: Checking for original file: %s", originalPath)
+		debugLog("DEBUG: Checking for original file: %s", originalPath)
 
 		if _, err := os.Stat(originalPath); err == nil {
-			log.Printf("DEBUG: Found original file: %s", originalPath)
+			debugLog("DEBUG: Found original file: %s", originalPath)
 
 			// Get image dimensions
 			file, err := os.Open(originalPath)
 			if err != nil {
-				log.Printf("DEBUG: Failed to open original file for dimensions: %v", err)
+				debugLog("DEBUG: Failed to open original file for dimensions: %v", err)
 				continue
 			}
 			defer file.Close()
 
 			config, _, err := image.DecodeConfig(file)
 			if err != nil {
-				log.Printf("DEBUG: Failed to decode image config: %v", err)
+				debugLog("DEBUG: Failed to decode image config: %v", err)
 				continue
 			}
 
@@ -885,45 +885,45 @@ func adminGetOriginalAvatarHandler(c *gin.Context) {
 					"width":  targetUser.CropCoordinates.Width,
 					"height": targetUser.CropCoordinates.Height,
 				}
-				log.Printf("DEBUG: Added crop coordinates to admin response: %+v", targetUser.CropCoordinates)
+				debugLog("DEBUG: Added crop coordinates to admin response: %+v", targetUser.CropCoordinates)
 			} else {
-				log.Printf("DEBUG: No crop coordinates found for user")
+				debugLog("DEBUG: No crop coordinates found for user")
 			}
 
-			log.Printf("DEBUG: Returning admin response: %+v", response)
+			debugLog("DEBUG: Returning admin response: %+v", response)
 			c.JSON(http.StatusOK, response)
 			return
 		}
 	}
 
-	log.Printf("DEBUG: No original files found in any format")
-	c.JSON(http.StatusNotFound, gin.H{"error": "Оригинальный файл не найден"})
+	debugLog("DEBUG: No original files found in any format")
+	c.JSON(http.StatusNotFound, gin.H{"error": "РћСЂРёРіРёРЅР°Р»СЊРЅС‹Р№ С„Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
 }
 
 // adminGetOriginalAvatarFileHandler serves original avatar file for specific user (admin access)
 func adminGetOriginalAvatarFileHandler(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ID пользователя"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµ СѓРєР°Р·Р°РЅ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
 		return
 	}
 
 	// Get target user
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
 		return
 	}
 
 	targetUser, err := models.GetUserByID(objID.Hex())
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
 		return
 	}
 
 	// Check if user has avatar
 	if targetUser.AvatarPath == "" {
-		c.JSON(http.StatusNotFound, gin.H{"error": "У пользователя нет аватара"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "РЈ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РЅРµС‚ Р°РІР°С‚Р°СЂР°"})
 		return
 	}
 
@@ -939,5 +939,5 @@ func adminGetOriginalAvatarFileHandler(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{"error": "Оригинальный файл не найден"})
+	c.JSON(http.StatusNotFound, gin.H{"error": "РћСЂРёРіРёРЅР°Р»СЊРЅС‹Р№ С„Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -75,21 +76,35 @@ func main() {
 
 	r := gin.Default()
 
+	// Internal access middleware (API key + IP whitelist)
+	internalAPIKey := os.Getenv("INTERNAL_API_KEY")
+	internalAuth := func(c *gin.Context) {
+		if internalAPIKey != "" && c.GetHeader("X-API-Key") == internalAPIKey {
+			c.Next()
+			return
+		}
+		if isInternalIP(c.ClientIP()) {
+			c.Next()
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+	}
+
 	// Serve static files
 	r.Static("/static", "./static")
 
 	// Main page - monitoring dashboard
-	r.GET("/", func(c *gin.Context) {
+	r.GET("/", internalAuth, func(c *gin.Context) {
 		c.File("./static/index.html")
 	})
 
-	// Health check endpoint
+	// Health check endpoint (no auth — used by Docker healthcheck)
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "monitoring-service"})
 	})
 
 	// API endpoints
-	api := r.Group("/api/v1")
+	api := r.Group("/api/v1", internalAuth)
 	{
 		api.GET("/status", ms.getServicesStatus)
 		api.GET("/status/:service", ms.getServiceStatus)
@@ -496,4 +511,25 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 		}
 	}
 	return defaultValue
+}
+
+// isInternalIP checks if the IP is from internal Docker networks
+func isInternalIP(ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		return false
+	}
+	if parsedIP.IsLoopback() {
+		return true
+	}
+	for _, network := range []string{"172.16.0.0/12", "10.0.0.0/8", "192.168.0.0/16"} {
+		_, cidr, err := net.ParseCIDR(network)
+		if err != nil {
+			continue
+		}
+		if cidr.Contains(parsedIP) {
+			return true
+		}
+	}
+	return false
 }

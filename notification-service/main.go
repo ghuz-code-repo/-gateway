@@ -209,21 +209,24 @@ func main() {
 		"127.0.0.1",      // localhost
 	})
 
-	// Add IP whitelist middleware
+	// Add internal access middleware (IP whitelist + API key)
+	internalAPIKey := os.Getenv("INTERNAL_API_KEY")
 	router.Use(func(c *gin.Context) {
-		clientIP := c.ClientIP()
-
-		// Allow only internal Docker networks
-		allowed := isInternalIP(clientIP)
-
-		if !allowed {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error": "Access denied",
-			})
+		// Allow if valid API key is provided
+		if internalAPIKey != "" && c.GetHeader("X-API-Key") == internalAPIKey {
+			c.Next()
 			return
 		}
 
-		c.Next()
+		// Fallback: allow internal Docker networks
+		if isInternalIP(c.ClientIP()) {
+			c.Next()
+			return
+		}
+
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error": "Access denied",
+		})
 	})
 
 	// Setup routes
@@ -568,8 +571,9 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 		"smtp_use_tls":                       dbConfig.SMTPUseTLS,
 		"smtp_use_auth":                      dbConfig.SMTPUseAuth,
 		"smtp_auth_method":                   dbConfig.SMTPAuthMethod,
-		"telegram_bot_token":                 dbConfig.TelegramBotToken,
-		"telegram_system_bot_token":          dbConfig.TelegramSystemBotToken,
+		"smtp_password_set":                  dbConfig.SMTPPassword != "",
+		"telegram_bot_token_set":             dbConfig.TelegramBotToken != "",
+		"telegram_system_bot_token_set":      dbConfig.TelegramSystemBotToken != "",
 		"telegram_enabled":                   dbConfig.TelegramEnabled,
 		"telegram_system_enabled":            dbConfig.TelegramSystemEnabled,
 		"system_email_recipient":             dbConfig.SystemEmailRecipient,

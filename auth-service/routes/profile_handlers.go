@@ -166,8 +166,8 @@ func changePasswordHandler(c *gin.Context) {
 	}
 
 	// Validate new password
-	if len(newPassword) < 6 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Пароль должен содержать не менее 6 символов"})
+	if err := models.ValidatePassword(newPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

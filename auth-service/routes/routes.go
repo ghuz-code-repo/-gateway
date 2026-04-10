@@ -1,4 +1,4 @@
-package routes
+﻿package routes
 
 import (
 	"auth-service/models"
@@ -54,7 +54,7 @@ func SetupAllRoutes(router *gin.Engine) {
 
 	}
 
-	// Services Health API — accessible by authenticated users (used by dashboard UI)
+	// Services Health API вЂ” accessible by authenticated users (used by dashboard UI)
 	router.GET("/api/services/health", authRequired(), getServicesHealthHandler)
 
 	// Start health check monitor in background
@@ -233,7 +233,7 @@ func accessDeniedHandler(c *gin.Context) {
 	c.HTML(http.StatusForbidden, "access-denied.html", gin.H{
 		"service":  service,
 		"redirect": redirect,
-		"title":    "Доступ запрещен",
+		"title":    "Р”РѕСЃС‚СѓРї Р·Р°РїСЂРµС‰РµРЅ",
 	})
 }
 
@@ -241,11 +241,11 @@ func accessDeniedHandler(c *gin.Context) {
 func getUserDocumentsAPIHandler(c *gin.Context) {
 	userID := c.Param("userId")
 
-	log.Printf("DEBUG getUserDocumentsAPIHandler: Getting documents for user %s", userID)
+	debugLog("DEBUG getUserDocumentsAPIHandler: Getting documents for user %s", userID)
 
 	documents, err := models.GetUserDocuments(userID)
 	if err != nil {
-		log.Printf("DEBUG getUserDocumentsAPIHandler: User %s not found or has no documents: %v", userID, err)
+		debugLog("DEBUG getUserDocumentsAPIHandler: User %s not found or has no documents: %v", userID, err)
 		// Return empty result instead of error for users without documents
 		c.JSON(http.StatusOK, gin.H{
 			"user_id":   userID,
@@ -254,7 +254,7 @@ func getUserDocumentsAPIHandler(c *gin.Context) {
 		return
 	}
 
-	log.Printf("DEBUG getUserDocumentsAPIHandler: Found %d documents for user %s", len(documents), userID)
+	debugLog("DEBUG getUserDocumentsAPIHandler: Found %d documents for user %s", len(documents), userID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"user_id":   userID,
@@ -279,8 +279,8 @@ func getUserProfileAPIHandler(c *gin.Context) {
 		"full_name":            user.FullName,
 		"first_name":           user.FirstName,
 		"last_name":            user.LastName,
-		"middle_name":          user.MiddleName, // Отчество
-		"suffix":               user.Suffix,     // Частица (O`G`LI, QIZI)
+		"middle_name":          user.MiddleName, // РћС‚С‡РµСЃС‚РІРѕ
+		"suffix":               user.Suffix,     // Р§Р°СЃС‚РёС†Р° (O`G`LI, QIZI)
 		"phone":                user.Phone,
 		"avatar_path":          user.AvatarPath,
 		"passport_number":      user.PassportNumber,
@@ -342,11 +342,11 @@ func getUserDocumentsGroupedAPIHandler(c *gin.Context) {
 // Higher number means higher priority
 func getDocumentPriority(docType string) int {
 	switch docType {
-	case "passport": // Узбекский паспорт - высший приоритет
+	case "passport": // РЈР·Р±РµРєСЃРєРёР№ РїР°СЃРїРѕСЂС‚ - РІС‹СЃС€РёР№ РїСЂРёРѕСЂРёС‚РµС‚
 		return 3
-	case "passport_ru": // Российский паспорт
+	case "passport_ru": // Р РѕСЃСЃРёР№СЃРєРёР№ РїР°СЃРїРѕСЂС‚
 		return 2
-	case "pinfl": // ПИНФЛ - низший приоритет
+	case "pinfl": // РџРРќР¤Р› - РЅРёР·С€РёР№ РїСЂРёРѕСЂРёС‚РµС‚
 		return 1
 	default:
 		return 0
@@ -360,11 +360,11 @@ func getUserDocumentsForServiceAPIHandler(c *gin.Context) {
 	userID := c.Param("userId")
 	serviceKey := c.Param("serviceKey")
 
-	log.Printf("DEBUG getUserDocumentsForServiceAPIHandler: Getting documents for user %s, service %s", userID, serviceKey)
+	debugLog("DEBUG getUserDocumentsForServiceAPIHandler: Getting documents for user %s, service %s", userID, serviceKey)
 
 	documents, err := models.GetUserDocuments(userID)
 	if err != nil {
-		log.Printf("DEBUG getUserDocumentsForServiceAPIHandler: User %s not found or has no documents: %v", userID, err)
+		debugLog("DEBUG getUserDocumentsForServiceAPIHandler: User %s not found or has no documents: %v", userID, err)
 		// Return empty result instead of error for users without documents
 		c.JSON(http.StatusOK, gin.H{
 			"user_id":               userID,
@@ -374,7 +374,7 @@ func getUserDocumentsForServiceAPIHandler(c *gin.Context) {
 		return
 	}
 
-	log.Printf("DEBUG getUserDocumentsForServiceAPIHandler: Found %d documents for user %s", len(documents), userID)
+	debugLog("DEBUG getUserDocumentsForServiceAPIHandler: Found %d documents for user %s", len(documents), userID)
 
 	// Group documents by document_group and filter by service
 	serviceDocuments := make(map[string]interface{})
@@ -461,7 +461,7 @@ func getUserDocumentsForServiceAPIHandler(c *gin.Context) {
 		}
 	}
 
-	log.Printf("DEBUG getUserDocumentsForServiceAPIHandler: Returning %d document groups for user %s, service %s", len(finalDocuments), userID, serviceKey)
+	debugLog("DEBUG getUserDocumentsForServiceAPIHandler: Returning %d document groups for user %s, service %s", len(finalDocuments), userID, serviceKey)
 
 	c.JSON(http.StatusOK, gin.H{
 		"user_id":               userID,

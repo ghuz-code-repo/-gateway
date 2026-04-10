@@ -278,8 +278,7 @@ func main() {
 		}
 	})
 
-	// Serve other data files normally (documents, etc.)
-	router.Static("/data", "./data")
+	// NOTE: /data is served through nginx with auth_request — no direct static serving here
 
 	// Set up custom template functions
 	router.SetFuncMap(setupTemplateFunc())

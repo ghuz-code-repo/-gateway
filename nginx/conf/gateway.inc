@@ -43,7 +43,13 @@ server {
     resolver_timeout 5s;
 
     client_max_body_size 100M;
-    add_header X-Debug-Message "Request processed by Nginx" always;
+
+    # Security headers — applied to all responses
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'" always;
 
     # Common proxy headers — inherited by all location blocks
     proxy_set_header Host $host;
@@ -55,10 +61,10 @@ server {
     # FAVICON CONFIGURATION
     # ================================================================
     
-    # Insert favicon with unique tag
-    # sub_filter_types defaults to text/html — no need to redeclare
-    sub_filter_once off;
+    # Insert favicon into HTML responses only
+    # Scoped via sub_filter_types (text/html is the default)
     sub_filter '</head>' '<link rel="icon" type="image/x-icon" href="/vite.svg?v=2" data-version="golden-house-v2"></head>';
+    sub_filter_once on;
     
     # Main favicon endpoints - proxy to auth-service
     location = /vite.svg {
@@ -217,7 +223,7 @@ server {
         proxy_buffering off;
         proxy_cache off;
         
-        # Security headers
+        # Security headers for Dozzle (override DENY — needs SAMEORIGIN for iframe)
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header X-Content-Type-Options "nosniff" always;
     }
@@ -281,7 +287,7 @@ server {
         proxy_buffering off;
         proxy_cache off;
         
-        # Security headers
+        # Security headers for Dozzle service logs (override DENY — needs SAMEORIGIN for iframe)
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header X-Content-Type-Options "nosniff" always;
     }

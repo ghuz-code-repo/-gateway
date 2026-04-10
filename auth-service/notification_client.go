@@ -44,6 +44,25 @@ type BatchNotificationRequest struct {
 	BatchID       string                `json:"batch_id,omitempty"`
 }
 
+// newRequest creates an HTTP request with the internal API key header
+func (nc *NotificationClient) newRequest(method, url string, body *bytes.Buffer) (*http.Request, error) {
+	var req *http.Request
+	var err error
+	if body != nil {
+		req, err = http.NewRequest(method, url, body)
+	} else {
+		req, err = http.NewRequest(method, url, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey := os.Getenv("INTERNAL_API_KEY"); apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+	return req, nil
+}
+
 // SendEmailNotification sends a single email notification through the notification service
 func (nc *NotificationClient) SendEmailNotification(to, subject, body string) error {
 	notification := NotificationRequest{
@@ -58,7 +77,12 @@ func (nc *NotificationClient) SendEmailNotification(to, subject, body string) er
 		return fmt.Errorf("failed to marshal notification: %v", err)
 	}
 
-	resp, err := nc.client.Post(nc.BaseURL+"/api/v1/notifications", "application/json", bytes.NewBuffer(jsonData))
+	req, err := nc.newRequest("POST", nc.BaseURL+"/api/v1/notifications", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create notification request: %v", err)
+	}
+
+	resp, err := nc.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send notification request: %v", err)
 	}
@@ -84,7 +108,12 @@ func (nc *NotificationClient) SendBatchEmailNotifications(notifications []Notifi
 		return fmt.Errorf("failed to marshal batch notification: %v", err)
 	}
 
-	resp, err := nc.client.Post(nc.BaseURL+"/api/v1/notifications/batch", "application/json", bytes.NewBuffer(jsonData))
+	req, err := nc.newRequest("POST", nc.BaseURL+"/api/v1/notifications/batch", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create batch request: %v", err)
+	}
+
+	resp, err := nc.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send batch notification request: %v", err)
 	}

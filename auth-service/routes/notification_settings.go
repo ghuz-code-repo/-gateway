@@ -1,4 +1,4 @@
-package routes
+﻿package routes
 
 import (
 	"bytes"
@@ -36,18 +36,35 @@ type NotificationSettings struct {
 	DelayBetweenMessagesMS          int    `json:"delay_between_messages_ms" form:"delay_between_messages_ms"`
 }
 
+// notificationServiceRequest creates an HTTP request to the notification service with API key
+func notificationServiceRequest(method, path string, body []byte) (*http.Response, error) {
+	baseURL := os.Getenv("NOTIFICATION_SERVICE_URL")
+	if baseURL == "" {
+		baseURL = "http://notification-service:80"
+	}
+	var req *http.Request
+	var err error
+	if body != nil {
+		req, err = http.NewRequest(method, baseURL+path, bytes.NewBuffer(body))
+	} else {
+		req, err = http.NewRequest(method, baseURL+path, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey := os.Getenv("INTERNAL_API_KEY"); apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+	return http.DefaultClient.Do(req)
+}
+
 // getNotificationSettings displays the notification settings page
 func getNotificationSettings(c *gin.Context) {
-	// Get current settings from notification service
-	notificationServiceURL := os.Getenv("NOTIFICATION_SERVICE_URL")
-	if notificationServiceURL == "" {
-		notificationServiceURL = "http://notification-service:80"
-	}
-
 	var currentSettings NotificationSettings
 
 	// Try to get current config from notification service
-	resp, err := http.Get(notificationServiceURL + "/api/v1/config")
+	resp, err := notificationServiceRequest("GET", "/api/v1/config", nil)
 	if err != nil {
 		log.Printf("Failed to get notification service config: %v", err)
 		// Use default values
@@ -78,7 +95,7 @@ func getNotificationSettings(c *gin.Context) {
 	c.HTML(http.StatusOK, "notification-settings.html", gin.H{
 		"user":     user,
 		"settings": currentSettings,
-		"title":    "Настройки сервиса уведомлений",
+		"title":    "РќР°СЃС‚СЂРѕР№РєРё СЃРµСЂРІРёСЃР° СѓРІРµРґРѕРјР»РµРЅРёР№",
 	})
 }
 
@@ -88,7 +105,7 @@ func updateNotificationSettings(c *gin.Context) {
 
 	// Log incoming request body for debugging
 	body, _ := c.GetRawData()
-	log.Printf("DEBUG: Received notification settings data: %s", string(body))
+	debugLog("DEBUG: Received notification settings data: %s", string(body))
 
 	// Restore body for binding
 	c.Request.Body = io.NopCloser(strings.NewReader(string(body)))
@@ -102,7 +119,7 @@ func updateNotificationSettings(c *gin.Context) {
 		return
 	}
 
-	log.Printf("DEBUG: Parsed settings: %+v", settings)
+	debugLog("DEBUG: Parsed settings: %+v", settings)
 
 	// Update notification service configuration
 	err := updateNotificationServiceConfig(settings)
@@ -119,7 +136,7 @@ func updateNotificationSettings(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Настройки сервиса уведомлений успешно обновлены",
+		"message": "РќР°СЃС‚СЂРѕР№РєРё СЃРµСЂРІРёСЃР° СѓРІРµРґРѕРјР»РµРЅРёР№ СѓСЃРїРµС€РЅРѕ РѕР±РЅРѕРІР»РµРЅС‹",
 	})
 }
 
@@ -139,16 +156,11 @@ func testNotificationSettings(c *gin.Context) {
 	testNotification := map[string]interface{}{
 		"type":      "email",
 		"recipient": testEmail,
-		"subject":   "Тест настроек уведомлений",
-		"content":   "Это тестовое сообщение для проверки настроек сервиса уведомлений. Если вы получили это письмо, настройки работают корректно!",
+		"subject":   "РўРµСЃС‚ РЅР°СЃС‚СЂРѕРµРє СѓРІРµРґРѕРјР»РµРЅРёР№",
+		"content":   "Р­С‚Рѕ С‚РµСЃС‚РѕРІРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ РґР»СЏ РїСЂРѕРІРµСЂРєРё РЅР°СЃС‚СЂРѕРµРє СЃРµСЂРІРёСЃР° СѓРІРµРґРѕРјР»РµРЅРёР№. Р•СЃР»Рё РІС‹ РїРѕР»СѓС‡РёР»Рё СЌС‚Рѕ РїРёСЃСЊРјРѕ, РЅР°СЃС‚СЂРѕР№РєРё СЂР°Р±РѕС‚Р°СЋС‚ РєРѕСЂСЂРµРєС‚РЅРѕ!",
 	}
 
 	// Send to notification service
-	notificationServiceURL := os.Getenv("NOTIFICATION_SERVICE_URL")
-	if notificationServiceURL == "" {
-		notificationServiceURL = "http://notification-service:80"
-	}
-
 	jsonData, err := json.Marshal(testNotification)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -158,7 +170,7 @@ func testNotificationSettings(c *gin.Context) {
 		return
 	}
 
-	resp, err := http.Post(notificationServiceURL+"/api/v1/notifications", "application/json", bytes.NewBuffer(jsonData))
+	resp, err := notificationServiceRequest("POST", "/api/v1/notifications", jsonData)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -180,7 +192,7 @@ func testNotificationSettings(c *gin.Context) {
 	if resp.StatusCode == 202 {
 		c.JSON(http.StatusOK, gin.H{
 			"success":         true,
-			"message":         fmt.Sprintf("Тестовое уведомление отправлено на %s", testEmail),
+			"message":         fmt.Sprintf("РўРµСЃС‚РѕРІРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ РѕС‚РїСЂР°РІР»РµРЅРѕ РЅР° %s", testEmail),
 			"notification_id": result["id"],
 		})
 	} else {
@@ -275,11 +287,6 @@ func mapToNotificationSettings(config map[string]interface{}) NotificationSettin
 }
 
 func updateNotificationServiceConfig(settings NotificationSettings) error {
-	notificationServiceURL := os.Getenv("NOTIFICATION_SERVICE_URL")
-	if notificationServiceURL == "" {
-		notificationServiceURL = "http://notification-service:80"
-	}
-
 	// Convert settings to map for JSON
 	configMap := map[string]interface{}{
 		"smtp_host":                          settings.SMTPHost,
@@ -307,7 +314,7 @@ func updateNotificationServiceConfig(settings NotificationSettings) error {
 		return fmt.Errorf("failed to marshal config: %v", err)
 	}
 
-	resp, err := http.Post(notificationServiceURL+"/api/v1/config", "application/json", bytes.NewBuffer(jsonData))
+	resp, err := notificationServiceRequest("POST", "/api/v1/config", jsonData)
 	if err != nil {
 		return fmt.Errorf("failed to send config update: %v", err)
 	}

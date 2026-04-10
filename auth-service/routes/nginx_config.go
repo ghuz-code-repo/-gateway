@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -311,23 +311,34 @@ func WriteMasterConfig(configPath string, activeServices []models.ServiceInstanc
 
 // ReloadNginx safely reloads nginx configuration
 func ReloadNginx(containerName string) error {
-	// First, test the configuration
-	testCmd := exec.Command("docker", "exec", containerName, "nginx", "-t")
-	output, err := testCmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("nginx config test failed: %v\nOutput: %s", err, string(output))
+	// Use Docker API to send SIGHUP signal for graceful reload
+	// This avoids needing EXEC permission on the docker-socket-proxy
+	dockerHost := os.Getenv("DOCKER_HOST")
+	if dockerHost == "" {
+		dockerHost = "tcp://docker-socket-proxy:2375"
 	}
 
-	log.Printf("Nginx config test passed: %s", string(output))
+	// Convert tcp:// to http:// for HTTP client
+	apiURL := strings.Replace(dockerHost, "tcp://", "http://", 1)
+	killURL := fmt.Sprintf("%s/containers/%s/kill?signal=HUP", apiURL, containerName)
 
-	// Reload nginx gracefully
-	reloadCmd := exec.Command("docker", "exec", containerName, "nginx", "-s", "reload")
-	output, err = reloadCmd.CombinedOutput()
+	req, err := http.NewRequest("POST", killURL, nil)
 	if err != nil {
-		return fmt.Errorf("nginx reload failed: %v\nOutput: %s", err, string(output))
+		return fmt.Errorf("failed to create reload request: %v", err)
 	}
 
-	log.Printf("Nginx reloaded successfully: %s", string(output))
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("nginx reload failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 204 {
+		return fmt.Errorf("nginx reload returned status %d", resp.StatusCode)
+	}
+
+	log.Printf("Nginx reloaded successfully via SIGHUP signal")
 	return nil
 }
 

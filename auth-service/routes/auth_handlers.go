@@ -1,4 +1,4 @@
-package routes
+﻿package routes
 
 import (
 	"auth-service/models"
@@ -14,13 +14,23 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// isDebugMode is set once at init вЂ” DEBUG logs are suppressed in production
+var isDebugMode = os.Getenv("ENVIRONMENT") != "production"
+
+// debugLog logs only when not in production (avoids PII leaks in logs)
+func debugLog(format string, args ...interface{}) {
+	if isDebugMode {
+		log.Printf(format, args...)
+	}
+}
+
 // loginPageHandler serves the login page
 func loginPageHandler(c *gin.Context) {
 	message := c.Query("message")
 	var successMessage string
 
 	if message == "password_reset_success" {
-		successMessage = "Пароль успешно изменен! Теперь вы можете войти с новым паролем."
+		successMessage = "РџР°СЂРѕР»СЊ СѓСЃРїРµС€РЅРѕ РёР·РјРµРЅРµРЅ! РўРµРїРµСЂСЊ РІС‹ РјРѕР¶РµС‚Рµ РІРѕР№С‚Рё СЃ РЅРѕРІС‹Рј РїР°СЂРѕР»РµРј."
 	}
 
 	c.HTML(http.StatusOK, "login_clean.html", gin.H{
@@ -48,11 +58,11 @@ func loginHandler(c *gin.Context) {
 
 	// Check if user is banned
 	if user.IsBanned {
-		banMessage := "Ваш аккаунт заблокирован"
+		banMessage := "Р’Р°С€ Р°РєРєР°СѓРЅС‚ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ"
 		if user.BanReason != "" {
-			banMessage += ". Причина: " + user.BanReason
+			banMessage += ". РџСЂРёС‡РёРЅР°: " + user.BanReason
 		}
-		banMessage += ". Обратитесь к администратору для разблокировки."
+		banMessage += ". РћР±СЂР°С‚РёС‚РµСЃСЊ Рє Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂСѓ РґР»СЏ СЂР°Р·Р±Р»РѕРєРёСЂРѕРІРєРё."
 
 		// Record failed login attempt for banned users
 		RecordFailedLogin(c.ClientIP())
@@ -77,7 +87,7 @@ func loginHandler(c *gin.Context) {
 	// Secure flag: true for production (requires HTTPS)
 	isProduction := os.Getenv("ENVIRONMENT") == "production"
 	c.SetSameSite(http.SameSiteLaxMode)                                   // Protection against CSRF
-	c.SetCookie("token", tokenString, 86400, "/", "", isProduction, true) // 24 hours, httpOnly, secure in production
+	c.SetCookie("token", tokenString, 28800, "/", "", isProduction, true) // 8 hours, httpOnly, secure in production
 
 	// Reset rate limit on successful login
 	ResetLoginAttempts(c.ClientIP())
@@ -133,14 +143,14 @@ func verifyAdminHandler(c *gin.Context) {
 
 // verifyHandler checks if a request is authenticated and has permission for the requested service
 func verifyHandler(c *gin.Context) {
-	log.Printf("DEBUG verifyHandler: incoming request from %s", c.ClientIP())
+	debugLog("DEBUG verifyHandler: incoming request from %s", c.ClientIP())
 	cookie, err := c.Cookie("token")
 	if err != nil {
-		log.Printf("DEBUG verifyHandler: no token cookie found: %v", err)
+		debugLog("DEBUG verifyHandler: no token cookie found: %v", err)
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	log.Printf("DEBUG verifyHandler: found token cookie, length: %d", len(cookie))
+	debugLog("DEBUG verifyHandler: found token cookie, length: %d", len(cookie))
 
 	// Parse and validate token
 	// Use validateToken for consistent blacklist checking
@@ -156,11 +166,11 @@ func verifyHandler(c *gin.Context) {
 		path = c.Request.URL.Path
 	}
 
-	log.Printf("DEBUG verifyHandler: X-Original-URI='%s', path='%s'", c.Request.Header.Get("X-Original-URI"), path)
+	debugLog("DEBUG verifyHandler: X-Original-URI='%s', path='%s'", c.Request.Header.Get("X-Original-URI"), path)
 
 	pathParts := strings.Split(path, "/")
 	if len(pathParts) < 2 {
-		log.Printf("DEBUG verifyHandler: pathParts too short: %v", pathParts)
+		debugLog("DEBUG verifyHandler: pathParts too short: %v", pathParts)
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
@@ -174,7 +184,7 @@ func verifyHandler(c *gin.Context) {
 		}
 	}
 
-	log.Printf("DEBUG verifyHandler: determined service='%s' from pathParts=%v", service, pathParts)
+	debugLog("DEBUG verifyHandler: determined service='%s' from pathParts=%v", service, pathParts)
 
 	// Get user info
 	user, err := models.GetUserByID(claims.UserID)
@@ -186,17 +196,17 @@ func verifyHandler(c *gin.Context) {
 	// Get user's roles and permissions for this service according to ADR-001
 	serviceRoles, err := models.GetUserServiceRolesFromCollection(claims.UserID, service)
 	if err != nil {
-		log.Printf("DEBUG verifyHandler: error getting service roles: %v", err)
+		debugLog("DEBUG verifyHandler: error getting service roles: %v", err)
 		serviceRoles = []string{} // Default to empty if error
 	}
 
 	servicePermissions, err := models.GetUserServicePermissions(claims.UserID, service)
 	if err != nil {
-		log.Printf("DEBUG verifyHandler: error getting service permissions: %v", err)
+		debugLog("DEBUG verifyHandler: error getting service permissions: %v", err)
 		servicePermissions = []string{} // Default to empty if error
 	}
 
-	log.Printf("DEBUG verifyHandler: user '%s', service '%s', serviceRoles: %v, servicePermissions: %v", user.Username, service, serviceRoles, servicePermissions)
+	debugLog("DEBUG verifyHandler: user '%s', service '%s', serviceRoles: %v, servicePermissions: %v", user.Username, service, serviceRoles, servicePermissions)
 
 	// Check if user has any access to this service
 	if len(serviceRoles) == 0 && len(servicePermissions) == 0 {
@@ -220,7 +230,7 @@ func verifyHandler(c *gin.Context) {
 
 	// Base64 encode the full name to preserve non-ASCII characters
 	fullName := user.GetFullName()
-	log.Printf("DEBUG verifyHandler: user.FullName='%s', user.LastName='%s', user.FirstName='%s', user.MiddleName='%s', calculated fullName='%s'",
+	debugLog("DEBUG verifyHandler: user.FullName='%s', user.LastName='%s', user.FirstName='%s', user.MiddleName='%s', calculated fullName='%s'",
 		user.FullName, user.LastName, user.FirstName, user.MiddleName, fullName)
 	encodedFullName := base64.StdEncoding.EncodeToString([]byte(fullName))
 	c.Header("X-User-Full-Name", encodedFullName)
@@ -234,9 +244,9 @@ func verifyHandler(c *gin.Context) {
 	// Add email header
 	if user.Email != "" {
 		c.Header("X-User-Email", user.Email)
-		log.Printf("DEBUG verifyHandler: Setting X-User-Email header: '%s'", user.Email)
+		debugLog("DEBUG verifyHandler: Setting X-User-Email header: '%s'", user.Email)
 	} else {
-		log.Printf("DEBUG verifyHandler: User email is empty, not setting X-User-Email header")
+		debugLog("DEBUG verifyHandler: User email is empty, not setting X-User-Email header")
 	}
 
 	// Add phone header
@@ -245,77 +255,77 @@ func verifyHandler(c *gin.Context) {
 	}
 
 	// Extract document data and add headers
-	log.Printf("DEBUG verifyHandler: Starting document data extraction for user '%s'", user.Username)
+	debugLog("DEBUG verifyHandler: Starting document data extraction for user '%s'", user.Username)
 	passportData := extractDocumentFields(user, "passport")
 	pinflData := extractDocumentFields(user, "pinfl")
 	bankData := extractDocumentFields(user, "bank_details")
-	log.Printf("DEBUG verifyHandler: Document extraction complete: passport=%d fields, pinfl=%d fields, bank=%d fields", len(passportData), len(pinflData), len(bankData))
+	debugLog("DEBUG verifyHandler: Document extraction complete: passport=%d fields, pinfl=%d fields, bank=%d fields", len(passportData), len(pinflData), len(bankData))
 
 	// Add passport data headers
 	if user.PassportNumber != "" {
 		c.Header("X-User-Passport-Number", user.PassportNumber)
-		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Number from user.PassportNumber: '%s'", user.PassportNumber)
+		debugLog("DEBUG verifyHandler: Set X-User-Passport-Number from user.PassportNumber: '%s'", user.PassportNumber)
 	} else if passportData["passport_number"] != nil {
 		headerValue := fmt.Sprintf("%v", passportData["passport_number"])
 		c.Header("X-User-Passport-Number", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Number from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Passport-Number from document: '%s'", headerValue)
 	}
 
 	if user.PassportIssuedBy != "" {
 		c.Header("X-User-Passport-Giver", user.PassportIssuedBy)
-		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Giver from user.PassportIssuedBy: '%s'", user.PassportIssuedBy)
+		debugLog("DEBUG verifyHandler: Set X-User-Passport-Giver from user.PassportIssuedBy: '%s'", user.PassportIssuedBy)
 	} else if passportData["passport_giver"] != nil {
 		headerValue := fmt.Sprintf("%v", passportData["passport_giver"])
 		c.Header("X-User-Passport-Giver", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Giver from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Passport-Giver from document: '%s'", headerValue)
 	}
 
 	if user.PassportIssuedDate != nil {
 		headerValue := user.PassportIssuedDate.Format("2006-01-02")
 		c.Header("X-User-Passport-Date", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Date from user.PassportIssuedDate: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Passport-Date from user.PassportIssuedDate: '%s'", headerValue)
 	} else if passportData["passport_date"] != nil {
 		headerValue := fmt.Sprintf("%v", passportData["passport_date"])
 		c.Header("X-User-Passport-Date", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Date from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Passport-Date from document: '%s'", headerValue)
 	}
 
 	if user.Address != "" {
 		c.Header("X-User-Passport-Address", user.Address)
-		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Address from user.Address: '%s'", user.Address)
+		debugLog("DEBUG verifyHandler: Set X-User-Passport-Address from user.Address: '%s'", user.Address)
 	} else if passportData["passport_address"] != nil {
 		headerValue := fmt.Sprintf("%v", passportData["passport_address"])
 		c.Header("X-User-Passport-Address", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Passport-Address from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Passport-Address from document: '%s'", headerValue)
 	}
 
 	// Add PINFL header
 	if pinflData["pinfl"] != nil {
 		headerValue := fmt.Sprintf("%v", pinflData["pinfl"])
 		c.Header("X-User-PINFL", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-PINFL from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-PINFL from document: '%s'", headerValue)
 	}
 
 	// Add bank data headers
 	if bankData["bank_name"] != nil {
 		headerValue := fmt.Sprintf("%v", bankData["bank_name"])
 		c.Header("X-User-Bank-Name", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Bank-Name from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Bank-Name from document: '%s'", headerValue)
 	}
 	if bankData["card_number"] != nil {
 		headerValue := fmt.Sprintf("%v", bankData["card_number"])
 		c.Header("X-User-Bank-Card", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Bank-Card from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Bank-Card from document: '%s'", headerValue)
 	}
 	if bankData["mfo"] != nil {
 		headerValue := fmt.Sprintf("%v", bankData["mfo"])
 		c.Header("X-User-Bank-MFO", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Bank-MFO from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Bank-MFO from document: '%s'", headerValue)
 	}
 	if bankData["trans_schet"] != nil {
 		headerValue := fmt.Sprintf("%v", bankData["trans_schet"])
 		c.Header("X-User-Bank-Account", headerValue)
-		log.Printf("DEBUG verifyHandler: Set X-User-Bank-Account from document: '%s'", headerValue)
+		debugLog("DEBUG verifyHandler: Set X-User-Bank-Account from document: '%s'", headerValue)
 	}
 
 	// ADR-001: New service-scoped headers
@@ -328,7 +338,7 @@ func verifyHandler(c *gin.Context) {
 		c.Header("X-User-Admin", "true")
 	}
 
-	log.Printf("DEBUG verifyHandler: FINAL HEADERS - X-User-Full-Name: '%s', X-User-Avatar: '%s', X-User-Email: '%s', X-User-Service-Roles: '%s', X-User-Service-Permissions: '%s'",
+	debugLog("DEBUG verifyHandler: FINAL HEADERS - X-User-Full-Name: '%s', X-User-Avatar: '%s', X-User-Email: '%s', X-User-Service-Roles: '%s', X-User-Service-Permissions: '%s'",
 		encodedFullName, user.AvatarPath, user.Email, strings.Join(serviceRoles, ","), strings.Join(servicePermissions, ","))
 
 	c.Status(http.StatusOK)
@@ -342,34 +352,34 @@ func forgotPasswordPageHandler(c *gin.Context) {
 // forgotPasswordHandler handles forgot password form submission
 func forgotPasswordHandler(c *gin.Context) {
 	identifier := c.PostForm("identifier")
-	log.Printf("DEBUG: Forgot password request for identifier: %s", identifier)
+	debugLog("DEBUG: Forgot password request for identifier: %s", identifier)
 
 	if identifier == "" {
 		c.HTML(http.StatusBadRequest, "forgot-password.html", gin.H{
-			"error": "Email или имя пользователя обязательны",
+			"error": "Email РёР»Рё РёРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹",
 		})
 		return
 	}
 
 	// Check if user exists by email or username
-	log.Printf("DEBUG: Looking up user by identifier: %s", identifier)
+	debugLog("DEBUG: Looking up user by identifier: %s", identifier)
 	user, err := models.GetUserByEmailOrUsername(identifier)
 	if err != nil || user == nil {
 		// Don't reveal if user exists or not for security
-		log.Printf("DEBUG: User not found for identifier: %s (err: %v)", identifier, err)
+		debugLog("DEBUG: User not found for identifier: %s (err: %v)", identifier, err)
 		c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
-			"success": "Если учетная запись с таким email или именем пользователя существует, мы отправили ссылку для восстановления пароля",
+			"success": "Р•СЃР»Рё СѓС‡РµС‚РЅР°СЏ Р·Р°РїРёСЃСЊ СЃ С‚Р°РєРёРј email РёР»Рё РёРјРµРЅРµРј РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ СЃСѓС‰РµСЃС‚РІСѓРµС‚, РјС‹ РѕС‚РїСЂР°РІРёР»Рё СЃСЃС‹Р»РєСѓ РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РїР°СЂРѕР»СЏ",
 		})
 		return
 	}
 
-	log.Printf("DEBUG: User found: %s (email: %s)", user.Username, user.Email)
+	debugLog("DEBUG: User found: %s (email: %s)", user.Username, user.Email)
 
 	// Check if user has a valid email address
 	if user.Email == "" {
 		log.Printf("User %s does not have an email address configured", user.Username)
 		c.HTML(http.StatusBadRequest, "forgot-password-result.html", gin.H{
-			"error":            "У данной учетной записи не настроен email адрес. Обратитесь к администратору для настройки email или восстановления пароля.",
+			"error":            "РЈ РґР°РЅРЅРѕР№ СѓС‡РµС‚РЅРѕР№ Р·Р°РїРёСЃРё РЅРµ РЅР°СЃС‚СЂРѕРµРЅ email Р°РґСЂРµСЃ. РћР±СЂР°С‚РёС‚РµСЃСЊ Рє Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂСѓ РґР»СЏ РЅР°СЃС‚СЂРѕР№РєРё email РёР»Рё РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РїР°СЂРѕР»СЏ.",
 			"support_email":    os.Getenv("SUPPORT_EMAIL"),
 			"support_telegram": os.Getenv("SUPPORT_TELEGRAM"),
 		})
@@ -377,18 +387,18 @@ func forgotPasswordHandler(c *gin.Context) {
 	}
 
 	// Create password reset token using user's email
-	log.Printf("DEBUG: Creating password reset token for email: %s", user.Email)
+	debugLog("DEBUG: Creating password reset token for email: %s", user.Email)
 	token, err := models.CreatePasswordResetToken(user.Email)
 	if err != nil {
 		log.Printf("Error creating password reset token: %v", err)
 		c.HTML(http.StatusInternalServerError, "forgot-password-result.html", gin.H{
-			"error": fmt.Sprintf("Произошла ошибка при создании токена восстановления: %v", err),
+			"error": fmt.Sprintf("РџСЂРѕРёР·РѕС€Р»Р° РѕС€РёР±РєР° РїСЂРё СЃРѕР·РґР°РЅРёРё С‚РѕРєРµРЅР° РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ: %v", err),
 		})
 		return
 	}
 	// Security: Don't log tokens in production
 	if os.Getenv("ENVIRONMENT") != "production" {
-		log.Printf("DEBUG: Password reset token created for email: %s", user.Email)
+		debugLog("DEBUG: Password reset token created for email: %s", user.Email)
 	} else {
 		log.Printf("Password reset token created for user: %s", user.Username)
 	}
@@ -400,14 +410,14 @@ func forgotPasswordHandler(c *gin.Context) {
 	}
 
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", baseURL, token.Token)
-	log.Printf("DEBUG: Reset link generated: %s", resetLink)
+	debugLog("DEBUG: Reset link generated: %s", resetLink)
 
 	// Send email with reset link using template
 	emailSubject, emailBody := models.GetPasswordResetEmail(user.FullName, resetLink)
-	log.Printf("DEBUG: Email template prepared, subject: %s", emailSubject)
+	debugLog("DEBUG: Email template prepared, subject: %s", emailSubject)
 
 	// Try to send email
-	log.Printf("DEBUG: Calling SendEmailNotificationNew for: %s", user.Email)
+	debugLog("DEBUG: Calling SendEmailNotificationNew for: %s", user.Email)
 	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
 	if err != nil {
 		log.Printf("Failed to send password reset email to %s: %v", user.Email, err)
@@ -420,7 +430,7 @@ func forgotPasswordHandler(c *gin.Context) {
 	log.Printf("Password reset email sent successfully to %s", user.Email)
 
 	c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
-		"success": "Ссылка для восстановления пароля отправлена на ваш email. Проверьте почту и папку спам.",
+		"success": "РЎСЃС‹Р»РєР° РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РїР°СЂРѕР»СЏ РѕС‚РїСЂР°РІР»РµРЅР° РЅР° РІР°С€ email. РџСЂРѕРІРµСЂСЊС‚Рµ РїРѕС‡С‚Сѓ Рё РїР°РїРєСѓ СЃРїР°Рј.",
 	})
 }
 
@@ -430,7 +440,7 @@ func resetPasswordPageHandler(c *gin.Context) {
 
 	if token == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Токен восстановления не указан",
+			"error":     "РўРѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РЅРµ СѓРєР°Р·Р°РЅ",
 			"show_form": false,
 		})
 		return
@@ -440,7 +450,7 @@ func resetPasswordPageHandler(c *gin.Context) {
 	_, err := models.ValidatePasswordResetToken(token)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Недействительный или истекший токен восстановления",
+			"error":     "РќРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅС‹Р№ РёР»Рё РёСЃС‚РµРєС€РёР№ С‚РѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ",
 			"show_form": false,
 		})
 		return
@@ -460,7 +470,7 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if token == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Токен восстановления не указан",
+			"error":     "РўРѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РЅРµ СѓРєР°Р·Р°РЅ",
 			"token":     token,
 			"show_form": false,
 		})
@@ -471,7 +481,7 @@ func resetPasswordHandler(c *gin.Context) {
 	_, err := models.ValidatePasswordResetToken(token)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Недействительный или истекший токен восстановления",
+			"error":     "РќРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅС‹Р№ РёР»Рё РёСЃС‚РµРєС€РёР№ С‚РѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ",
 			"show_form": false,
 		})
 		return
@@ -479,7 +489,7 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if newPassword == "" || confirmPassword == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Все поля обязательны для заполнения",
+			"error":     "Р’СЃРµ РїРѕР»СЏ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹ РґР»СЏ Р·Р°РїРѕР»РЅРµРЅРёСЏ",
 			"token":     token,
 			"show_form": true,
 		})
@@ -488,16 +498,16 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if newPassword != confirmPassword {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Пароли не совпадают",
+			"error":     "РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚",
 			"token":     token,
 			"show_form": true,
 		})
 		return
 	}
 
-	if len(newPassword) < 6 {
+	if err := models.ValidatePassword(newPassword); err != nil {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Пароль должен содержать не менее 6 символов",
+			"error":     err.Error(),
 			"token":     token,
 			"show_form": true,
 		})
@@ -509,7 +519,7 @@ func resetPasswordHandler(c *gin.Context) {
 	if err != nil {
 		log.Printf("Error using password reset token: %v", err)
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Не удалось сбросить пароль. Токен может быть недействительным или истекшим",
+			"error":     "РќРµ СѓРґР°Р»РѕСЃСЊ СЃР±СЂРѕСЃРёС‚СЊ РїР°СЂРѕР»СЊ. РўРѕРєРµРЅ РјРѕР¶РµС‚ Р±С‹С‚СЊ РЅРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅС‹Рј РёР»Рё РёСЃС‚РµРєС€РёРј",
 			"show_form": false,
 		})
 		return
@@ -523,13 +533,13 @@ func resetPasswordHandler(c *gin.Context) {
 func extractDocumentFields(user *models.User, documentType string) map[string]interface{} {
 	result := make(map[string]interface{})
 
-	log.Printf("DEBUG extractDocumentFields: Looking for documentType='%s', user has %d documents", documentType, len(user.Documents))
+	debugLog("DEBUG extractDocumentFields: Looking for documentType='%s', user has %d documents", documentType, len(user.Documents))
 
 	var candidateDocuments []models.UserDocument
 
 	// Collect all documents of the required type
 	for _, doc := range user.Documents {
-		log.Printf("DEBUG extractDocumentFields: Found document type='%s', allowed_services=%v", doc.DocumentType, doc.AllowedServices)
+		debugLog("DEBUG extractDocumentFields: Found document type='%s', allowed_services=%v", doc.DocumentType, doc.AllowedServices)
 		if doc.DocumentType == documentType ||
 			strings.HasPrefix(doc.DocumentType, documentType+"_") {
 			candidateDocuments = append(candidateDocuments, doc)
@@ -537,7 +547,7 @@ func extractDocumentFields(user *models.User, documentType string) map[string]in
 	}
 
 	if len(candidateDocuments) == 0 {
-		log.Printf("DEBUG extractDocumentFields: No documents found for type '%s'", documentType)
+		debugLog("DEBUG extractDocumentFields: No documents found for type '%s'", documentType)
 		return result
 	}
 
@@ -564,16 +574,16 @@ func extractDocumentFields(user *models.User, documentType string) map[string]in
 	// Take the document with highest priority
 	bestDoc := candidateDocuments[0]
 
-	log.Printf("DEBUG extractDocumentFields: Selected best document: type=%s, status=%s, allowed_services=%v",
+	debugLog("DEBUG extractDocumentFields: Selected best document: type=%s, status=%s, allowed_services=%v",
 		bestDoc.DocumentType, bestDoc.Status, bestDoc.AllowedServices)
 
 	// Extract fields from the best document
 	for key, value := range bestDoc.Fields {
 		result[strings.ToLower(key)] = value
-		log.Printf("DEBUG extractDocumentFields: Added field '%s'='%v'", strings.ToLower(key), value)
+		debugLog("DEBUG extractDocumentFields: Added field '%s'='%v'", strings.ToLower(key), value)
 	}
 
-	log.Printf("DEBUG extractDocumentFields: Returning %d fields for type '%s': %v", len(result), documentType, result)
+	debugLog("DEBUG extractDocumentFields: Returning %d fields for type '%s': %v", len(result), documentType, result)
 	return result
 }
 

@@ -79,7 +79,7 @@ services:
       - MONGO_APP_PASSWORD=${MONGO_APP_PASSWORD}
       - TZ=Asia/Tashkent
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "-u", "mongoadmin", "-p", "${MONGO_ROOT_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.runCommand('ping').ok"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok", "mongodb://mongoadmin:$${MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/admin"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -114,11 +114,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - TZ=Asia/Tashkent
-      # Only allow container-related operations (exec for nginx reload, logs for dozzle)
+      # Only allow container-related operations (logs for dozzle, signal for nginx reload)
       - CONTAINERS=1
       - INFO=1          # Required for dozzle v10+ (GET /info on startup)
-      - POST=1          # Required for docker exec
-      - EXEC=1          # Required for docker exec
+      - POST=1          # Required for container kill (SIGHUP for nginx reload)
+      - EXEC=0          # Disabled — nginx reload uses SIGHUP signal instead
       - LOG=1           # Required for dozzle log streaming
       - EVENTS=1        # Required for dozzle real-time updates
       # Block everything else
@@ -178,7 +178,12 @@ networks:
   service_network:
     name: service_network
     driver: bridge
-    internal: false  # Разрешаем исходящие подключения (для внешних API, etc)
+    internal: true  # Изолирована от внешнего мира
+  
+  # Сеть для сервисов, которым нужен выход в интернет (SMTP, Telegram API)
+  egress_network:
+    name: egress_network
+    driver: bridge
   
   # Изолированная сеть для auth-service и MongoDB
   data_network:
