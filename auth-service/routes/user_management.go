@@ -70,7 +70,7 @@ func listUsersHandler(c *gin.Context) {
 	users, err := models.GetAllUsers()
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№",
+			"error": "Не удалось получить пользователей",
 		})
 		return
 	}
@@ -82,7 +82,7 @@ func listUsersHandler(c *gin.Context) {
 	importedCount := c.Query("imported")
 
 	c.HTML(http.StatusOK, "users_list.html", gin.H{
-		"title":          "РЈРїСЂР°РІР»РµРЅРёРµ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏРјРё",
+		"title":          "Управление пользователями",
 		"usersWithRoles": usersWithRoles,
 		"username":       user.Username,
 		"full_name":      user.GetFullName(),
@@ -98,7 +98,7 @@ func showUserFormHandler(c *gin.Context) {
 	roles, err := models.GetSystemRoles()
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЂРѕР»Рё",
+			"error": "Не удалось получить роли",
 		})
 		return
 	}
@@ -107,13 +107,13 @@ func showUserFormHandler(c *gin.Context) {
 	services, err := models.GetAllServicesWithRolesForTemplate()
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРµСЂРІРёСЃС‹ Рё РёС… СЂРѕР»Рё",
+			"error": "Не удалось получить сервисы и их роли",
 		})
 		return
 	}
 
 	c.HTML(http.StatusOK, "user_form.html", gin.H{
-		"title":      "РЎРѕР·РґР°С‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+		"title":      "Создать пользователя",
 		"roles":      roles,
 		"services":   services,
 		"username":   user.Username,
@@ -133,14 +133,14 @@ func createUserHandler(c *gin.Context) {
 			c.Redirect(http.StatusFound, "/access-denied")
 			return
 		}
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "РќРµС‚ РїСЂР°РІ РґР»СЏ СЃРѕР·РґР°РЅРёСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№"})
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для создания пользователей"})
 		return
 	}
 
 	if c.Request.Method == "GET" {
 		roles, _ := models.GetSystemRoles()
 		c.HTML(http.StatusOK, "user_form.html", gin.H{
-			"title":      "РЎРѕР·РґР°С‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+			"title":      "Создать пользователя",
 			"roles":      roles,
 			"username":   user.Username,
 			"full_name":  user.GetFullName(),
@@ -193,7 +193,7 @@ func createUserHandler(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "РћС€РёР±РєР° РїСЂРё С…РµС€РёСЂРѕРІР°РЅРёРё РїР°СЂРѕР»СЏ",
+			"error":   "Ошибка при хешировании пароля",
 		})
 		return
 	}
@@ -204,7 +204,7 @@ func createUserHandler(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ: " + err.Error(),
+			"error":   "Не удалось создать пользователя: " + err.Error(),
 		})
 		return
 	}
@@ -281,21 +281,21 @@ func createUserHandler(c *gin.Context) {
 	}
 
 	// Send email notification to new user (CRITICAL)
-	emailSubject := "Р’Р°С€ Р°РєРєР°СѓРЅС‚ СЃРѕР·РґР°РЅ РІ СЃРёСЃС‚РµРјРµ Golden House"
-	emailBody := fmt.Sprintf(`Р—РґСЂР°РІСЃС‚РІСѓР№С‚Рµ!
+	emailSubject := "Ваш аккаунт создан в системе Golden House"
+	emailBody := fmt.Sprintf(`Здравствуйте!
 
-Р”Р»СЏ РІР°СЃ Р±С‹Р» СЃРѕР·РґР°РЅ Р°РєРєР°СѓРЅС‚ РІ СЃРёСЃС‚РµРјРµ Golden House.
+Для вас был создан аккаунт в системе Golden House.
 
-Р”Р°РЅРЅС‹Рµ РґР»СЏ РІС…РѕРґР°:
+Данные для входа:
 - Email: %s
-- РџР°СЂРѕР»СЊ: %s
+- Пароль: %s
 
-Р РµРєРѕРјРµРЅРґСѓРµРј СЃРјРµРЅРёС‚СЊ РїР°СЂРѕР»СЊ РїРѕСЃР»Рµ РїРµСЂРІРѕРіРѕ РІС…РѕРґР°.
+Рекомендуем сменить пароль после первого входа.
 
-РЎСЃС‹Р»РєР° РґР»СЏ РІС…РѕРґР°: https://analytics.gh.uz/login
+Ссылка для входа: https://analytics.gh.uz/login
 
-РЎ СѓРІР°Р¶РµРЅРёРµРј,
-РљРѕРјР°РЅРґР° Golden House`, email, password)
+С уважением,
+Команда Golden House`, email, password)
 
 	// Try to send email with retry mechanism
 	const maxRetries = 3
@@ -334,14 +334,14 @@ func createUserHandler(c *gin.Context) {
 		fallbackSubject := "РљР РРўРР§РќРћ: РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ email РЅРѕРІРѕРјСѓ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ"
 		fallbackBody := fmt.Sprintf(`Р’РќРРњРђРќРР•! РљСЂРёС‚РёС‡РµСЃРєР°СЏ РѕС€РёР±РєР° РїСЂРё СЃРѕР·РґР°РЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.
 
-РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃРѕР·РґР°РЅ, РЅРѕ РќР• РїРѕР»СѓС‡РёР» email СЃ РґР°РЅРЅС‹РјРё РґР»СЏ РІС…РѕРґР°:
+Пользователь создан, но НЕ получил email с данными для входа:
 - Email: %s
 - Username: %s
-- РџР°СЂРѕР»СЊ: %s
+- Пароль: %s
 
-РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё: %v
+Ошибка отправки: %v
 
-РўР Р•Р‘РЈР•РўРЎРЇ Р РЈР§РќРђРЇ РћРўРџР РђР’РљРђ Р”РђРќРќР«РҐ РџРћР›Р¬Р—РћР’РђРўР•Р›Р®!`, email, username, password, lastError)
+ТРЕБУЕТСЯ РУЧНАЯ ОТПРАВКА ДАННЫХ ПОЛЬЗОВАТЕЛЮ!`, email, username, password, lastError)
 
 		adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
 		if adminErr != nil {
@@ -351,14 +351,14 @@ func createUserHandler(c *gin.Context) {
 		// Return error - user creation should fail if email can't be sent
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃРѕР·РґР°РЅ, РЅРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ email СѓРІРµРґРѕРјР»РµРЅРёРµ. РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ СѓРІРµРґРѕРјР»РµРЅ.",
+			"error":   "Пользователь создан, но не удалось отправить email уведомление. Администратор уведомлен.",
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":  true,
-		"message":  "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СѓСЃРїРµС€РЅРѕ СЃРѕР·РґР°РЅ Рё СѓРІРµРґРѕРјР»РµРЅ РїРѕ email",
+		"message":  "Пользователь успешно создан и уведомлен по email",
 		"redirect": "/users/" + userID.Hex(),
 	})
 }
@@ -369,18 +369,18 @@ func getUserHandler(c *gin.Context) {
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID пользователя"})
 		return
 	}
 
 	user, err := models.GetUserByObjectID(objectID)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Пользователь не найден"})
 		return
 	}
 
 	c.HTML(http.StatusOK, "user_edit.html", gin.H{
-		"title":      "Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+		"title":      "Редактировать пользователя",
 		"editUser":   user,
 		"username":   currentUser.Username,
 		"full_name":  currentUser.GetFullName(),
@@ -394,7 +394,7 @@ func updateUserHandler(c *gin.Context) {
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Неверный ID пользователя"})
 		return
 	}
 
@@ -403,7 +403,7 @@ func updateUserHandler(c *gin.Context) {
 
 	// SECURITY: Check permission to edit users
 	if !hasAuthPermission(currentUser, "auth.users.edit") && !hasAuthPermission(currentUser, "auth.*") {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "РќРµС‚ РїСЂР°РІ РґР»СЏ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№"})
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для редактирования пользователей"})
 		return
 	}
 
@@ -427,7 +427,7 @@ func updateUserHandler(c *gin.Context) {
 	// Get existing user
 	existingUser, err := models.GetUserByID(objectID.Hex())
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "Пользователь не найден"})
 		return
 	}
 
@@ -454,7 +454,7 @@ func updateUserHandler(c *gin.Context) {
 	if password != "" {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "РћС€РёР±РєР° РїСЂРё С…РµС€РёСЂРѕРІР°РЅРёРё РїР°СЂРѕР»СЏ"})
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при хешировании пароля"})
 			return
 		}
 		updatedUser.Password = string(hashedPassword)
@@ -464,7 +464,7 @@ func updateUserHandler(c *gin.Context) {
 	err = models.UpdateUserComplete(*updatedUser)
 	if err != nil {
 		log.Printf("Error updating user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Не удалось обновить пользователя: " + err.Error()})
 		return
 	}
 
@@ -610,27 +610,27 @@ func updateUserHandler(c *gin.Context) {
 
 	// Send email notification if data or password changed
 	if dataChanged || passwordChanged {
-		emailSubject := "Р’Р°С€ Р°РєРєР°СѓРЅС‚ РѕР±РЅРѕРІР»РµРЅ РІ СЃРёСЃС‚РµРјРµ Golden House"
-		emailBody := fmt.Sprintf(`Р—РґСЂР°РІСЃС‚РІСѓР№С‚Рµ!
+		emailSubject := "Ваш аккаунт обновлен в системе Golden House"
+		emailBody := fmt.Sprintf(`Здравствуйте!
 
-Р’Р°С€ Р°РєРєР°СѓРЅС‚ РІ СЃРёСЃС‚РµРјРµ Golden House Р±С‹Р» РѕР±РЅРѕРІР»РµРЅ.
+Ваш аккаунт в системе Golden House был обновлен.
 
 Email: %s`, updatedUser.Email)
 
 		if passwordChanged {
 			emailBody += fmt.Sprintf(`
 
-РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ: %s
+Новый пароль: %s
 
-Р РµРєРѕРјРµРЅРґСѓРµРј СЃРјРµРЅРёС‚СЊ РїР°СЂРѕР»СЊ РїРѕСЃР»Рµ РІС…РѕРґР°.`, password)
+Рекомендуем сменить пароль после входа.`, password)
 		}
 
 		emailBody += `
 
-РЎСЃС‹Р»РєР° РґР»СЏ РІС…РѕРґР°: https://analytics.gh.uz/login
+Ссылка для входа: https://analytics.gh.uz/login
 
-РЎ СѓРІР°Р¶РµРЅРёРµРј,
-РљРѕРјР°РЅРґР° Golden House`
+С уважением,
+Команда Golden House`
 
 		// Try to send email with retry mechanism
 		const maxRetries = 3
@@ -667,18 +667,18 @@ Email: %s`, updatedUser.Email)
 			fallbackSubject := "РљР РРўРР§РќРћ: РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ email РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"
 			fallbackBody := fmt.Sprintf(`Р’РќРРњРђРќРР•! РљСЂРёС‚РёС‡РµСЃРєР°СЏ РѕС€РёР±РєР° РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.
 
-РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕР±РЅРѕРІР»РµРЅ, РЅРѕ РќР• РїРѕР»СѓС‡РёР» email СѓРІРµРґРѕРјР»РµРЅРёРµ:
+Пользователь обновлен, но НЕ получил email уведомление:
 - Email: %s
 - Username: %s`, updatedUser.Email, updatedUser.Username)
 
 			if passwordChanged {
 				fallbackBody += fmt.Sprintf(`
-- РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ: %s`, password)
+- Новый пароль: %s`, password)
 			}
 
 			fallbackBody += fmt.Sprintf(`
 
-РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё: %v
+Ошибка отправки: %v
 
 РўР Р•Р‘РЈР•РўРЎРЇ Р РЈР§РќРћР• РЈР’Р•Р”РћРњР›Р•РќРР• РџРћР›Р¬Р—РћР’РђРўР•Р›РЇ!`, lastError)
 
@@ -690,21 +690,21 @@ Email: %s`, updatedUser.Email)
 			// Return error - update should fail if email can't be sent and data/password changed
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
-				"error":   "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕР±РЅРѕРІР»РµРЅ, РЅРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ email СѓРІРµРґРѕРјР»РµРЅРёРµ. РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ СѓРІРµРґРѕРјР»РµРЅ.",
+				"error":   "Пользователь обновлен, но не удалось отправить email уведомление. Администратор уведомлен.",
 			})
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{
 			"success":  true,
-			"message":  "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СѓСЃРїРµС€РЅРѕ РѕР±РЅРѕРІР»РµРЅ Рё СѓРІРµРґРѕРјР»РµРЅ РїРѕ email",
+			"message":  "Пользователь успешно обновлен и уведомлен по email",
 			"redirect": "/users/" + objectID.Hex(),
 		})
 	} else {
 		// No significant changes, no email needed
 		c.JSON(http.StatusOK, gin.H{
 			"success":  true,
-			"message":  "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СѓСЃРїРµС€РЅРѕ РѕР±РЅРѕРІР»РµРЅ",
+			"message":  "Пользователь успешно обновлен",
 			"redirect": "/users/" + objectID.Hex(),
 		})
 	}
@@ -717,9 +717,9 @@ func deleteUserHandler(c *gin.Context) {
 	// Check permission to delete users
 	if !hasAuthPermission(user, "auth.users.delete") && !hasAuthPermission(user, "auth.*") {
 		if c.GetHeader("Content-Type") == "application/json" || c.GetHeader("Accept") == "application/json" {
-			c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "РЈ РІР°СЃ РЅРµС‚ РїСЂР°РІ РґР»СЏ СѓРґР°Р»РµРЅРёСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№"})
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "У вас нет прав для удаления пользователей"})
 		} else {
-			c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "РЈ РІР°СЃ РЅРµС‚ РїСЂР°РІ РґР»СЏ СѓРґР°Р»РµРЅРёСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№"})
+			c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "У вас нет прав для удаления пользователей"})
 		}
 		return
 	}
@@ -730,9 +730,9 @@ func deleteUserHandler(c *gin.Context) {
 	if err != nil {
 		// Check if this is an AJAX request
 		if c.GetHeader("Content-Type") == "application/json" || c.GetHeader("Accept") == "application/json" {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Неверный формат ID пользователя"})
 		} else {
-			c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+			c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Неверный формат ID пользователя"})
 		}
 		return
 	}
@@ -741,10 +741,10 @@ func deleteUserHandler(c *gin.Context) {
 	if err != nil {
 		// Check if this is an AJAX request
 		if c.GetHeader("Content-Type") == "application/json" || c.GetHeader("Accept") == "application/json" {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Не удалось удалить пользователя: " + err.Error()})
 		} else {
 			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-				"error": "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ: " + err.Error(),
+				"error": "Не удалось удалить пользователя: " + err.Error(),
 			})
 		}
 		return
@@ -752,7 +752,7 @@ func deleteUserHandler(c *gin.Context) {
 
 	// Check if this is an AJAX request
 	if c.GetHeader("Content-Type") == "application/json" || c.GetHeader("Accept") == "application/json" {
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СѓСЃРїРµС€РЅРѕ СѓРґР°Р»РµРЅ"})
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Пользователь успешно удален"})
 	} else {
 		c.Redirect(http.StatusFound, "/users")
 	}
@@ -781,7 +781,7 @@ func updateUserEmailPageHandler(c *gin.Context) {
 	username := c.Query("username")
 
 	c.HTML(http.StatusOK, "update-user-email.html", gin.H{
-		"title":        "РћР±РЅРѕРІР»РµРЅРёРµ Email РџРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+		"title":        "Обновление Email Пользователя",
 		"username":     user.Username,
 		"full_name":    user.GetFullName(),
 		"short_name":   user.GetShortName(),
@@ -808,7 +808,7 @@ func updateUserEmailHandler(c *gin.Context) {
 	targetUser, err := models.GetUserByEmailOrUsername(username)
 	if err != nil || targetUser == nil {
 		c.HTML(http.StatusNotFound, "update-user-email.html", gin.H{
-			"error":        "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ",
+			"error":        "Пользователь не найден",
 			"username_val": username,
 			"email_val":    email,
 		})
@@ -820,7 +820,7 @@ func updateUserEmailHandler(c *gin.Context) {
 	if err != nil {
 		log.Printf("Error updating user email: %v", err)
 		c.HTML(http.StatusInternalServerError, "update-user-email.html", gin.H{
-			"error":        "РћС€РёР±РєР° РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё email",
+			"error":        "Ошибка при обновлении email",
 			"username_val": username,
 			"email_val":    email,
 		})
@@ -828,7 +828,7 @@ func updateUserEmailHandler(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "update-user-email.html", gin.H{
-		"success":      "Email РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ СѓСЃРїРµС€РЅРѕ РѕР±РЅРѕРІР»РµРЅ",
+		"success":      "Email пользователя успешно обновлен",
 		"username_val": username,
 		"email_val":    email,
 	})
@@ -839,7 +839,7 @@ func usersManagementHandler(c *gin.Context) {
 	users, err := models.GetAllUsers()
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№",
+			"error": "Не удалось получить пользователей",
 		})
 		return
 	}
@@ -864,7 +864,7 @@ func usersManagementHandler(c *gin.Context) {
 		canDeleteUsers, canBanUsers, canResetPassword, canEditUsers, canCreateUsers)
 
 	c.HTML(http.StatusOK, "users_management.html", gin.H{
-		"title":            "РЈРїСЂР°РІР»РµРЅРёРµ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏРјРё",
+		"title":            "Управление пользователями",
 		"usersWithRoles":   usersWithRoles,
 		"user":             user,
 		"canDeleteUsers":   canDeleteUsers,
@@ -884,32 +884,32 @@ func sendPasswordResetHandler(c *gin.Context) {
 	// SECURITY: Check permission to reset passwords
 	currentUser := c.MustGet("user").(*models.User)
 	if !hasAuthPermission(currentUser, "auth.users.reset_password") && !hasAuthPermission(currentUser, "auth.*") {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "РќРµС‚ РїСЂР°РІ РґР»СЏ СЃР±СЂРѕСЃР° РїР°СЂРѕР»СЏ"})
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для сброса пароля"})
 		return
 	}
 
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Неверный ID пользователя"})
 		return
 	}
 
 	user, err := models.GetUserByID(objectID.Hex())
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "Пользователь не найден"})
 		return
 	}
 
 	if user.Email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "РЈ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РЅРµ СѓРєР°Р·Р°РЅ email РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РїР°СЂРѕР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "У пользователя не указан email для восстановления пароля"})
 		return
 	}
 
 	// Create password reset token using existing logic (same as in forgotPasswordHandler)
 	token, err := models.CreatePasswordResetToken(user.Email)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "РћС€РёР±РєР° РїСЂРё СЃРѕР·РґР°РЅРёРё С‚РѕРєРµРЅР° РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при создании токена восстановления"})
 		return
 	}
 
@@ -920,13 +920,13 @@ func sendPasswordResetHandler(c *gin.Context) {
 	emailSubject, emailBody := models.GetPasswordResetEmail(user.GetFullName(), resetLink)
 	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "РћС€РёР±РєР° РїСЂРё РѕС‚РїСЂР°РІРєРµ email: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при отправке email: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "РўРѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РїР°СЂРѕР»СЏ РѕС‚РїСЂР°РІР»РµРЅ РЅР° email " + user.Email,
+		"message": "Токен восстановления пароля отправлен на email " + user.Email,
 	})
 }
 
@@ -935,14 +935,14 @@ func banUserHandler(c *gin.Context) {
 	// Check permission
 	user := c.MustGet("user").(*models.User)
 	if !hasAuthPermission(user, "auth.users.ban") && !hasAuthPermission(user, "auth.*") {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "РќРµС‚ РїСЂР°РІ РґР»СЏ Р±Р»РѕРєРёСЂРѕРІРєРё РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№"})
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для блокировки пользователей"})
 		return
 	}
 
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Неверный ID пользователя"})
 		return
 	}
 
@@ -951,17 +951,17 @@ func banUserHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "РќРµРІРµСЂРЅС‹Рµ РґР°РЅРЅС‹Рµ Р·Р°РїСЂРѕСЃР°"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Неверные данные запроса"})
 		return
 	}
 
 	err = models.BanUser(objectID, req.Reason)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "РћС€РёР±РєР° РїСЂРё Р±Р»РѕРєРёСЂРѕРІРєРµ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при блокировке пользователя"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ"})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Пользователь заблокирован"})
 }
 
 // unbanUserHandler unbans a user
@@ -969,24 +969,24 @@ func unbanUserHandler(c *gin.Context) {
 	// Check permission
 	user := c.MustGet("user").(*models.User)
 	if !hasAuthPermission(user, "auth.users.ban") && !hasAuthPermission(user, "auth.*") {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "РќРµС‚ РїСЂР°РІ РґР»СЏ СЂР°Р·Р±Р»РѕРєРёСЂРѕРІРєРё РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№"})
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": "Нет прав для разблокировки пользователей"})
 		return
 	}
 
 	userID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Неверный ID пользователя"})
 		return
 	}
 
 	err = models.UnbanUser(objectID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "РћС€РёР±РєР° РїСЂРё СЂР°Р·Р±Р»РѕРєРёСЂРѕРІРєРµ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при разблокировке пользователя"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЂР°Р·Р±Р»РѕРєРёСЂРѕРІР°РЅ"})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Пользователь разблокирован"})
 }
 
 // exportUsersHandler exports all users to Excel
@@ -1163,7 +1163,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 		if err != nil {
 			log.Printf("ERROR: Invalid user ID: %v", err)
 			c.HTML(http.StatusBadRequest, "error.html", gin.H{
-				"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+				"error": "Неверный ID пользователя",
 			})
 			return
 		}
@@ -1172,7 +1172,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 		if err != nil {
 			log.Printf("ERROR: User not found: %v", err)
 			c.HTML(http.StatusNotFound, "error.html", gin.H{
-				"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ",
+				"error": "Пользователь не найден",
 			})
 			return
 		}
@@ -1195,7 +1195,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 		roleCount := len(userServiceRoles)
 
 		templateData := gin.H{
-			"title":         "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+			"title":         "Редактирование пользователя",
 			"editingUser":   &user,
 			"allRoles":      allRoles,
 			"allServices":   allServices,
@@ -1232,7 +1232,7 @@ func showEnhancedUserFormHandler(c *gin.Context) {
 		// Create mode
 		debugLog("DEBUG: Create mode")
 		templateData := gin.H{
-			"title":         "РЎРѕР·РґР°РЅРёРµ РЅРѕРІРѕРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+			"title":         "Создание нового пользователя",
 			"allRoles":      allRoles,
 			"allServices":   allServices,
 			"userRoles":     []models.UserServiceRole{},
@@ -1286,7 +1286,7 @@ func debugUserRolesHandler(c *gin.Context) {
 		if err != nil {
 			log.Printf("ERROR: Invalid user ID: %v", err)
 			c.HTML(http.StatusBadRequest, "error.html", gin.H{
-				"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+				"error": "Неверный ID пользователя",
 			})
 			return
 		}
@@ -1295,7 +1295,7 @@ func debugUserRolesHandler(c *gin.Context) {
 		if err != nil {
 			log.Printf("ERROR: User not found: %v", err)
 			c.HTML(http.StatusNotFound, "error.html", gin.H{
-				"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ",
+				"error": "Пользователь не найден",
 			})
 			return
 		}
@@ -1311,7 +1311,7 @@ func debugUserRolesHandler(c *gin.Context) {
 		isSystemAdmin := models.IsSystemAdmin(user.ID)
 
 		templateData := gin.H{
-			"title":         "Debug: Р РѕР»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+			"title":         "Debug: Роли пользователя",
 			"user":          &user,
 			"allRoles":      allRoles,
 			"allServices":   allServices,
@@ -1324,7 +1324,7 @@ func debugUserRolesHandler(c *gin.Context) {
 		// Create mode
 		debugLog("DEBUG: Create mode")
 		templateData := gin.H{
-			"title":         "РЎРѕР·РґР°РЅРёРµ РЅРѕРІРѕРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
+			"title":         "Создание нового пользователя",
 			"allRoles":      allRoles,
 			"allServices":   allServices,
 			"userRoles":     []models.UserServiceRole{}, // Empty roles for new user
@@ -1340,7 +1340,7 @@ func usersManagementTestHandler(c *gin.Context) {
 	users, err := models.GetAllUsers()
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№",
+			"error": "Не удалось получить пользователей",
 		})
 		return
 	}
@@ -1349,7 +1349,7 @@ func usersManagementTestHandler(c *gin.Context) {
 	usersWithRoles := buildUsersWithRoles(users)
 
 	c.HTML(http.StatusOK, "users_management_test.html", gin.H{
-		"title":          "РўР•РЎРўРћР’РђРЇ СЃС‚СЂР°РЅРёС†Р° СѓРїСЂР°РІР»РµРЅРёСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏРјРё",
+		"title":          "ТЕСТОВАЯ страница управления пользователями",
 		"usersWithRoles": usersWithRoles,
 		"user":           c.MustGet("user").(*models.User),
 	})
@@ -1364,7 +1364,7 @@ func getUserDocumentsByIDHandler(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
@@ -1401,20 +1401,20 @@ func getUserDocumentAttachmentsByIDHandler(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(documentID, "%d", &docIndex); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
 
@@ -1455,22 +1455,22 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("Error parsing JSON: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ РґР°РЅРЅС‹С…"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат данных"})
 		return
 	}
 
 	if req.DocumentType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РўРёРї РґРѕРєСѓРјРµРЅС‚Р° РѕР±СЏР·Р°С‚РµР»РµРЅ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Тип документа обязателен"})
 		return
 	}
 
 	if req.Title == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќР°Р·РІР°РЅРёРµ РґРѕРєСѓРјРµРЅС‚Р° РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Название документа обязательно"})
 		return
 	}
 
 	if len(req.AllowedServices) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Р’С‹Р±РµСЂРёС‚Рµ С…РѕС‚СЏ Р±С‹ РѕРґРёРЅ СЃРµСЂРІРёСЃ РґР»СЏ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Выберите хотя бы один сервис для использования документа"})
 		return
 	}
 
@@ -1478,7 +1478,7 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		log.Printf("Error converting user ID to ObjectID: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
@@ -1495,13 +1495,13 @@ func createUserDocumentHandlerAdmin(c *gin.Context) {
 	// Add document to user
 	if err := models.AddUserDocumentNew(userObjectID, newDoc); err != nil {
 		log.Printf("Error adding document: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё СЃРѕР·РґР°РЅРёРё РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при создании документа"})
 		return
 	}
 
 	log.Printf("Document created successfully by admin for user %s: %s", userID, req.Title)
 	c.JSON(http.StatusCreated, gin.H{
-		"message":       "Р”РѕРєСѓРјРµРЅС‚ СѓСЃРїРµС€РЅРѕ СЃРѕР·РґР°РЅ",
+		"message":       "Документ успешно создан",
 		"document_type": req.DocumentType,
 		"title":         req.Title,
 	})
@@ -1518,20 +1518,20 @@ func getUserDocumentHandlerAdmin(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
 
@@ -1565,7 +1565,7 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("Error parsing JSON: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ РґР°РЅРЅС‹С…"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат данных"})
 		return
 	}
 
@@ -1573,7 +1573,7 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		log.Printf("Error converting user ID to ObjectID: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
@@ -1581,20 +1581,20 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
 
@@ -1615,13 +1615,13 @@ func updateUserDocumentHandlerAdmin(c *gin.Context) {
 
 	if err := models.UpdateUserDocuments(userObjectID, user.Documents); err != nil {
 		log.Printf("Error updating document: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении документа"})
 		return
 	}
 
 	log.Printf("Document %s updated successfully by admin for user %s", docID, userID)
 	c.JSON(http.StatusOK, gin.H{
-		"message":       "Р”РѕРєСѓРјРµРЅС‚ СѓСЃРїРµС€РЅРѕ РѕР±РЅРѕРІР»РµРЅ",
+		"message":       "Документ успешно обновлен",
 		"document_type": req.DocumentType,
 		"title":         req.Title,
 	})
@@ -1638,20 +1638,20 @@ func deleteUserDocumentHandlerAdmin(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
 
@@ -1662,19 +1662,19 @@ func deleteUserDocumentHandlerAdmin(c *gin.Context) {
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		log.Printf("Error converting user ID to ObjectID: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
 	// Update user in database
 	if err := models.UpdateUserDocuments(userObjectID, user.Documents); err != nil {
 		log.Printf("Error updating user documents: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё СѓРґР°Р»РµРЅРёРё РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении документа"})
 		return
 	}
 
 	log.Printf("Document %s deleted successfully for user %s", docID, userID)
-	c.JSON(http.StatusOK, gin.H{"message": "Р”РѕРєСѓРјРµРЅС‚ СѓСЃРїРµС€РЅРѕ СѓРґР°Р»РµРЅ"})
+	c.JSON(http.StatusOK, gin.H{"message": "Документ успешно удален"})
 }
 
 // addDocumentAttachmentHandlerAdmin adds an attachment to a document (admin use)
@@ -1688,7 +1688,7 @@ func addDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	err := c.Request.ParseMultipartForm(99 << 20) // 99 MB max
 	if err != nil {
 		log.Printf("Error parsing multipart form: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РћС€РёР±РєР° РѕР±СЂР°Р±РѕС‚РєРё С„РѕСЂРјС‹"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка обработки формы"})
 		return
 	}
 
@@ -1696,7 +1696,7 @@ func addDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		log.Printf("Error getting file: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Файл не найден"})
 		return
 	}
 	defer file.Close()
@@ -1705,20 +1705,20 @@ func addDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
 
@@ -1739,20 +1739,20 @@ func addDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		log.Printf("Error converting user ID to ObjectID: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
 	// Update user in database
 	if err := models.UpdateUserDocuments(userObjectID, user.Documents); err != nil {
 		log.Printf("Error updating user documents: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РґРѕР±Р°РІР»РµРЅРёРё С„Р°Р№Р»Р°"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при добавлении файла"})
 		return
 	}
 
 	log.Printf("Attachment %s added successfully to document %s for user %s", header.Filename, docID, userID)
 	c.JSON(http.StatusCreated, gin.H{
-		"message":  "Р¤Р°Р№Р» СѓСЃРїРµС€РЅРѕ РґРѕР±Р°РІР»РµРЅ",
+		"message":  "Файл успешно добавлен",
 		"filename": header.Filename,
 		"size":     header.Size,
 	})
@@ -1770,20 +1770,20 @@ func removeDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
 
@@ -1791,7 +1791,7 @@ func removeDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	attachmentObjectID, err := primitive.ObjectIDFromHex(attachmentID)
 	if err != nil {
 		log.Printf("Error converting attachment ID to ObjectID: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID С„Р°Р№Р»Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID файла"})
 		return
 	}
 
@@ -1807,7 +1807,7 @@ func removeDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	}
 
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден"})
 		return
 	}
 
@@ -1815,19 +1815,19 @@ func removeDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		log.Printf("Error converting user ID to ObjectID: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
 	// Update user in database
 	if err := models.UpdateUserDocuments(userObjectID, user.Documents); err != nil {
 		log.Printf("Error updating user documents: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё СѓРґР°Р»РµРЅРёРё С„Р°Р№Р»Р°"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении файла"})
 		return
 	}
 
 	log.Printf("Attachment %s removed successfully from document %s for user %s", attachmentID, docID, userID)
-	c.JSON(http.StatusOK, gin.H{"message": "Р¤Р°Р№Р» СѓСЃРїРµС€РЅРѕ СѓРґР°Р»РµРЅ"})
+	c.JSON(http.StatusOK, gin.H{"message": "Файл успешно удален"})
 }
 
 // downloadDocumentAttachmentHandlerAdmin downloads an attachment (admin use)
@@ -1845,20 +1845,20 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
 
@@ -1866,7 +1866,7 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	attachmentObjectID, err := primitive.ObjectIDFromHex(attachmentID)
 	if err != nil {
 		log.Printf("Error converting attachment ID to ObjectID: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID С„Р°Р№Р»Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID файла"})
 		return
 	}
 
@@ -1883,7 +1883,7 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 
 	if attachment == nil {
 		log.Printf("Attachment not found: %s", attachmentID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден"})
 		return
 	}
 
@@ -1894,7 +1894,7 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	// Check if FilePath is empty
 	if attachment.FilePath == "" {
 		log.Printf("FilePath is empty for attachment %s", attachmentID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р¤Р°Р№Р» РЅРµ Р±С‹Р» Р·Р°РіСЂСѓР¶РµРЅ РЅР° СЃРµСЂРІРµСЂ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не был загружен на сервер"})
 		return
 	}
 
@@ -1919,7 +1919,7 @@ func downloadDocumentAttachmentHandlerAdmin(c *gin.Context) {
 				attachment.FilePath = dataPath
 			} else {
 				log.Printf("File not found in any location. Checked paths: %s, %s, %s", attachment.FilePath, relativePath, dataPath)
-				c.JSON(http.StatusNotFound, gin.H{"error": "Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ РЅР° РґРёСЃРєРµ"})
+				c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден на диске"})
 				return
 			}
 		}
@@ -1947,20 +1947,20 @@ func previewDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
 
 	// Parse document index
 	var docIndex int
 	if _, err := fmt.Sscanf(docID, "%d", &docIndex); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РґРѕРєСѓРјРµРЅС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID документа"})
 		return
 	}
 
 	// Check if document exists
 	if docIndex < 0 || docIndex >= len(user.Documents) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Документ не найден"})
 		return
 	}
 
@@ -1968,7 +1968,7 @@ func previewDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	attachmentObjectID, err := primitive.ObjectIDFromHex(attachmentID)
 	if err != nil {
 		log.Printf("Error converting attachment ID to ObjectID: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID С„Р°Р№Р»Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID файла"})
 		return
 	}
 
@@ -1982,7 +1982,7 @@ func previewDocumentAttachmentHandlerAdmin(c *gin.Context) {
 	}
 
 	if attachment == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Файл не найден"})
 		return
 	}
 

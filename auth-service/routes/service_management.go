@@ -31,7 +31,7 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 	allServices, err := models.GetAllServicesWithOptions(false) // Don't include deleted
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРµСЂРІРёСЃС‹",
+			"error": "Не удалось получить сервисы",
 		})
 		return
 	}
@@ -81,7 +81,7 @@ func listServicesHandlerWithAccess(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "admin_services.html", gin.H{
-		"title":            "РЈРїСЂР°РІР»РµРЅРёРµ СЃРµСЂРІРёСЃР°РјРё",
+		"title":            "Управление сервисами",
 		"services":         managedServices,
 		"username":         user.Username,
 		"full_name":        user.GetFullName(),
@@ -101,13 +101,13 @@ func listServicesHandler(c *gin.Context) {
 	services, err := models.GetAllServicesWithOptions(true) // Include deleted services
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРµСЂРІРёСЃС‹",
+			"error": "Не удалось получить сервисы",
 		})
 		return
 	}
 
 	c.HTML(http.StatusOK, "admin_services.html", gin.H{
-		"title":            "РЈРїСЂР°РІР»РµРЅРёРµ СЃРµСЂРІРёСЃР°РјРё",
+		"title":            "Управление сервисами",
 		"services":         services,
 		"username":         user.Username,
 		"full_name":        user.GetFullName(),
@@ -123,7 +123,7 @@ func showServiceFormHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 
 	c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
-		"title":      "РЎРѕР·РґР°С‚СЊ СЃРµСЂРІРёСЃ",
+		"title":      "Создать сервис",
 		"username":   user.Username,
 		"full_name":  user.GetFullName(),
 		"short_name": user.GetShortName(),
@@ -137,7 +137,7 @@ func createServiceHandler(c *gin.Context) {
 
 	if c.Request.Method == "GET" {
 		c.HTML(http.StatusOK, "admin_service_form.html", gin.H{
-			"title":      "РЎРѕР·РґР°С‚СЊ СЃРµСЂРІРёСЃ",
+			"title":      "Создать сервис",
 			"username":   user.Username,
 			"full_name":  user.GetFullName(),
 			"short_name": user.GetShortName(),
@@ -153,8 +153,8 @@ func createServiceHandler(c *gin.Context) {
 
 	if key == "" || name == "" {
 		c.HTML(http.StatusBadRequest, "admin_service_form.html", gin.H{
-			"title":      "РЎРѕР·РґР°С‚СЊ СЃРµСЂРІРёСЃ",
-			"error":      "РљР»СЋС‡ Рё РЅР°Р·РІР°РЅРёРµ СЃРµСЂРІРёСЃР° РѕР±СЏР·Р°С‚РµР»СЊРЅС‹",
+			"title":      "Создать сервис",
+			"error":      "Ключ и название сервиса обязательны",
 			"key_val":    key,
 			"name_val":   name,
 			"desc_val":   description,
@@ -170,7 +170,7 @@ func createServiceHandler(c *gin.Context) {
 	_, err := models.CreateService(key, name, description, []models.PermissionDef{})
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ СЃРµСЂРІРёСЃ: " + err.Error(),
+			"error": "Не удалось создать сервис: " + err.Error(),
 		})
 		return
 	}
@@ -194,7 +194,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -210,7 +210,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 
 	if !hasAccess {
 		c.HTML(http.StatusForbidden, "error.html", gin.H{
-			"error": "РЈ РІР°СЃ РЅРµС‚ РїСЂР°РІ РґР»СЏ РґРѕСЃС‚СѓРїР° Рє СЌС‚РѕРјСѓ СЃРµСЂРІРёСЃСѓ.",
+			"error": "У вас нет прав для доступа к этому сервису.",
 		})
 		return
 	}
@@ -346,7 +346,7 @@ func getServiceHandlerWithAccess(c *gin.Context) {
 	importSuccess := c.Query("import_success")
 
 	templateData := gin.H{
-		"title":                  "Р”РµС‚Р°Р»Рё СЃРµСЂРІРёСЃР°",
+		"title":                  "Детали сервиса",
 		"service":                service,
 		"serviceRoles":           serviceRoles,
 		"serviceUsers":           serviceUsers,
@@ -400,7 +400,7 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 	// Get service first to check access
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -411,7 +411,7 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 
 	if !hasAccess {
 		c.HTML(http.StatusForbidden, "error.html", gin.H{
-			"error": "РЈ РІР°СЃ РЅРµС‚ РїСЂР°РІ РґР»СЏ РёР·РјРµРЅРµРЅРёСЏ СЌС‚РѕРіРѕ СЃРµСЂРІРёСЃР°.",
+			"error": "У вас нет прав для изменения этого сервиса.",
 		})
 		return
 	}
@@ -424,12 +424,12 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 	confirmKeyChange := c.PostForm("confirmKeyChange")
 
 	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќР°Р·РІР°РЅРёРµ СЃРµСЂРІРёСЃР° РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Название сервиса обязательно"})
 		return
 	}
 
 	if newKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РљР»СЋС‡ СЃРµСЂРІРёСЃР° РѕР±СЏР·Р°С‚РµР»РµРЅ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ключ сервиса обязателен"})
 		return
 	}
 
@@ -450,7 +450,7 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 		// Check if new key already exists
 		existingService, err := models.GetServiceByKey(newKey)
 		if err == nil && existingService.ID != service.ID {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "РЎРµСЂРІРёСЃ СЃ С‚Р°РєРёРј РєР»СЋС‡РѕРј СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Сервис с таким ключом уже существует"})
 			return
 		}
 	}
@@ -458,7 +458,7 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 	// Update service with new key and permissions
 	err = models.UpdateService(service.ID, newKey, name, description, icon, service.AvailablePermissions)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё СЃРµСЂРІРёСЃР°: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении сервиса: " + err.Error()})
 		return
 	}
 
@@ -470,7 +470,7 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 func deleteServiceHandler(c *gin.Context) {
 	// SECURITY: Only system admins can delete services
 	if !c.GetBool("isSystemAdmin") {
-		c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "РЈРґР°Р»РµРЅРёРµ СЃРµСЂРІРёСЃР° РґРѕСЃС‚СѓРїРЅРѕ С‚РѕР»СЊРєРѕ СЃРёСЃС‚РµРјРЅС‹Рј Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°Рј"})
+		c.HTML(http.StatusForbidden, "error.html", gin.H{"error": "Удаление сервиса доступно только системным администраторам"})
 		return
 	}
 
@@ -479,7 +479,7 @@ func deleteServiceHandler(c *gin.Context) {
 	// Verify service exists
 	_, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -487,7 +487,7 @@ func deleteServiceHandler(c *gin.Context) {
 	err = models.SoftDeleteService(serviceKey)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ СЃРµСЂРІРёСЃ: " + err.Error(),
+			"error": "Не удалось удалить сервис: " + err.Error(),
 		})
 		return
 	}
@@ -508,7 +508,7 @@ func restoreServiceHandler(c *gin.Context) {
 	isSystemAdmin := c.GetBool("isSystemAdmin")
 	if !isSystemAdmin {
 		c.HTML(http.StatusForbidden, "error.html", gin.H{
-			"error": "РўРѕР»СЊРєРѕ СЃРёСЃС‚РµРјРЅС‹Р№ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ РјРѕР¶РµС‚ РІРѕСЃСЃС‚Р°РЅР°РІР»РёРІР°С‚СЊ СЃРµСЂРІРёСЃС‹",
+			"error": "Только системный администратор может восстанавливать сервисы",
 		})
 		return
 	}
@@ -517,7 +517,7 @@ func restoreServiceHandler(c *gin.Context) {
 	err := models.RestoreService(serviceKey)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ СЃРµСЂРІРёСЃ: " + err.Error(),
+			"error": "Не удалось восстановить сервис: " + err.Error(),
 		})
 		return
 	}
@@ -538,7 +538,7 @@ func hardDeleteServiceHandler(c *gin.Context) {
 	// Verify service exists (including deleted ones)
 	_, err := models.GetServiceByKeyWithOptions(serviceKey, true)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -546,7 +546,7 @@ func hardDeleteServiceHandler(c *gin.Context) {
 	err = models.HardDeleteService(serviceKey)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРєРѕРЅС‡Р°С‚РµР»СЊРЅРѕ СѓРґР°Р»РёС‚СЊ СЃРµСЂРІРёСЃ: " + err.Error(),
+			"error": "Не удалось окончательно удалить сервис: " + err.Error(),
 		})
 		return
 	}
@@ -574,7 +574,7 @@ func addServicePermissionHandler(c *gin.Context) {
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -588,7 +588,7 @@ func addServicePermissionHandler(c *gin.Context) {
 	// Add permission to service
 	err = models.AddPermissionToService(service.Key, permissionDef)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё РґРѕР±Р°РІР»РµРЅРёРё СЂР°Р·СЂРµС€РµРЅРёСЏ: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при добавлении разрешения: " + err.Error()})
 		return
 	}
 
@@ -611,14 +611,14 @@ func deleteServicePermissionHandler(c *gin.Context) {
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
 	// Remove permission from service (soft delete)
 	err = models.RemovePermissionFromService(service.Key, permissionName)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё СѓРґР°Р»РµРЅРёРё СЂР°Р·СЂРµС€РµРЅРёСЏ: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении разрешения: " + err.Error()})
 		return
 	}
 
@@ -641,7 +641,7 @@ func createServiceRoleHandler(c *gin.Context) {
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		log.Printf("ERROR createServiceRoleHandler: Service not found: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -672,7 +672,7 @@ func createServiceRoleHandler(c *gin.Context) {
 	_, err = models.CreateRole(service.Key, roleName, roleDescription, permissions)
 	if err != nil {
 		log.Printf("ERROR createServiceRoleHandler: Failed to create role: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ СЂРѕР»СЊ: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать роль: " + err.Error()})
 		return
 	}
 
@@ -697,7 +697,7 @@ func updateServiceRoleHandler(c *gin.Context) {
 	}
 
 	if serviceKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РљР»СЋС‡ СЃРµСЂРІРёСЃР° РѕР±СЏР·Р°С‚РµР»РµРЅ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ключ сервиса обязателен"})
 		return
 	}
 
@@ -708,21 +708,21 @@ func updateServiceRoleHandler(c *gin.Context) {
 	log.Printf("updateServiceRoleHandler: newRoleName=%s, roleDescription=%s", newRoleName, roleDescription)
 
 	if newRoleName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРѕРІРѕРµ РёРјСЏ СЂРѕР»Рё РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Новое имя роли обязательно"})
 		return
 	}
 
 	// Validate service exists
 	_, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
 	// Find role by service and name
 	role, err := models.GetRoleByServiceAndName(serviceKey, roleName)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р РѕР»СЊ РЅРµ РЅР°Р№РґРµРЅР°"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
 		return
 	}
 
@@ -732,7 +732,7 @@ func updateServiceRoleHandler(c *gin.Context) {
 	// Update the role
 	err = models.UpdateRole(role.ID, serviceKey, newRoleName, roleDescription, permissions)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ СЂРѕР»СЊ: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить роль: " + err.Error()})
 		return
 	}
 
@@ -750,28 +750,28 @@ func deleteServiceRoleHandler(c *gin.Context) {
 	}
 
 	if serviceKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РљР»СЋС‡ СЃРµСЂРІРёСЃР° РѕР±СЏР·Р°С‚РµР»РµРЅ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ключ сервиса обязателен"})
 		return
 	}
 
 	// Validate service exists
 	_, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
 	// Find role by service and name
 	role, err := models.GetRoleByServiceAndName(serviceKey, roleName)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р РѕР»СЊ РЅРµ РЅР°Р№РґРµРЅР°"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
 		return
 	}
 
 	// Delete role
 	err = models.DeleteRole(role.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїСЂРё СѓРґР°Р»РµРЅРёРё СЂРѕР»Рё: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении роли: " + err.Error()})
 		return
 	}
 
@@ -788,14 +788,14 @@ func getServiceUsersHandler(c *gin.Context) {
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РЎРµСЂРІРёСЃ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
 	// Get users with roles in this service
 	users, err := models.GetUsersWithServiceRoles(service.Key)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения пользователей"})
 		return
 	}
 
@@ -818,7 +818,7 @@ func addUserToServiceHandler(c *gin.Context) {
 	hasServicePerm := models.HasServicePermission(currentUser.ID, serviceKey, models.PermServiceUsersAdd)
 
 	if !isSystemAdmin && !isServiceManager && !hasAuthPerm && !hasServicePerm {
-		c.JSON(http.StatusForbidden, gin.H{"error": "РЈ РІР°СЃ РЅРµС‚ РїСЂР°РІ РЅР° РґРѕР±Р°РІР»РµРЅРёРµ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№ РІ СЌС‚РѕС‚ СЃРµСЂРІРёСЃ"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "У вас нет прав на добавление пользователей в этот сервис"})
 		return
 	}
 
@@ -1121,7 +1121,7 @@ func checkUserExistsHandler(c *gin.Context) {
 		}
 	}
 
-	// РћРїСЂРµРґРµР»СЏРµРј, РµСЃС‚СЊ Р»Рё Сѓ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РґРѕСЃС‚СѓРї Рє СЃРµСЂРІРёСЃСѓ
+	// Определяем, есть ли у пользователя доступ к сервису
 	hasServiceAccess := len(serviceRoles) > 0
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1332,7 +1332,7 @@ func createExternalRoleHandler(c *gin.Context) {
 		!models.HasAuthPermission(user.ID, "auth.external_roles.create") &&
 		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.create") &&
 		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "РќРµС‚ СЂР°Р·СЂРµС€РµРЅРёСЏ РЅР° СЃРѕР·РґР°РЅРёРµ РІРЅРµС€РЅРёС… СЂРѕР»РµР№"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Нет разрешения на создание внешних ролей"})
 		return
 	}
 
@@ -1421,7 +1421,7 @@ func updateExternalRoleHandler(c *gin.Context) {
 		!models.HasAuthPermission(user.ID, "auth.external_roles.edit") &&
 		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.edit") &&
 		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "РќРµС‚ СЂР°Р·СЂРµС€РµРЅРёСЏ РЅР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РІРЅРµС€РЅРёС… СЂРѕР»РµР№"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Нет разрешения на редактирование внешних ролей"})
 		return
 	}
 
@@ -1468,7 +1468,7 @@ func updateExternalRoleHandler(c *gin.Context) {
 		if err == nil && internalConflict != nil && internalConflict.IsInternal() {
 			log.Printf("ERROR updateExternalRoleHandler: name conflict with internal role '%s'", input.Name)
 			c.JSON(http.StatusConflict, gin.H{
-				"error": fmt.Sprintf("Р РѕР»СЊ СЃ РёРјРµРЅРµРј '%s' СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚", input.Name),
+				"error": fmt.Sprintf("Роль с именем '%s' уже существует", input.Name),
 			})
 			return
 		}
@@ -1478,7 +1478,7 @@ func updateExternalRoleHandler(c *gin.Context) {
 			log.Printf("ERROR updateExternalRoleHandler: name conflict - role '%s' already exists for service '%s' (ID=%s)",
 				input.Name, serviceKey, conflicting.ID.Hex())
 			c.JSON(http.StatusConflict, gin.H{
-				"error": fmt.Sprintf("Р РѕР»СЊ СЃ РёРјРµРЅРµРј '%s' СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚", input.Name),
+				"error": fmt.Sprintf("Роль с именем '%s' уже существует", input.Name),
 			})
 			return
 		}
@@ -1523,7 +1523,7 @@ func deleteExternalRoleHandler(c *gin.Context) {
 		!models.HasAuthPermission(user.ID, "auth.external_roles.delete") &&
 		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.delete") &&
 		!models.HasAuthPermission(user.ID, servicePermPrefix+"roles.*") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "РќРµС‚ СЂР°Р·СЂРµС€РµРЅРёСЏ РЅР° СѓРґР°Р»РµРЅРёРµ РІРЅРµС€РЅРёС… СЂРѕР»РµР№"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Нет разрешения на удаление внешних ролей"})
 		return
 	}
 
@@ -1564,7 +1564,7 @@ func getExternalRoleHandler(c *gin.Context) {
 	role, err := models.GetExternalRoleByNameAndService(roleName, serviceKey)
 	if err != nil {
 		log.Printf("ERROR: getExternalRoleHandler - role '%s' not found for service '%s': %v", roleName, serviceKey, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р’РЅРµС€РЅСЏСЏ СЂРѕР»СЊ РЅРµ РЅР°Р№РґРµРЅР° РґР»СЏ РґР°РЅРЅРѕРіРѕ СЃРµСЂРІРёСЃР°"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Внешняя роль не найдена для данного сервиса"})
 		return
 	}
 
@@ -1599,14 +1599,14 @@ func getExternalRoleUsersHandler(c *gin.Context) {
 	_, err := models.GetExternalRoleByNameAndService(roleName, serviceKey)
 	if err != nil {
 		log.Printf("ERROR: getExternalRoleUsersHandler - role '%s' not found for service '%s': %v", roleName, serviceKey, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Р’РЅРµС€РЅСЏСЏ СЂРѕР»СЊ РЅРµ РЅР°Р№РґРµРЅР° РґР»СЏ РґР°РЅРЅРѕРіРѕ СЃРµСЂРІРёСЃР°"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Внешняя роль не найдена для данного сервиса"})
 		return
 	}
 
 	users, err := models.GetUsersByServiceRole("auth", roleName)
 	if err != nil {
 		log.Printf("ERROR: getExternalRoleUsersHandler - error getting users for role %s: %v", roleName, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка загрузки пользователей"})
 		return
 	}
 

@@ -233,7 +233,7 @@ func accessDeniedHandler(c *gin.Context) {
 	c.HTML(http.StatusForbidden, "access-denied.html", gin.H{
 		"service":  service,
 		"redirect": redirect,
-		"title":    "Р”РѕСЃС‚СѓРї Р·Р°РїСЂРµС‰РµРЅ",
+		"title":    "Доступ запрещен",
 	})
 }
 
@@ -279,8 +279,8 @@ func getUserProfileAPIHandler(c *gin.Context) {
 		"full_name":            user.FullName,
 		"first_name":           user.FirstName,
 		"last_name":            user.LastName,
-		"middle_name":          user.MiddleName, // РћС‚С‡РµСЃС‚РІРѕ
-		"suffix":               user.Suffix,     // Р§Р°СЃС‚РёС†Р° (O`G`LI, QIZI)
+		"middle_name":          user.MiddleName, // Отчество
+		"suffix":               user.Suffix,     // Частица (O`G`LI, QIZI)
 		"phone":                user.Phone,
 		"avatar_path":          user.AvatarPath,
 		"passport_number":      user.PassportNumber,
@@ -342,9 +342,9 @@ func getUserDocumentsGroupedAPIHandler(c *gin.Context) {
 // Higher number means higher priority
 func getDocumentPriority(docType string) int {
 	switch docType {
-	case "passport": // РЈР·Р±РµРєСЃРєРёР№ РїР°СЃРїРѕСЂС‚ - РІС‹СЃС€РёР№ РїСЂРёРѕСЂРёС‚РµС‚
+	case "passport": // Узбекский паспорт - высший приоритет
 		return 3
-	case "passport_ru": // Р РѕСЃСЃРёР№СЃРєРёР№ РїР°СЃРїРѕСЂС‚
+	case "passport_ru": // Российский паспорт
 		return 2
 	case "pinfl": // РџРРќР¤Р› - РЅРёР·С€РёР№ РїСЂРёРѕСЂРёС‚РµС‚
 		return 1
