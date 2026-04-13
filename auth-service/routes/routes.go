@@ -54,7 +54,7 @@ func SetupAllRoutes(router *gin.Engine) {
 
 	}
 
-	// Services Health API вЂ” accessible by authenticated users (used by dashboard UI)
+	// Services Health API — accessible by authenticated users (used by dashboard UI)
 	router.GET("/api/services/health", authRequired(), getServicesHealthHandler)
 
 	// Start health check monitor in background

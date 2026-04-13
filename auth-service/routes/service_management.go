@@ -1080,7 +1080,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 
 // checkUserExistsHandler checks if a user exists by username or email
 func checkUserExistsHandler(c *gin.Context) {
-	// Prevent browser from caching this response вЂ” data can change at any time
+	// Prevent browser from caching this response — data can change at any time
 	c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
 	c.Header("Pragma", "no-cache")
 

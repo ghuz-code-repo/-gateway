@@ -244,7 +244,7 @@ func createUserHandler(c *gin.Context) {
 				roleName = parts[1]
 			}
 		} else {
-			log.Printf("WARNING: Legacy dash-separated role format: %s вЂ” skipping (use colon separator)", serviceRole)
+			log.Printf("WARNING: Legacy dash-separated role format: %s — skipping (use colon separator)", serviceRole)
 			continue
 		}
 
@@ -549,7 +549,7 @@ func updateUserHandler(c *gin.Context) {
 				roleName = parts[1]
 			}
 		} else {
-			log.Printf("WARNING: Legacy dash-separated role format: %s вЂ” may be broken for service keys with dashes", serviceRole)
+			log.Printf("WARNING: Legacy dash-separated role format: %s — may be broken for service keys with dashes", serviceRole)
 			// Legacy format with dash - use SplitN (broken for keys like "client-service")
 			parts := strings.SplitN(serviceRole, "-", 2)
 			if len(parts) == 2 {
