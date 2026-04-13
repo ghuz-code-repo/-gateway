@@ -1,4 +1,4 @@
-﻿package routes
+package routes
 
 import (
 	"bytes"
@@ -95,7 +95,7 @@ func getNotificationSettings(c *gin.Context) {
 	c.HTML(http.StatusOK, "notification-settings.html", gin.H{
 		"user":     user,
 		"settings": currentSettings,
-		"title":    "РќР°СЃС‚СЂРѕР№РєРё СЃРµСЂРІРёСЃР° СѓРІРµРґРѕРјР»РµРЅРёР№",
+		"title":    "Настройки сервиса уведомлений",
 	})
 }
 
@@ -136,7 +136,7 @@ func updateNotificationSettings(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "РќР°СЃС‚СЂРѕР№РєРё СЃРµСЂРІРёСЃР° СѓРІРµРґРѕРјР»РµРЅРёР№ СѓСЃРїРµС€РЅРѕ РѕР±РЅРѕРІР»РµРЅС‹",
+		"message": "Настройки сервиса уведомлений успешно обновлены",
 	})
 }
 
@@ -156,8 +156,8 @@ func testNotificationSettings(c *gin.Context) {
 	testNotification := map[string]interface{}{
 		"type":      "email",
 		"recipient": testEmail,
-		"subject":   "РўРµСЃС‚ РЅР°СЃС‚СЂРѕРµРє СѓРІРµРґРѕРјР»РµРЅРёР№",
-		"content":   "Р­С‚Рѕ С‚РµСЃС‚РѕРІРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ РґР»СЏ РїСЂРѕРІРµСЂРєРё РЅР°СЃС‚СЂРѕРµРє СЃРµСЂРІРёСЃР° СѓРІРµРґРѕРјР»РµРЅРёР№. Р•СЃР»Рё РІС‹ РїРѕР»СѓС‡РёР»Рё СЌС‚Рѕ РїРёСЃСЊРјРѕ, РЅР°СЃС‚СЂРѕР№РєРё СЂР°Р±РѕС‚Р°СЋС‚ РєРѕСЂСЂРµРєС‚РЅРѕ!",
+		"subject":   "Тест настроек уведомлений",
+		"content":   "Это тестовое сообщение для проверки настроек сервиса уведомлений. Если вы получили это письмо, настройки работают корректно!",
 	}
 
 	// Send to notification service
@@ -192,7 +192,7 @@ func testNotificationSettings(c *gin.Context) {
 	if resp.StatusCode == 202 {
 		c.JSON(http.StatusOK, gin.H{
 			"success":         true,
-			"message":         fmt.Sprintf("РўРµСЃС‚РѕРІРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ РѕС‚РїСЂР°РІР»РµРЅРѕ РЅР° %s", testEmail),
+			"message":         fmt.Sprintf("Тестовое уведомление отправлено на %s", testEmail),
 			"notification_id": result["id"],
 		})
 	} else {

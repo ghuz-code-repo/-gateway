@@ -1,4 +1,4 @@
-﻿package routes
+package routes
 
 import (
 	"auth-service/models"
@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// isDebugMode is set once at init вЂ” DEBUG logs are suppressed in production
+// isDebugMode is set once at init — DEBUG logs are suppressed in production
 var isDebugMode = os.Getenv("ENVIRONMENT") != "production"
 
 // debugLog logs only when not in production (avoids PII leaks in logs)
@@ -30,7 +30,7 @@ func loginPageHandler(c *gin.Context) {
 	var successMessage string
 
 	if message == "password_reset_success" {
-		successMessage = "РџР°СЂРѕР»СЊ СѓСЃРїРµС€РЅРѕ РёР·РјРµРЅРµРЅ! РўРµРїРµСЂСЊ РІС‹ РјРѕР¶РµС‚Рµ РІРѕР№С‚Рё СЃ РЅРѕРІС‹Рј РїР°СЂРѕР»РµРј."
+		successMessage = "Пароль успешно изменен! Теперь вы можете войти с новым паролем."
 	}
 
 	c.HTML(http.StatusOK, "login_clean.html", gin.H{
@@ -58,11 +58,11 @@ func loginHandler(c *gin.Context) {
 
 	// Check if user is banned
 	if user.IsBanned {
-		banMessage := "Р’Р°С€ Р°РєРєР°СѓРЅС‚ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ"
+		banMessage := "Ваш аккаунт заблокирован"
 		if user.BanReason != "" {
-			banMessage += ". РџСЂРёС‡РёРЅР°: " + user.BanReason
+			banMessage += ". Причина: " + user.BanReason
 		}
-		banMessage += ". РћР±СЂР°С‚РёС‚РµСЃСЊ Рє Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂСѓ РґР»СЏ СЂР°Р·Р±Р»РѕРєРёСЂРѕРІРєРё."
+		banMessage += ". Обратитесь к администратору для разблокировки."
 
 		// Record failed login attempt for banned users
 		RecordFailedLogin(c.ClientIP())
@@ -356,7 +356,7 @@ func forgotPasswordHandler(c *gin.Context) {
 
 	if identifier == "" {
 		c.HTML(http.StatusBadRequest, "forgot-password.html", gin.H{
-			"error": "Email РёР»Рё РёРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹",
+			"error": "Email или имя пользователя обязательны",
 		})
 		return
 	}
@@ -368,7 +368,7 @@ func forgotPasswordHandler(c *gin.Context) {
 		// Don't reveal if user exists or not for security
 		debugLog("DEBUG: User not found for identifier: %s (err: %v)", identifier, err)
 		c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
-			"success": "Р•СЃР»Рё СѓС‡РµС‚РЅР°СЏ Р·Р°РїРёСЃСЊ СЃ С‚Р°РєРёРј email РёР»Рё РёРјРµРЅРµРј РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ СЃСѓС‰РµСЃС‚РІСѓРµС‚, РјС‹ РѕС‚РїСЂР°РІРёР»Рё СЃСЃС‹Р»РєСѓ РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РїР°СЂРѕР»СЏ",
+			"success": "Если учетная запись с таким email или именем пользователя существует, мы отправили ссылку для восстановления пароля",
 		})
 		return
 	}
@@ -379,7 +379,7 @@ func forgotPasswordHandler(c *gin.Context) {
 	if user.Email == "" {
 		log.Printf("User %s does not have an email address configured", user.Username)
 		c.HTML(http.StatusBadRequest, "forgot-password-result.html", gin.H{
-			"error":            "РЈ РґР°РЅРЅРѕР№ СѓС‡РµС‚РЅРѕР№ Р·Р°РїРёСЃРё РЅРµ РЅР°СЃС‚СЂРѕРµРЅ email Р°РґСЂРµСЃ. РћР±СЂР°С‚РёС‚РµСЃСЊ Рє Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂСѓ РґР»СЏ РЅР°СЃС‚СЂРѕР№РєРё email РёР»Рё РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РїР°СЂРѕР»СЏ.",
+			"error":            "У данной учетной записи не настроен email адрес. Обратитесь к администратору для настройки email или восстановления пароля.",
 			"support_email":    os.Getenv("SUPPORT_EMAIL"),
 			"support_telegram": os.Getenv("SUPPORT_TELEGRAM"),
 		})
@@ -392,7 +392,7 @@ func forgotPasswordHandler(c *gin.Context) {
 	if err != nil {
 		log.Printf("Error creating password reset token: %v", err)
 		c.HTML(http.StatusInternalServerError, "forgot-password-result.html", gin.H{
-			"error": fmt.Sprintf("РџСЂРѕРёР·РѕС€Р»Р° РѕС€РёР±РєР° РїСЂРё СЃРѕР·РґР°РЅРёРё С‚РѕРєРµРЅР° РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ: %v", err),
+			"error": fmt.Sprintf("Произошла ошибка при создании токена восстановления: %v", err),
 		})
 		return
 	}
@@ -430,7 +430,7 @@ func forgotPasswordHandler(c *gin.Context) {
 	log.Printf("Password reset email sent successfully to %s", user.Email)
 
 	c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
-		"success": "РЎСЃС‹Р»РєР° РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РїР°СЂРѕР»СЏ РѕС‚РїСЂР°РІР»РµРЅР° РЅР° РІР°С€ email. РџСЂРѕРІРµСЂСЊС‚Рµ РїРѕС‡С‚Сѓ Рё РїР°РїРєСѓ СЃРїР°Рј.",
+		"success": "Ссылка для восстановления пароля отправлена на ваш email. Проверьте почту и папку спам.",
 	})
 }
 
@@ -440,7 +440,7 @@ func resetPasswordPageHandler(c *gin.Context) {
 
 	if token == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "РўРѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РЅРµ СѓРєР°Р·Р°РЅ",
+			"error":     "Токен восстановления не указан",
 			"show_form": false,
 		})
 		return
@@ -450,7 +450,7 @@ func resetPasswordPageHandler(c *gin.Context) {
 	_, err := models.ValidatePasswordResetToken(token)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "РќРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅС‹Р№ РёР»Рё РёСЃС‚РµРєС€РёР№ С‚РѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ",
+			"error":     "Недействительный или истекший токен восстановления",
 			"show_form": false,
 		})
 		return
@@ -470,7 +470,7 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if token == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "РўРѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РЅРµ СѓРєР°Р·Р°РЅ",
+			"error":     "Токен восстановления не указан",
 			"token":     token,
 			"show_form": false,
 		})
@@ -481,7 +481,7 @@ func resetPasswordHandler(c *gin.Context) {
 	_, err := models.ValidatePasswordResetToken(token)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "РќРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅС‹Р№ РёР»Рё РёСЃС‚РµРєС€РёР№ С‚РѕРєРµРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ",
+			"error":     "Недействительный или истекший токен восстановления",
 			"show_form": false,
 		})
 		return
@@ -489,7 +489,7 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if newPassword == "" || confirmPassword == "" {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "Р’СЃРµ РїРѕР»СЏ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹ РґР»СЏ Р·Р°РїРѕР»РЅРµРЅРёСЏ",
+			"error":     "Все поля обязательны для заполнения",
 			"token":     token,
 			"show_form": true,
 		})
@@ -498,7 +498,7 @@ func resetPasswordHandler(c *gin.Context) {
 
 	if newPassword != confirmPassword {
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚",
+			"error":     "Пароли не совпадают",
 			"token":     token,
 			"show_form": true,
 		})
@@ -519,7 +519,7 @@ func resetPasswordHandler(c *gin.Context) {
 	if err != nil {
 		log.Printf("Error using password reset token: %v", err)
 		c.HTML(http.StatusBadRequest, "reset-password.html", gin.H{
-			"error":     "РќРµ СѓРґР°Р»РѕСЃСЊ СЃР±СЂРѕСЃРёС‚СЊ РїР°СЂРѕР»СЊ. РўРѕРєРµРЅ РјРѕР¶РµС‚ Р±С‹С‚СЊ РЅРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅС‹Рј РёР»Рё РёСЃС‚РµРєС€РёРј",
+			"error":     "Не удалось сбросить пароль. Токен может быть недействительным или истекшим",
 			"show_form": false,
 		})
 		return

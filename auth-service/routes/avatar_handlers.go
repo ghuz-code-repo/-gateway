@@ -1,4 +1,4 @@
-﻿package routes
+package routes
 
 import (
 	"auth-service/models"
@@ -520,20 +520,20 @@ func handleCropUpdate(c *gin.Context, user *models.User) {
 func adminUploadAvatarHandler(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµ СѓРєР°Р·Р°РЅ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ID пользователя"})
 		return
 	}
 
 	// Get target user
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
 	targetUser, err := models.GetUserByID(objID.Hex())
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return
 	}
 
@@ -545,7 +545,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	err = c.Request.ParseMultipartForm(99 << 20) // 99MB
 	if err != nil {
 		log.Printf("Failed to parse multipart form: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РћС€РёР±РєР° РѕР±СЂР°Р±РѕС‚РєРё С„РѕСЂРјС‹"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка обработки формы"})
 		return
 	}
 
@@ -564,7 +564,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	file, header, err := c.Request.FormFile("avatar")
 	if err != nil {
 		log.Printf("No file found in request: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Файл не найден"})
 		return
 	}
 	defer file.Close()
@@ -573,7 +573,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 
 	// Validate file size (99MB)
 	if header.Size > 99*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Р¤Р°Р№Р» СЃР»РёС€РєРѕРј Р±РѕР»СЊС€РѕР№ (РјР°РєСЃРёРјСѓРј 99MB)"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Файл слишком большой (максимум 99MB)"})
 		return
 	}
 
@@ -581,7 +581,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	userDir := fmt.Sprintf("./data/%s", targetUser.ID.Hex())
 	if err := os.MkdirAll(userDir, 0755); err != nil {
 		log.Printf("Failed to create user directory: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РґРёСЂРµРєС‚РѕСЂРёРё"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания директории"})
 		return
 	}
 
@@ -592,7 +592,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	out, err := os.Create(originalPath)
 	if err != nil {
 		log.Printf("Failed to create original file: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ С„Р°Р№Р»Р°"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения файла"})
 		return
 	}
 	defer out.Close()
@@ -600,7 +600,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	_, err = io.Copy(out, file)
 	if err != nil {
 		log.Printf("Failed to copy file: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РєРѕРїРёСЂРѕРІР°РЅРёСЏ С„Р°Р№Р»Р°"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка копирования файла"})
 		return
 	}
 
@@ -636,7 +636,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	avatarPath := filepath.Join(userDir, "avatar.jpg")
 	if err := processAvatar(originalPath, avatarPath, cropCoords); err != nil {
 		log.Printf("Failed to process avatar: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РѕР±СЂР°Р±РѕС‚РєРё РёР·РѕР±СЂР°Р¶РµРЅРёСЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обработки изображения"})
 		return
 	}
 
@@ -646,7 +646,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 	relativeAvatarPath := fmt.Sprintf("/avatar/%s", targetUser.ID.Hex())
 	if err := models.UpdateUserAvatar(targetUser.ID, relativeAvatarPath); err != nil {
 		log.Printf("Failed to update user avatar path: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РїСЂРѕС„РёР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обновления профиля"})
 		return
 	}
 
@@ -658,7 +658,7 @@ func adminUploadAvatarHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":       true,
-		"message":       "РђРІР°С‚Р°СЂ СѓСЃРїРµС€РЅРѕ Р·Р°РіСЂСѓР¶РµРЅ",
+		"message":       "Аватар успешно загружен",
 		"avatar_path":   relativeCroppedPath,
 		"original_path": relativeOriginalPath,
 	})
@@ -677,7 +677,7 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 	debugLog("DEBUG: Crop coordinates - x: %s, y: %s, width: %s, height: %s", x, y, width, height)
 
 	if x == "" || y == "" || width == "" || height == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РћС‚СЃСѓС‚СЃС‚РІСѓСЋС‚ РєРѕРѕСЂРґРёРЅР°С‚С‹ РѕР±СЂРµР·РєРё"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Отсутствуют координаты обрезки"})
 		return
 	}
 
@@ -685,19 +685,19 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 	var err error
 
 	if cropCoords.X, err = strconv.ParseFloat(x, 64); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅР°СЏ РєРѕРѕСЂРґРёРЅР°С‚Р° X"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная координата X"})
 		return
 	}
 	if cropCoords.Y, err = strconv.ParseFloat(y, 64); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅР°СЏ РєРѕРѕСЂРґРёРЅР°С‚Р° Y"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная координата Y"})
 		return
 	}
 	if cropCoords.Width, err = strconv.ParseFloat(width, 64); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅР°СЏ С€РёСЂРёРЅР°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная ширина"})
 		return
 	}
 	if cropCoords.Height, err = strconv.ParseFloat(height, 64); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅР°СЏ РІС‹СЃРѕС‚Р°"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная высота"})
 		return
 	}
 
@@ -719,7 +719,7 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 
 	if originalPath == "" {
 		debugLog("DEBUG: No original file found in %s", userDir)
-		c.JSON(http.StatusNotFound, gin.H{"error": "РћСЂРёРіРёРЅР°Р»СЊРЅС‹Р№ С„Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Оригинальный файл не найден"})
 		return
 	}
 
@@ -729,7 +729,7 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 	avatarPath := filepath.Join(userDir, "avatar.jpg")
 	if err := processAvatar(originalPath, avatarPath, cropCoords); err != nil {
 		log.Printf("Failed to process avatar: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РѕР±СЂР°Р±РѕС‚РєРё РёР·РѕР±СЂР°Р¶РµРЅРёСЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обработки изображения"})
 		return
 	}
 
@@ -745,7 +745,7 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 
 	if err := models.UpdateUserAvatarWithCrop(user.ID, relativeAvatarPath, relativeOriginalPath, cropCoords); err != nil {
 		log.Printf("Failed to save crop coordinates and avatar path: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РёР·РјРµРЅРµРЅРёР№ Р°РІР°С‚Р°СЂР°"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения изменений аватара"})
 		return
 	}
 
@@ -757,7 +757,7 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":       true,
-		"message":       "РћР±СЂРµР·РєР° Р°РІР°С‚Р°СЂР° РѕР±РЅРѕРІР»РµРЅР°",
+		"message":       "Обрезка аватара обновлена",
 		"avatar_path":   relativeCroppedPathForResponse,
 		"original_path": relativeOriginalPathForResponse,
 	})
@@ -767,20 +767,20 @@ func adminHandleCropUpdate(c *gin.Context, user *models.User) {
 func adminRemoveAvatarHandler(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµ СѓРєР°Р·Р°РЅ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ID пользователя"})
 		return
 	}
 
 	// Get target user
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
 	targetUser, err := models.GetUserByID(objID.Hex())
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return
 	}
 
@@ -805,13 +805,13 @@ func adminRemoveAvatarHandler(c *gin.Context) {
 	// Update user's avatar path in database
 	if err := models.UpdateUserAvatar(targetUser.ID, ""); err != nil {
 		log.Printf("Failed to update user avatar path: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РїСЂРѕС„РёР»СЏ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обновления профиля"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "РђРІР°С‚Р°СЂ СѓРґР°Р»РµРЅ",
+		"message": "Аватар удален",
 	})
 }
 
@@ -819,7 +819,7 @@ func adminRemoveAvatarHandler(c *gin.Context) {
 func adminGetOriginalAvatarHandler(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµ СѓРєР°Р·Р°РЅ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ID пользователя"})
 		return
 	}
 
@@ -828,14 +828,14 @@ func adminGetOriginalAvatarHandler(c *gin.Context) {
 	// Get target user - fetch fresh data from database
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
 	targetUser, err := models.GetUserByID(objID.Hex())
 	if err != nil {
 		debugLog("DEBUG: User not found: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return
 	}
 
@@ -897,33 +897,33 @@ func adminGetOriginalAvatarHandler(c *gin.Context) {
 	}
 
 	debugLog("DEBUG: No original files found in any format")
-	c.JSON(http.StatusNotFound, gin.H{"error": "РћСЂРёРіРёРЅР°Р»СЊРЅС‹Р№ С„Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
+	c.JSON(http.StatusNotFound, gin.H{"error": "Оригинальный файл не найден"})
 }
 
 // adminGetOriginalAvatarFileHandler serves original avatar file for specific user (admin access)
 func adminGetOriginalAvatarFileHandler(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµ СѓРєР°Р·Р°РЅ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ID пользователя"})
 		return
 	}
 
 	// Get target user
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РќРµРІРµСЂРЅС‹Р№ ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
 	targetUser, err := models.GetUserByID(objID.Hex())
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return
 	}
 
 	// Check if user has avatar
 	if targetUser.AvatarPath == "" {
-		c.JSON(http.StatusNotFound, gin.H{"error": "РЈ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РЅРµС‚ Р°РІР°С‚Р°СЂР°"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "У пользователя нет аватара"})
 		return
 	}
 
@@ -939,5 +939,5 @@ func adminGetOriginalAvatarFileHandler(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{"error": "РћСЂРёРіРёРЅР°Р»СЊРЅС‹Р№ С„Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"})
+	c.JSON(http.StatusNotFound, gin.H{"error": "Оригинальный файл не найден"})
 }
