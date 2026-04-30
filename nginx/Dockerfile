@@ -18,6 +18,9 @@ COPY ./html/favicon.ico /usr/share/nginx/html/favicon.ico
 COPY ./html/favicon.svg /usr/share/nginx/html/favicon.svg
 COPY ./html/404.html /usr/share/nginx/html/404.html
 
+# Shared static assets (vendored JS libs served at /_shared/*)
+COPY ./html/_shared /usr/share/nginx/html/_shared
+
 EXPOSE 80 443
 
 # Use custom entrypoint

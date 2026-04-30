@@ -58,6 +58,20 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
 
     # ================================================================
+    # SHARED STATIC ASSETS
+    # ================================================================
+    # Vendored JS/CSS libraries served centrally so all backend services
+    # can reference a single canonical URL (e.g. /_shared/js/particles.min.js)
+    # instead of bundling the same file in every service's /static/.
+    location /_shared/ {
+        alias /usr/share/nginx/html/_shared/;
+        access_log off;
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # ================================================================
     # FAVICON CONFIGURATION
     # ================================================================
     
