@@ -62,6 +62,7 @@ type Notification struct {
 	Recipient          string             `json:"recipient" gorm:"not null"`
 	Subject            string             `json:"subject,omitempty"`
 	Content            string             `json:"content" gorm:"not null"`
+	ContentType        string             `json:"content_type,omitempty" gorm:"default:'text/plain'"`
 	AttachmentFilename string             `json:"attachment_filename,omitempty"`
 	AttachmentContent  []byte             `json:"attachment_content,omitempty" gorm:"type:bytea"`
 	Status             NotificationStatus `json:"status" gorm:"default:pending;index"`
@@ -98,6 +99,7 @@ type SingleNotificationRequest struct {
 	Recipient          string           `json:"recipient" binding:"required"`
 	Subject            string           `json:"subject,omitempty"`
 	Content            string           `json:"content" binding:"required"`
+	ContentType        string           `json:"content_type,omitempty" binding:"omitempty,oneof=text/plain text/html"`
 	AttachmentFilename string           `json:"attachment_filename,omitempty"`
 	AttachmentContent  string           `json:"attachment_content,omitempty"` // base64 encoded
 }
@@ -403,11 +405,12 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 	notifications := make([]Notification, len(req.Notifications))
 	for i, notifReq := range req.Notifications {
 		notifications[i] = Notification{
-			Type:      notifReq.Type,
-			Recipient: notifReq.Recipient,
-			Subject:   notifReq.Subject,
-			Content:   notifReq.Content,
-			BatchID:   req.BatchID,
+			Type:        notifReq.Type,
+			Recipient:   notifReq.Recipient,
+			Subject:     notifReq.Subject,
+			Content:     notifReq.Content,
+			ContentType: notifReq.ContentType,
+			BatchID:     req.BatchID,
 		}
 	}
 
@@ -446,10 +449,11 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 
 	// Create notification
 	notification := Notification{
-		Type:      req.Type,
-		Recipient: req.Recipient,
-		Subject:   req.Subject,
-		Content:   req.Content,
+		Type:        req.Type,
+		Recipient:   req.Recipient,
+		Subject:     req.Subject,
+		Content:     req.Content,
+		ContentType: req.ContentType,
 	}
 
 	// Handle attachment if present

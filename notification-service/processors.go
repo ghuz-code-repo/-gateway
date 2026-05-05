@@ -216,11 +216,26 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	subject := notification.Subject
 	content := notification.Content
 
+	// Resolve content type (default text/plain, html opt-in)
+	contentType := strings.ToLower(strings.TrimSpace(notification.ContentType))
+	if contentType == "" {
+		contentType = "text/plain"
+	}
+	isHTML := contentType == "text/html"
+	contentTypeHeader := "text/plain; charset=UTF-8"
+	if isHTML {
+		contentTypeHeader = "text/html; charset=UTF-8"
+	}
+
 	// Apply debug mode if enabled
 	if config.DebugMode && config.DebugEmail != "" {
 		actualRecipient = config.DebugEmail
 		subject = "[DEBUG] " + subject
-		content = fmt.Sprintf("Конечным получателем является: %s\n\n%s", originalRecipient, content)
+		if isHTML {
+			content = fmt.Sprintf("<p><b>Конечным получателем является:</b> %s</p><hr>%s", originalRecipient, content)
+		} else {
+			content = fmt.Sprintf("Конечным получателем является: %s\n\n%s", originalRecipient, content)
+		}
 	}
 
 	// Build email message
@@ -241,7 +256,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		// Text part
 		textPart := []string{
 			"--" + boundary,
-			"Content-Type: text/plain; charset=UTF-8",
+			"Content-Type: " + contentTypeHeader,
 			"Content-Transfer-Encoding: 8bit",
 			"",
 			content,
@@ -269,7 +284,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 			"To: " + actualRecipient,
 			"Subject: " + subject,
 			"MIME-Version: 1.0",
-			"Content-Type: text/plain; charset=UTF-8",
+			"Content-Type: " + contentTypeHeader,
 			"",
 			content,
 		}
