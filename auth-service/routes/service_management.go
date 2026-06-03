@@ -596,7 +596,7 @@ func addServicePermissionHandler(c *gin.Context) {
 }
 
 func updateServicePermissionHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Service permission update not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Обновление разрешений сервиса ещё не реализовано"})
 }
 
 func deleteServicePermissionHandler(c *gin.Context) {
@@ -682,7 +682,7 @@ func createServiceRoleHandler(c *gin.Context) {
 }
 
 func getServiceRoleHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Service role retrieval not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Получение ролей сервиса ещё не реализовано"})
 }
 
 func updateServiceRoleHandler(c *gin.Context) {
@@ -779,7 +779,7 @@ func deleteServiceRoleHandler(c *gin.Context) {
 }
 
 func assignUserToServiceRoleHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "User role assignment not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Назначение ролей пользователю ещё не реализовано"})
 }
 
 func getServiceUsersHandler(c *gin.Context) {
@@ -833,24 +833,24 @@ func addUserToServiceHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат запроса"})
 		return
 	}
 
 	if req.Identifier == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Identifier is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Необходимо указать идентификатор"})
 		return
 	}
 
 	if len(req.Roles) == 0 && len(req.ExternalRoleNames) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one role must be specified"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Необходимо указать хотя бы одну роль"})
 		return
 	}
 
 	// Get service by key
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil || service == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -884,18 +884,18 @@ func addUserToServiceHandler(c *gin.Context) {
 				userID, err = models.CreateUser(username, email, "temporary123", req.FullName, []string{})
 			}
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create new user: " + err.Error()})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать нового пользователя: " + err.Error()})
 				return
 			}
 
 			// Get the created user
 			targetUser, err = models.GetUserByObjectID(userID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve created user"})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить созданного пользователя"})
 				return
 			}
 		} else {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 			return
 		}
 	}
@@ -904,7 +904,7 @@ func addUserToServiceHandler(c *gin.Context) {
 	for _, roleName := range req.Roles {
 		err := models.AssignUserToServiceRole(targetUser.ID, service.Key, roleName, currentUser.ID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role: " + roleName})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось назначить роль: " + roleName})
 			return
 		}
 	}
@@ -914,13 +914,13 @@ func addUserToServiceHandler(c *gin.Context) {
 		err := models.AssignUserToServiceRole(targetUser.ID, "auth", extRoleName, currentUser.ID, serviceKey)
 		if err != nil {
 			log.Printf("Warning: Failed to assign external role '%s' to user %s: %v", extRoleName, targetUser.ID.Hex(), err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign external role: " + extRoleName})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось назначить внешнюю роль: " + extRoleName})
 			return
 		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "User added to service successfully",
+		"message": "Пользователь успешно добавлен в сервис",
 		"user": gin.H{
 			"id":       targetUser.ID.Hex(),
 			"username": targetUser.Username,
@@ -943,7 +943,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("updateUserServiceRolesHandler: Failed to bind JSON: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат запроса"})
 		return
 	}
 
@@ -953,14 +953,14 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 	// Convert userID to ObjectID
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID пользователя"})
 		return
 	}
 
 	// Get service by key
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil || service == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -970,7 +970,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 	// Get current roles for the user in this service
 	currentAssignments, err := models.GetUserServiceRoleAssignments(userObjectID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get current roles"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить текущие роли"})
 		return
 	}
 
@@ -997,7 +997,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 			err := models.RemoveUserFromServiceRole(userObjectID, service.Key, roleName)
 			if err != nil {
 				log.Printf("Failed to remove role '%s': %v", roleName, err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove role: " + roleName})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось удалить роль: " + roleName})
 				return
 			}
 		}
@@ -1010,7 +1010,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 			err := models.AssignUserToServiceRole(userObjectID, service.Key, roleName, currentUser.ID)
 			if err != nil {
 				log.Printf("Failed to assign role '%s': %v", roleName, err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role: " + roleName})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось назначить роль: " + roleName})
 				return
 			}
 		}
@@ -1055,7 +1055,7 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 				err := models.RemoveUserFromServiceRole(userObjectID, "auth", roleName, serviceKey)
 				if err != nil {
 					log.Printf("Failed to remove external role '%s': %v", roleName, err)
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove external role: " + roleName})
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось удалить внешнюю роль: " + roleName})
 					return
 				}
 			}
@@ -1068,14 +1068,14 @@ func updateUserServiceRolesHandler(c *gin.Context) {
 				err := models.AssignUserToServiceRole(userObjectID, "auth", roleName, currentUser.ID, serviceKey)
 				if err != nil {
 					log.Printf("Failed to assign external role '%s': %v", roleName, err)
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign external role: " + roleName})
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось назначить внешнюю роль: " + roleName})
 					return
 				}
 			}
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "User roles updated successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Роли пользователя успешно обновлены"})
 }
 
 // checkUserExistsHandler checks if a user exists by username or email
@@ -1088,19 +1088,19 @@ func checkUserExistsHandler(c *gin.Context) {
 	serviceKey := c.Query("serviceKey")
 
 	if identifier == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Identifier is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Необходимо указать идентификатор"})
 		return
 	}
 
 	// Check if user exists
 	targetUser, err := models.GetUserByEmailOrUsername(identifier)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "exists": false})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден", "exists": false})
 		return
 	}
 
 	if targetUser == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "exists": false})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден", "exists": false})
 		return
 	}
 
@@ -1146,7 +1146,7 @@ func syncServicePermissionsHandler(c *gin.Context) {
 	// Validate service exists
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -1154,7 +1154,7 @@ func syncServicePermissionsHandler(c *gin.Context) {
 	// For now, assume services are reachable via docker network
 	serviceURL := getServiceURL(serviceKey)
 	if serviceURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Service URL not configured"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "URL сервиса не настроен"})
 		return
 	}
 
@@ -1162,7 +1162,7 @@ func syncServicePermissionsHandler(c *gin.Context) {
 	permissions, err := fetchServicePermissions(serviceURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to fetch permissions from service: " + err.Error(),
+			"error": "Не удалось получить разрешения от сервиса: " + err.Error(),
 		})
 		return
 	}
@@ -1171,13 +1171,13 @@ func syncServicePermissionsHandler(c *gin.Context) {
 	err = models.UpdateServicePermissions(service.Key, permissions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to update service permissions: " + err.Error(),
+			"error": "Не удалось обновить разрешения сервиса: " + err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":            "Permissions synced successfully",
+		"message":            "Разрешения успешно синхронизированы",
 		"service_key":        service.Key,
 		"synced_permissions": len(permissions),
 		"permissions":        permissions,
@@ -1303,7 +1303,7 @@ func getAuthServicePermissionsHandler(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"error":   "Auth service not found in database",
+			"error":   "Сервис аутентификации не найден в базе данных",
 		})
 		return
 	}
@@ -1344,7 +1344,7 @@ func createExternalRoleHandler(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		log.Printf("ERROR: createExternalRoleHandler - invalid input: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректные входные данные: " + err.Error()})
 		return
 	}
 
@@ -1367,7 +1367,7 @@ func createExternalRoleHandler(c *gin.Context) {
 		if !strings.HasPrefix(perm, expectedPrefix) {
 			log.Printf("ERROR: createExternalRoleHandler - invalid permission '%s', expected prefix '%s'", perm, expectedPrefix)
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Invalid permission '%s'. External role permissions must start with '%s'", perm, expectedPrefix),
+				"error": fmt.Sprintf("Недопустимое разрешение '%s'. Разрешения внешних ролей должны начинаться с '%s'", perm, expectedPrefix),
 			})
 			return
 		}
@@ -1389,18 +1389,18 @@ func createExternalRoleHandler(c *gin.Context) {
 	if err := models.CreateServiceRole(&role); err != nil {
 		if strings.Contains(err.Error(), "already exists") {
 			log.Printf("ERROR: createExternalRoleHandler - role '%s' already exists", input.Name)
-			c.JSON(http.StatusConflict, gin.H{"error": "Role with this name already exists"})
+			c.JSON(http.StatusConflict, gin.H{"error": "Роль с таким именем уже существует"})
 			return
 		}
 		log.Printf("ERROR: createExternalRoleHandler - failed to create role: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать роль"})
 		return
 	}
 
 	log.Printf("SUCCESS: Created external role '%s' for service '%s' with %d permissions", input.Name, serviceKey, len(input.Permissions))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "External role created successfully",
+		"message": "Внешняя роль успешно создана",
 		"role":    role,
 	})
 }
@@ -1433,7 +1433,7 @@ func updateExternalRoleHandler(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		log.Printf("ERROR updateExternalRoleHandler: JSON parse error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректные входные данные: " + err.Error()})
 		return
 	}
 
@@ -1443,7 +1443,7 @@ func updateExternalRoleHandler(c *gin.Context) {
 	existingRole, err := models.GetExternalRoleByNameAndService(roleName, serviceKey)
 	if err != nil {
 		log.Printf("ERROR updateExternalRoleHandler: role '%s' not found for managed service '%s': %v", roleName, serviceKey, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
 		return
 	}
 
@@ -1455,7 +1455,7 @@ func updateExternalRoleHandler(c *gin.Context) {
 		expectedPrefix := fmt.Sprintf("auth.%s.", serviceKey)
 		if !strings.HasPrefix(perm, expectedPrefix) {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Invalid permission '%s'. External role permissions must start with '%s'", perm, expectedPrefix),
+				"error": fmt.Sprintf("Недопустимое разрешение '%s'. Разрешения внешних ролей должны начинаться с '%s'", perm, expectedPrefix),
 			})
 			return
 		}
@@ -1497,14 +1497,14 @@ func updateExternalRoleHandler(c *gin.Context) {
 	if err := models.UpdateServiceRole(existingRole); err != nil {
 		log.Printf("ERROR updateExternalRoleHandler: UpdateServiceRole failed for role '%s' (ID=%s): %v",
 			roleName, existingRole.ID.Hex(), err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update role: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось обновить роль: " + err.Error()})
 		return
 	}
 
 	log.Printf("Updated external role '%s' for service '%s'", roleName, serviceKey)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "External role updated successfully",
+		"message": "Внешняя роль успешно обновлена",
 		"role":    existingRole,
 	})
 }
@@ -1530,14 +1530,14 @@ func deleteExternalRoleHandler(c *gin.Context) {
 	// Get existing role by name + managed service to avoid collisions
 	existingRole, err := models.GetExternalRoleByNameAndService(roleName, serviceKey)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
 		return
 	}
 
 	// Delete the role
 	if err := models.DeleteServiceRole(existingRole.ID); err != nil {
 		log.Printf("Error deleting external role: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось удалить роль"})
 		return
 	}
 
@@ -1547,7 +1547,7 @@ func deleteExternalRoleHandler(c *gin.Context) {
 	log.Printf("Deleted external role '%s'", roleName)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "External role deleted successfully",
+		"message": "Внешняя роль успешно удалена",
 	})
 }
 
@@ -1635,7 +1635,7 @@ func getAuthRoleByNameHandler(c *gin.Context) {
 	role, err := models.GetServiceRoleByName("auth", roleName)
 	if err != nil {
 		log.Printf("ERROR: getAuthRoleByNameHandler - role '%s' not found: %v", roleName, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Роль не найдена"})
 		return
 	}
 
@@ -1657,7 +1657,7 @@ func getAuthRoleUsersHandler(c *gin.Context) {
 	users, err := models.GetUsersByServiceRole("auth", roleName)
 	if err != nil {
 		log.Printf("Error getting users for role %s: %v", roleName, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get users"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить пользователей"})
 		return
 	}
 

@@ -18,7 +18,7 @@ import (
 
 // Legacy function placeholders - actual implementations moved to other files
 func migrationStatusHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Migration endpoints not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Эндпоинты миграции ещё не реализованы"})
 }
 
 func runMigrationHandler(c *gin.Context) {
@@ -49,7 +49,7 @@ func validateMigrationHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Validation passed",
+		"message": "Проверка пройдена",
 	})
 }
 
@@ -64,7 +64,7 @@ func rollbackMigrationHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Rollback completed",
+		"message": "Откат выполнен",
 	})
 }
 
@@ -86,50 +86,50 @@ func cleanupOrphanedDataHandler(c *gin.Context) {
 
 // Legacy role management - should be moved to separate file
 func listRolesHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Role management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление ролями ещё не реализовано"})
 }
 
 func showRoleFormHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Role management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление ролями ещё не реализовано"})
 }
 
 func createRoleHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Role management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление ролями ещё не реализовано"})
 }
 
 func getRoleHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Role management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление ролями ещё не реализовано"})
 }
 
 func updateRoleHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Role management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление ролями ещё не реализовано"})
 }
 
 func deleteRoleHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Role management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление ролями ещё не реализовано"})
 }
 
 // Legacy permission management - should be moved to separate file
 func listPermissionsHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Permission management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление разрешениями ещё не реализовано"})
 }
 
 func showPermissionFormHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Permission management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление разрешениями ещё не реализовано"})
 }
 
 func createPermissionHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Permission management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление разрешениями ещё не реализовано"})
 }
 
 func getPermissionHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Permission management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление разрешениями ещё не реализовано"})
 }
 
 func updatePermissionHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Permission management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление разрешениями ещё не реализовано"})
 }
 
 func deletePermissionHandler(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Permission management not implemented yet"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Управление разрешениями ещё не реализовано"})
 }

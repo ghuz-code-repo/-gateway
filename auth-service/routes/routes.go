@@ -222,7 +222,7 @@ func SetupAdminRoutes(router *gin.Engine) {
 
 // testAPIHandler handles API test requests
 func testAPIHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "API works"})
+	c.JSON(http.StatusOK, gin.H{"message": "API работает"})
 }
 
 // accessDeniedHandler shows access denied page
@@ -268,7 +268,7 @@ func getUserProfileAPIHandler(c *gin.Context) {
 
 	user, err := models.GetUserByID(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return
 	}
 
@@ -297,7 +297,7 @@ func getUserDocumentsGroupedAPIHandler(c *gin.Context) {
 
 	documents, err := models.GetUserDocuments(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user documents"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить документы пользователя"})
 		return
 	}
 
@@ -484,21 +484,21 @@ func createUserDocumentAPIHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректное тело запроса: " + err.Error()})
 		return
 	}
 
 	// Validate user exists
 	_, err := models.GetUserByID(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return
 	}
 
 	// Validate document type exists
 	_, err = models.GetDocumentTypeByKey(requestBody.DocumentType)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid document type"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный тип документа"})
 		return
 	}
 
@@ -515,7 +515,7 @@ func createUserDocumentAPIHandler(c *gin.Context) {
 	// Create document
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат ID пользователя"})
 		return
 	}
 
@@ -531,12 +531,12 @@ func createUserDocumentAPIHandler(c *gin.Context) {
 
 	err = models.AddUserDocumentNew(userObjectID, document)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create document: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать документ: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message":  "Document created successfully",
+		"message":  "Документ успешно создан",
 		"document": document,
 	})
 }
@@ -547,7 +547,7 @@ func getServiceUsersAPIHandler(c *gin.Context) {
 	serviceKey := c.Param("serviceKey")
 
 	if serviceKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Service key is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ключ сервиса"})
 		return
 	}
 
@@ -557,7 +557,7 @@ func getServiceUsersAPIHandler(c *gin.Context) {
 	usersWithRoles, err := models.GetUsersWithServiceRolesNew(serviceKey)
 	if err != nil {
 		log.Printf("API: Error getting users for service %s: %v", serviceKey, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get users"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить пользователей"})
 		return
 	}
 

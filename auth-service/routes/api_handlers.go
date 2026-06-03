@@ -17,7 +17,7 @@ func getUserServicePermissionsHandler(c *gin.Context) {
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid user ID format",
+			"error": "Неверный формат ID пользователя",
 		})
 		return
 	}
@@ -26,7 +26,7 @@ func getUserServicePermissionsHandler(c *gin.Context) {
 	user, err := models.GetUserByObjectID(userObjectID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "User not found",
+			"error": "Пользователь не найден",
 		})
 		return
 	}
@@ -35,7 +35,7 @@ func getUserServicePermissionsHandler(c *gin.Context) {
 	permissions, err := models.GetUserPermissionsForService(userObjectID, serviceKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get user permissions: " + err.Error(),
+			"error": "Не удалось получить разрешения пользователя: " + err.Error(),
 		})
 		return
 	}
@@ -44,7 +44,7 @@ func getUserServicePermissionsHandler(c *gin.Context) {
 	roles, err := models.GetUserRolesForService(userObjectID, serviceKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get user roles: " + err.Error(),
+			"error": "Не удалось получить роли пользователя: " + err.Error(),
 		})
 		return
 	}
@@ -69,7 +69,7 @@ func getUserDocumentsHandler(c *gin.Context) {
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid user ID format",
+			"error": "Неверный формат ID пользователя",
 		})
 		return
 	}
@@ -78,7 +78,7 @@ func getUserDocumentsHandler(c *gin.Context) {
 	user, err := models.GetUserByObjectID(userObjectID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "User not found",
+			"error": "Пользователь не найден",
 		})
 		return
 	}
@@ -115,7 +115,7 @@ func getUsersByServiceRoleHandler(c *gin.Context) {
 	users, err := models.GetUsersByServiceRole(serviceKey, roleName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get users: " + err.Error(),
+			"error": "Не удалось получить пользователей: " + err.Error(),
 		})
 		return
 	}
@@ -145,7 +145,7 @@ func getUsersByServicePermissionHandler(c *gin.Context) {
 	users, err := models.GetUsersByServicePermission(serviceKey, permissionName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get users: " + err.Error(),
+			"error": "Не удалось получить пользователей: " + err.Error(),
 		})
 		return
 	}

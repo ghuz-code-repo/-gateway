@@ -20,7 +20,7 @@ func ImportUsersFromExcel(c *gin.Context) {
 	// Get current user for logging
 	currentUser, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
 		return
 	}
 
@@ -48,7 +48,7 @@ func ImportUsersFromExcel(c *gin.Context) {
 		logEntry.Success = false
 		logEntry.ErrorMessage = "No file uploaded"
 		models.SaveImportLog(&logEntry)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No file uploaded"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Файл не загружен"})
 		return
 	}
 
@@ -61,7 +61,7 @@ func ImportUsersFromExcel(c *gin.Context) {
 		logEntry.Success = false
 		logEntry.ErrorMessage = fmt.Sprintf("Failed to open file: %v", err)
 		models.SaveImportLog(&logEntry)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to open file"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не удалось открыть файл"})
 		return
 	}
 	defer file.Close()
@@ -72,7 +72,7 @@ func ImportUsersFromExcel(c *gin.Context) {
 		logEntry.Success = false
 		logEntry.ErrorMessage = fmt.Sprintf("Failed to read Excel file: %v", err)
 		models.SaveImportLog(&logEntry)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Excel file"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный Excel-файл"})
 		return
 	}
 	defer excelFile.Close()

@@ -87,7 +87,7 @@ func main() {
 			c.Next()
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Доступ запрещён"})
 	}
 
 	// Serve static files
@@ -397,7 +397,7 @@ func (ms *MonitoringService) getServiceStatus(c *gin.Context) {
 	service, exists := ms.services[serviceName]
 	if !exists {
 		ms.mu.RUnlock()
-		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 	copy := *service
@@ -409,7 +409,7 @@ func (ms *MonitoringService) getServiceStatus(c *gin.Context) {
 func (ms *MonitoringService) forceHealthCheck(c *gin.Context) {
 	log.Println("🔄 Forced health check triggered")
 	go ms.checkAllServices()
-	c.JSON(http.StatusOK, gin.H{"message": "Health check triggered"})
+	c.JSON(http.StatusOK, gin.H{"message": "Проверка работоспособности запущена"})
 }
 
 // getNotificationConfig fetches notification settings from notification-service API

@@ -1033,7 +1033,7 @@ func serviceImportLogsHandler(c *gin.Context) {
 	// NEW: Verify user has permission to view users
 	if !requireAuthPermission(c, "auth.users.view") {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Access denied: insufficient permissions to view service logs",
+			"error": "Доступ запрещён: недостаточно прав для просмотра логов сервиса",
 		})
 		return
 	}
@@ -1043,7 +1043,7 @@ func serviceImportLogsHandler(c *gin.Context) {
 	if err != nil {
 		log.Printf("Error getting service import logs for %s: %v", serviceKey, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to retrieve import logs",
+			"error": "Не удалось получить логи импорта",
 		})
 		return
 	}

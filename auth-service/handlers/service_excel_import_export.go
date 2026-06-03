@@ -23,14 +23,14 @@ func ServiceExportHandler(c *gin.Context) {
 	// Get service key from URL
 	serviceKey := c.Param("serviceKey")
 	if serviceKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Service key is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ключ сервиса"})
 		return
 	}
 
 	// Get current user
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
 		return
 	}
 	currentUser := user.(*models.User)
@@ -41,7 +41,7 @@ func ServiceExportHandler(c *gin.Context) {
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		log.Printf("Error getting service %s: %v", serviceKey, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -51,7 +51,7 @@ func ServiceExportHandler(c *gin.Context) {
 	users, err := GetUsersForServiceExport(serviceKey)
 	if err != nil {
 		log.Printf("Error getting users for service export: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get users data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить данные пользователей"})
 		return
 	}
 
@@ -63,7 +63,7 @@ func ServiceExportHandler(c *gin.Context) {
 	err = createServiceUsersSheet(file, users, service)
 	if err != nil {
 		log.Printf("Error creating service users sheet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create users sheet"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать лист пользователей"})
 		return
 	}
 
@@ -80,7 +80,7 @@ func ServiceExportHandler(c *gin.Context) {
 	err = file.Write(c.Writer)
 	if err != nil {
 		log.Printf("Error writing Excel file to response: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate Excel file"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сформировать Excel-файл"})
 		return
 	}
 
@@ -92,14 +92,14 @@ func ServiceImportHandler(c *gin.Context) {
 	// Get service key from URL
 	serviceKey := c.Param("serviceKey")
 	if serviceKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Service key is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ключ сервиса"})
 		return
 	}
 
 	// Get current user
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
 		return
 	}
 	currentUser := user.(*models.User)
@@ -110,14 +110,14 @@ func ServiceImportHandler(c *gin.Context) {
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		log.Printf("Error getting service %s: %v", serviceKey, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
 	// Handle file upload
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No file uploaded or invalid file format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Файл не загружен или неверный формат файла"})
 		return
 	}
 	defer file.Close()
@@ -125,7 +125,7 @@ func ServiceImportHandler(c *gin.Context) {
 	// Validate file extension
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	if ext != ".xlsx" && ext != ".xls" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only Excel files (.xlsx, .xls) are supported"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Поддерживаются только файлы Excel (.xlsx, .xls)"})
 		return
 	}
 
@@ -735,14 +735,14 @@ func ServiceTemplateHandler(c *gin.Context) {
 	// Get service key from URL
 	serviceKey := c.Param("serviceKey")
 	if serviceKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Service key is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не указан ключ сервиса"})
 		return
 	}
 
 	// Get current user
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
 		return
 	}
 	currentUser := user.(*models.User)
@@ -753,7 +753,7 @@ func ServiceTemplateHandler(c *gin.Context) {
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		log.Printf("Error getting service %s: %v", serviceKey, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Сервис не найден"})
 		return
 	}
 
@@ -767,7 +767,7 @@ func ServiceTemplateHandler(c *gin.Context) {
 	err = createServiceTemplateSheet(file, service)
 	if err != nil {
 		log.Printf("Error creating service template sheet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create template sheet"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать лист шаблона"})
 		return
 	}
 
@@ -784,7 +784,7 @@ func ServiceTemplateHandler(c *gin.Context) {
 	err = file.Write(c.Writer)
 	if err != nil {
 		log.Printf("Error writing Excel template file to response: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate Excel template"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сформировать шаблон Excel"})
 		return
 	}
 
@@ -796,14 +796,14 @@ func ServiceImportPageHandler(c *gin.Context) {
 	// Get service key from URL
 	serviceKey := c.Param("serviceKey")
 	if serviceKey == "" {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Service key is required"})
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"error": "Не указан ключ сервиса"})
 		return
 	}
 
 	// Get current user
 	user, exists := c.Get("user")
 	if !exists {
-		c.HTML(http.StatusUnauthorized, "error.html", gin.H{"error": "User not authenticated"})
+		c.HTML(http.StatusUnauthorized, "error.html", gin.H{"error": "Пользователь не авторизован"})
 		return
 	}
 	currentUser := user.(*models.User)
@@ -814,7 +814,7 @@ func ServiceImportPageHandler(c *gin.Context) {
 	service, err := models.GetServiceByKey(serviceKey)
 	if err != nil {
 		log.Printf("Error getting service %s: %v", serviceKey, err)
-		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Service not found"})
+		c.HTML(http.StatusNotFound, "error.html", gin.H{"error": "Сервис не найден"})
 		return
 	}
 

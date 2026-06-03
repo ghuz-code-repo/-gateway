@@ -50,7 +50,7 @@ func loginHandler(c *gin.Context) {
 		// Record failed login attempt
 		RecordFailedLogin(c.ClientIP())
 		c.HTML(http.StatusUnauthorized, "login_clean.html", gin.H{
-			"error":    "Invalid username or password",
+			"error":    "Неверное имя пользователя или пароль",
 			"redirect": redirect,
 		})
 		return
@@ -77,7 +77,7 @@ func loginHandler(c *gin.Context) {
 	tokenString, err := models.GenerateToken(user)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "login_clean.html", gin.H{
-			"error":    "Failed to generate token",
+			"error":    "Не удалось сгенерировать токен",
 			"redirect": redirect,
 		})
 		return

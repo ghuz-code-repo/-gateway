@@ -87,7 +87,7 @@ func getNotificationSettings(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "User information not found",
+			"error": "Информация о пользователе не найдена",
 		})
 		return
 	}
@@ -114,7 +114,7 @@ func updateNotificationSettings(c *gin.Context) {
 		log.Printf("ERROR: Failed to bind JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "Invalid JSON data: " + err.Error(),
+			"error":   "Некорректные JSON-данные: " + err.Error(),
 		})
 		return
 	}
@@ -126,7 +126,7 @@ func updateNotificationSettings(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "Failed to update notification service: " + err.Error(),
+			"error":   "Не удалось обновить сервис уведомлений: " + err.Error(),
 		})
 		return
 	}
@@ -147,7 +147,7 @@ func testNotificationSettings(c *gin.Context) {
 	if testEmail == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "Test email is required",
+			"error":   "Необходимо указать тестовый email",
 		})
 		return
 	}
@@ -165,7 +165,7 @@ func testNotificationSettings(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "Failed to create test notification: " + err.Error(),
+			"error":   "Не удалось создать тестовое уведомление: " + err.Error(),
 		})
 		return
 	}
@@ -174,7 +174,7 @@ func testNotificationSettings(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "Failed to send test notification: " + err.Error(),
+			"error":   "Не удалось отправить тестовое уведомление: " + err.Error(),
 		})
 		return
 	}
@@ -184,7 +184,7 @@ func testNotificationSettings(c *gin.Context) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "Failed to parse response: " + err.Error(),
+			"error":   "Не удалось разобрать ответ: " + err.Error(),
 		})
 		return
 	}
@@ -198,7 +198,7 @@ func testNotificationSettings(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   fmt.Sprintf("Notification service error: %v", result["error"]),
+			"error":   fmt.Sprintf("Ошибка сервиса уведомлений: %v", result["error"]),
 		})
 	}
 }

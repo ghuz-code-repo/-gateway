@@ -227,7 +227,7 @@ func main() {
 		}
 
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": "Access denied",
+			"error": "Доступ запрещён",
 		})
 	})
 
@@ -397,7 +397,7 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 
 	if err := ns.db.Create(&batch).Error; err != nil {
 		log.Printf("❌ Failed to create batch %s: %v", req.BatchID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create batch"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать пакет"})
 		return
 	}
 
@@ -416,7 +416,7 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 
 	if err := ns.db.Create(&notifications).Error; err != nil {
 		log.Printf("❌ Failed to create notifications for batch %s: %v", req.BatchID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create notifications"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать уведомления"})
 		return
 	}
 
@@ -433,7 +433,7 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"batch_id": req.BatchID,
-		"message":  "Batch created and processing started",
+		"message":  "Пакет создан, обработка начата",
 	})
 }
 
@@ -462,7 +462,7 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 		attachmentBytes, err := base64.StdEncoding.DecodeString(req.AttachmentContent)
 		if err != nil {
 			log.Printf("⚠️ Failed to decode attachment: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid attachment encoding"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Неверная кодировка вложения"})
 			return
 		}
 		notification.AttachmentFilename = req.AttachmentFilename
@@ -472,7 +472,7 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 
 	if err := ns.db.Create(&notification).Error; err != nil {
 		log.Printf("❌ Failed to create notification: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create notification"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать уведомление"})
 		return
 	}
 
@@ -489,7 +489,7 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"id":      notification.ID,
-		"message": "Notification created and processing started",
+		"message": "Уведомление создано, обработка начата",
 	})
 }
 
@@ -497,13 +497,13 @@ func (ns *NotificationService) getNotificationStatus(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid notification ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID уведомления"})
 		return
 	}
 
 	var notification Notification
 	if err := ns.db.First(&notification, uint(id)).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Notification not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Уведомление не найдено"})
 		return
 	}
 
@@ -515,7 +515,7 @@ func (ns *NotificationService) getBatchStatus(c *gin.Context) {
 
 	var batch NotificationBatch
 	if err := ns.db.First(&batch, "id = ?", batchID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Batch not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пакет не найден"})
 		return
 	}
 
@@ -527,7 +527,7 @@ func (ns *NotificationService) getBatchNotifications(c *gin.Context) {
 
 	var notifications []Notification
 	if err := ns.db.Where("batch_id = ?", batchID).Find(&notifications).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get notifications"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить уведомления"})
 		return
 	}
 
@@ -696,7 +696,7 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	if saveErr != nil {
 		log.Printf("Failed to save configuration: %v", saveErr)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to save configuration: " + saveErr.Error(),
+			"error": "Не удалось сохранить конфигурацию: " + saveErr.Error(),
 		})
 		return
 	}
@@ -707,7 +707,7 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	log.Printf("Configuration updated successfully. Updated fields: %v", updated)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":        "Configuration updated successfully",
+		"message":        "Конфигурация успешно обновлена",
 		"updated_fields": updated,
 	})
 }

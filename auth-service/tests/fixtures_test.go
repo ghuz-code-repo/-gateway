@@ -29,7 +29,7 @@ type TestFixtures struct {
 func setupStandardFixtures(t *testing.T) *TestFixtures {
 	t.Helper()
 
-	cleanAllCollections()
+	// cleanAllCollections()
 
 	fix := &TestFixtures{
 		AuthServiceKey:    "auth",

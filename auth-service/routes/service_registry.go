@@ -52,7 +52,7 @@ func registerServiceInstanceHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "Service instance registered successfully",
+		"message":  "Экземпляр сервиса успешно зарегистрирован",
 		"instance": instance,
 	})
 }
@@ -67,7 +67,7 @@ func unregisterServiceInstanceHandler(c *gin.Context) {
 	containerName := c.Query("container_name")
 
 	if serviceKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "service_key is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Необходимо указать service_key"})
 		return
 	}
 
@@ -82,7 +82,7 @@ func unregisterServiceInstanceHandler(c *gin.Context) {
 	// so users see 502 instead of 404 during restarts.
 	log.Printf("Service instance deregistered: %s (%s). Nginx config NOT changed (route persists).", serviceKey, containerName)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Service instance unregistered successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Экземпляр сервиса успешно снят с регистрации"})
 }
 
 // heartbeatHandler handles POST /api/registry/heartbeat
@@ -103,7 +103,7 @@ func heartbeatHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Heartbeat updated"})
+	c.JSON(http.StatusOK, gin.H{"message": "Heartbeat обновлён"})
 }
 
 // listServiceInstancesHandler handles GET /api/registry/services
@@ -178,14 +178,14 @@ func getServicesHealthHandler(c *gin.Context) {
 	// Get all services from database (not deleted)
 	services, err := models.GetAllServices()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch services"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить сервисы"})
 		return
 	}
 
 	// Get active instances
 	instances, err := models.GetActiveServiceInstances()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch instances"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить экземпляры"})
 		return
 	}
 

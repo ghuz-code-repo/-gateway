@@ -19,7 +19,7 @@ func ExportUsersToExcel(c *gin.Context) {
 	// Get current user for logging
 	currentUser, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
 		return
 	}
 
@@ -30,7 +30,7 @@ func ExportUsersToExcel(c *gin.Context) {
 	users, err := models.GetUsersForExport()
 	if err != nil {
 		log.Printf("Error getting users for export: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get users data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить данные пользователей"})
 		return
 	}
 
@@ -38,7 +38,7 @@ func ExportUsersToExcel(c *gin.Context) {
 	services, err := models.GetServicesForExport()
 	if err != nil {
 		log.Printf("Error getting services for export: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get services data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить данные сервисов"})
 		return
 	}
 
@@ -50,7 +50,7 @@ func ExportUsersToExcel(c *gin.Context) {
 	err = createUsersSheet(file, users, services)
 	if err != nil {
 		log.Printf("Error creating users sheet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create users sheet"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать лист пользователей"})
 		return
 	}
 
@@ -58,7 +58,7 @@ func ExportUsersToExcel(c *gin.Context) {
 	err = createServicesSheet(file, services)
 	if err != nil {
 		log.Printf("Error creating services sheet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create services sheet"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать лист сервисов"})
 		return
 	}
 
@@ -72,7 +72,7 @@ func ExportUsersToExcel(c *gin.Context) {
 	err = file.Write(&buffer)
 	if err != nil {
 		log.Printf("Error writing Excel file: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate Excel file"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сформировать Excel-файл"})
 		return
 	}
 
@@ -222,7 +222,7 @@ func DownloadUsersTemplate(c *gin.Context) {
 	services, err := models.GetServicesForExport()
 	if err != nil {
 		log.Printf("Error getting services for template: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get services data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить данные сервисов"})
 		return
 	}
 
@@ -234,7 +234,7 @@ func DownloadUsersTemplate(c *gin.Context) {
 	err = createUsersSheet(file, []models.UserImportExport{}, services)
 	if err != nil {
 		log.Printf("Error creating template users sheet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create template"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать шаблон"})
 		return
 	}
 
@@ -242,7 +242,7 @@ func DownloadUsersTemplate(c *gin.Context) {
 	err = createServicesSheet(file, services)
 	if err != nil {
 		log.Printf("Error creating template services sheet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create services sheet"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось создать лист сервисов"})
 		return
 	}
 
@@ -276,7 +276,7 @@ func DownloadUsersTemplate(c *gin.Context) {
 	err = file.Write(&buffer)
 	if err != nil {
 		log.Printf("Error writing template file: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate template"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сформировать шаблон"})
 		return
 	}
 

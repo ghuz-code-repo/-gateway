@@ -100,7 +100,7 @@ func adminMiddleware() gin.HandlerFunc {
 		// Check if user has admin role
 		if !hasAdminRole(user) {
 			c.HTML(http.StatusForbidden, "error.html", gin.H{
-				"error": "Access denied. Admin role required.",
+				"error": "Доступ запрещён. Требуется роль администратора.",
 			})
 			c.Abort()
 			return
@@ -586,7 +586,7 @@ func internalAPIKeyRequired() gin.HandlerFunc {
 		if providedKey != apiKey {
 			log.Printf("WARNING: Invalid API key from %s for %s", c.ClientIP(), c.Request.URL.Path)
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid or missing API key",
+				"error": "Неверный или отсутствующий API-ключ",
 			})
 			c.Abort()
 			return
