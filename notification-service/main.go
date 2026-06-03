@@ -763,7 +763,7 @@ func (ns *NotificationService) resolveTelegramChatID(botToken, username string) 
 		}
 	}
 
-	return "", fmt.Errorf("chat not found for username @%s (user must send /start to bot first)", username)
+	return "", fmt.Errorf("чат для пользователя @%s не найден (пользователь должен сначала отправить боту команду /start)", username)
 }
 
 // These functions are now defined as variables in processors.go and initialized there

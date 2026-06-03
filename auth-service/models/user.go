@@ -972,14 +972,14 @@ func UpdateUser(id primitive.ObjectID, username, email, password, fullName strin
 	// First check if user exists
 	existingUser, err := GetUserByObjectID(id)
 	if err != nil {
-		return fmt.Errorf("user not found: %v", err)
+		return fmt.Errorf("пользователь не найден: %v", err)
 	}
 
 	// Check if another user already has this username (only if username is changing)
 	if username != existingUser.Username {
 		userWithSameName, _ := GetUserByUsername(username)
 		if userWithSameName != nil && userWithSameName.ID != id {
-			return fmt.Errorf("username already exists")
+			return fmt.Errorf("пользователь с таким именем уже существует")
 		}
 	}
 
@@ -1028,7 +1028,7 @@ func DeleteUser(id primitive.ObjectID) error {
 	// Get the user first so we have their email and file information
 	user, err := GetUserByObjectID(id)
 	if err != nil {
-		return fmt.Errorf("user not found: %v", err)
+		return fmt.Errorf("пользователь не найден: %v", err)
 	}
 
 	// Store user data before deletion for email and cleanup
@@ -1087,7 +1087,7 @@ func DeleteUser(id primitive.ObjectID) error {
 	}
 
 	if result.DeletedCount == 0 {
-		return fmt.Errorf("user not found or already deleted")
+		return fmt.Errorf("пользователь не найден или уже удалён")
 	}
 
 	// Send email notification if email is available
@@ -1584,7 +1584,7 @@ func ImportUsersFromExcel(filePath string) (int, error) {
 	// Get the first sheet
 	sheets := file.GetSheetList()
 	if len(sheets) == 0 {
-		return 0, fmt.Errorf("no sheets found in Excel file")
+		return 0, fmt.Errorf("в Excel-файле не найдено ни одного листа")
 	}
 	sheetName := sheets[0]
 
@@ -1595,7 +1595,7 @@ func ImportUsersFromExcel(filePath string) (int, error) {
 	}
 
 	if len(rows) < 2 { // At least header row and one data row
-		return 0, fmt.Errorf("excel file contains no data rows")
+		return 0, fmt.Errorf("Excel-файл не содержит строк с данными")
 	}
 
 	// Get header row and handle various column naming conventions
@@ -1655,7 +1655,7 @@ func ImportUsersFromExcel(filePath string) (int, error) {
 			foundColumns = append(foundColumns, fmt.Sprintf("%d: %s", i, h))
 		}
 
-		return 0, fmt.Errorf("Excel file missing required columns (%s). Found columns: %s",
+		return 0, fmt.Errorf("в Excel-файле отсутствуют обязательные столбцы (%s). Найдены столбцы: %s",
 			strings.Join(missingColumns, ", "), strings.Join(foundColumns, ", "))
 	}
 
@@ -2365,7 +2365,7 @@ func UpdateUserEmail(userID primitive.ObjectID, email string) error {
 	if email != "" {
 		existingUser, _ := GetUserByEmail(email)
 		if existingUser != nil && existingUser.ID != userID {
-			return fmt.Errorf("email already exists")
+			return fmt.Errorf("пользователь с таким email уже существует")
 		}
 	}
 
@@ -2383,7 +2383,7 @@ func UpdateUserEmail(userID primitive.ObjectID, email string) error {
 	}
 
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("user not found")
+		return fmt.Errorf("пользователь не найден")
 	}
 
 	log.Printf("UpdateUserEmail successful for user %s, email set to %s", userID.Hex(), email)
@@ -2651,7 +2651,7 @@ func CreatePasswordResetToken(email string) (*PasswordResetToken, error) {
 	var user User
 	err := usersCol.FindOne(ctx, bson.M{"email": email}).Decode(&user)
 	if err != nil {
-		return nil, fmt.Errorf("user not found")
+		return nil, fmt.Errorf("пользователь не найден")
 	}
 
 	// SECURITY: Delete all existing password reset tokens for this user
@@ -2708,7 +2708,7 @@ func ValidatePasswordResetToken(token string) (*PasswordResetToken, error) {
 	}).Decode(&resetToken)
 
 	if err != nil {
-		return nil, fmt.Errorf("invalid or expired token")
+		return nil, fmt.Errorf("недействительный или истёкший токен")
 	}
 
 	return &resetToken, nil

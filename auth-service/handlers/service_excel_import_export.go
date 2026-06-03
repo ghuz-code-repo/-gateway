@@ -274,7 +274,7 @@ func processServiceExcelImport(file multipart.File, adminUserID primitive.Object
 	}
 
 	if len(rows) < 2 {
-		return result, fmt.Errorf("no data rows found in Users sheet")
+		return result, fmt.Errorf("на листе Users не найдено строк с данными")
 	}
 
 	// Parse header row
@@ -525,7 +525,7 @@ func processServiceUser(importUser models.UserImportExport, adminUserID primitiv
 func createNewServiceUser(importUser models.UserImportExport, adminUserID primitive.ObjectID, service *models.Service, result *models.ServiceImportResult) error {
 	// Validate required fields - only email is required
 	if importUser.Email == "" {
-		return fmt.Errorf("email is required for new user")
+		return fmt.Errorf("для нового пользователя требуется email")
 	}
 
 	// Auto-generate username from email if not provided
@@ -534,7 +534,7 @@ func createNewServiceUser(importUser models.UserImportExport, adminUserID primit
 		if atIndex > 0 {
 			importUser.Username = importUser.Email[:atIndex]
 		} else {
-			return fmt.Errorf("invalid email format: cannot extract username")
+			return fmt.Errorf("неверный формат email: не удалось извлечь имя пользователя")
 		}
 	}
 

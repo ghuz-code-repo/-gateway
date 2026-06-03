@@ -31,13 +31,13 @@ func SafeServeFile(c *gin.Context, basePath, requestedPath string) error {
 	
 	// Security check: ensure the requested path is within the base path
 	if !strings.HasPrefix(absRequestPath, absBasePath) {
-		return fmt.Errorf("path traversal attack detected")
+		return fmt.Errorf("обнаружена попытка обхода пути (path traversal)")
 	}
 	
 	// Check if file exists
 	fileInfo, err := os.Stat(absRequestPath)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("file not found")
+		return fmt.Errorf("файл не найден")
 	}
 	if err != nil {
 		return fmt.Errorf("error accessing file: %v", err)
@@ -45,7 +45,7 @@ func SafeServeFile(c *gin.Context, basePath, requestedPath string) error {
 	
 	// Don't serve directories
 	if fileInfo.IsDir() {
-		return fmt.Errorf("cannot serve directory")
+		return fmt.Errorf("невозможно отдать каталог")
 	}
 	
 	// Serve the file
@@ -73,7 +73,7 @@ func ValidateFilePath(basePath, requestedPath string) (string, error) {
 	
 	// Security check: ensure the requested path is within the base path
 	if !strings.HasPrefix(absRequestPath, absBasePath) {
-		return "", fmt.Errorf("path traversal detected")
+		return "", fmt.Errorf("обнаружен обход пути (path traversal)")
 	}
 	
 	return absRequestPath, nil

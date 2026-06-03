@@ -139,7 +139,7 @@ func RegisterExternalServicePermissions(serviceKey, serviceName string) error {
 	var authService Service
 	err := servicesCol.FindOne(ctx, bson.M{"key": "auth"}).Decode(&authService)
 	if err != nil {
-		return fmt.Errorf("auth service not found: %w", err)
+		return fmt.Errorf("сервис аутентификации не найден: %w", err)
 	}
 
 	// Build set of existing permission names
@@ -448,7 +448,7 @@ func SoftDeleteService(serviceKey string) error {
 	}
 	if result.MatchedCount == 0 {
 		log.Printf("WARNING: Service '%s' not found or already deleted", serviceKey)
-		return fmt.Errorf("service not found or already deleted")
+		return fmt.Errorf("сервис не найден или уже удалён")
 	}
 	log.Printf("INFO: Service '%s' marked as deleted", serviceKey)
 
@@ -515,7 +515,7 @@ func HardDeleteService(serviceKey string) error {
 	}
 	if result.DeletedCount == 0 {
 		log.Printf("WARNING: Service '%s' not found", serviceKey)
-		return fmt.Errorf("service not found")
+		return fmt.Errorf("сервис не найден")
 	}
 	log.Printf("INFO: Service '%s' deleted from database", serviceKey)
 
@@ -577,11 +577,11 @@ func RestoreService(serviceKey string) error {
 	err := servicesCol.FindOne(ctx, bson.M{"key": serviceKey}).Decode(&service)
 	if err != nil {
 		log.Printf("ERROR: Service '%s' not found: %v", serviceKey, err)
-		return fmt.Errorf("service not found: %w", err)
+		return fmt.Errorf("сервис не найден: %w", err)
 	}
 	if service.DeletedAt == nil {
 		log.Printf("WARNING: Service '%s' is not deleted, nothing to restore", serviceKey)
-		return fmt.Errorf("service is not deleted")
+		return fmt.Errorf("сервис не удалён")
 	}
 
 	// 2. Restore the service
@@ -784,7 +784,7 @@ func ValidateRolePermissions(serviceKey string, permissions []string) (bool, []s
 func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user ID: %v", err)
+		return nil, fmt.Errorf("неверный ID пользователя: %v", err)
 	}
 
 	// Admin users have all permissions
@@ -980,7 +980,7 @@ func UpdateServicePermissions(serviceKey string, permissions []PermissionDef) er
 	// Check if service exists
 	_, err := GetServiceByKey(serviceKey)
 	if err != nil {
-		return fmt.Errorf("service not found: %w", err)
+		return fmt.Errorf("сервис не найден: %w", err)
 	}
 
 	// Update permissions and timestamp

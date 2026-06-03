@@ -341,7 +341,7 @@ func GetUserByUsernameOrEmail(username, email string) (*User, error) {
 		return user, nil
 	}
 
-	return nil, fmt.Errorf("user not found")
+	return nil, fmt.Errorf("пользователь не найден")
 }
 
 // LogServiceImportOperation logs the details of a service-specific import operation

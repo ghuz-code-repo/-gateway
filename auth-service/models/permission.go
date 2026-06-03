@@ -35,7 +35,7 @@ func CreatePermission(service string, displayName string) error {
 	err := collection.FindOne(ctx, bson.M{"service": service}).Decode(&existingPermission)
 	if err == nil {
 		// Permission already exists
-		return fmt.Errorf("permission already exists for service: %s", service)
+		return fmt.Errorf("разрешение уже существует для сервиса: %s", service)
 	}
 
 	// Create new permission
@@ -64,7 +64,7 @@ func GetPermissionByID(id primitive.ObjectID) (*Permission, error) {
 	var permission Permission
 	err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&permission)
 	if err != nil {
-		return nil, fmt.Errorf("permission not found: %v", err)
+		return nil, fmt.Errorf("разрешение не найдено: %v", err)
 	}
 
 	return &permission, nil
@@ -79,7 +79,7 @@ func GetPermissionByService(service string) (*Permission, error) {
 	var permission Permission
 	err := collection.FindOne(ctx, bson.M{"service": service}).Decode(&permission)
 	if err != nil {
-		return nil, fmt.Errorf("permission not found: %v", err)
+		return nil, fmt.Errorf("разрешение не найдено: %v", err)
 	}
 
 	return &permission, nil

@@ -50,7 +50,7 @@ func CreateRole(serviceKey, name, description string, permissions []string) (*Ro
 	// Validate that permissions are valid for the service
 	if valid, invalidPerms := ValidateRolePermissions(serviceKey, permissions); !valid {
 		log.Printf("ERROR CreateRole: Invalid permissions: %v", invalidPerms)
-		return nil, fmt.Errorf("invalid permissions for service %s: %v", serviceKey, invalidPerms)
+		return nil, fmt.Errorf("недопустимые разрешения для сервиса %s: %v", serviceKey, invalidPerms)
 	}
 
 	log.Printf("DEBUG CreateRole: Permissions validated successfully")
@@ -193,7 +193,7 @@ func UpdateRole(id primitive.ObjectID, serviceKey, name, description string, per
 
 	// Validate that permissions are valid for the service
 	if valid, invalidPerms := ValidateRolePermissions(serviceKey, permissions); !valid {
-		return fmt.Errorf("invalid permissions for service %s: %v", serviceKey, invalidPerms)
+		return fmt.Errorf("недопустимые разрешения для сервиса %s: %v", serviceKey, invalidPerms)
 	}
 
 	_, err := serviceRolesCol.UpdateOne(
@@ -313,7 +313,7 @@ func AddPermissionToRole(id primitive.ObjectID, permission string) error {
 
 	// Validate permission for service
 	if valid, _ := ValidateRolePermissions(role.ServiceKey, []string{permission}); !valid {
-		return fmt.Errorf("permission %s is not valid for service %s", permission, role.ServiceKey)
+		return fmt.Errorf("разрешение %s недопустимо для сервиса %s", permission, role.ServiceKey)
 	}
 
 	_, err = serviceRolesCol.UpdateOne(
@@ -385,7 +385,7 @@ func DeleteServiceRole(id primitive.ObjectID) error {
 	err := serviceRolesCol.FindOne(ctx, bson.M{"_id": id}).Decode(&role)
 	if err != nil {
 		log.Printf("ERROR: Role %s not found: %v", id.Hex(), err)
-		return fmt.Errorf("role not found: %w", err)
+		return fmt.Errorf("роль не найдена: %w", err)
 	}
 
 	// Delete all user assignments of this role
@@ -444,7 +444,7 @@ func CreateServiceRole(role *ServiceRole) error {
 	var existing ServiceRole
 	err := serviceRolesCol.FindOne(ctx, filter).Decode(&existing)
 	if err == nil {
-		return fmt.Errorf("role '%s' already exists in service '%s'", role.Name, role.ServiceKey)
+		return fmt.Errorf("роль '%s' уже существует в сервисе '%s'", role.Name, role.ServiceKey)
 	}
 
 	if role.ID.IsZero() {

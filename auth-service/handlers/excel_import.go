@@ -147,7 +147,7 @@ func processExcelImport(file *excelize.File, adminUserID primitive.ObjectID) (*m
 	}
 
 	if !sheetExists {
-		return result, fmt.Errorf("Users sheet not found in Excel file")
+		return result, fmt.Errorf("лист Users не найден в Excel-файле")
 	}
 
 	// Read all rows from Users sheet
@@ -157,7 +157,7 @@ func processExcelImport(file *excelize.File, adminUserID primitive.ObjectID) (*m
 	}
 
 	if len(rows) < 2 {
-		return result, fmt.Errorf("no data rows found in Users sheet")
+		return result, fmt.Errorf("на листе Users не найдено строк с данными")
 	}
 
 	// Parse header row to understand column structure

@@ -127,7 +127,7 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 		case NotificationTypePush:
 			err = ns.sendPush(notification)
 		default:
-			err = fmt.Errorf("unsupported notification type: %s", notification.Type)
+			err = fmt.Errorf("неподдерживаемый тип уведомления: %s", notification.Type)
 		}
 
 		if err == nil {
@@ -382,7 +382,7 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 	if isSystemBot {
 		botToken = config.TelegramSystemBotToken
 		if !config.TelegramSystemEnabled {
-			return fmt.Errorf("telegram system bot is not enabled")
+			return fmt.Errorf("системный Telegram-бот не включён")
 		}
 
 		if config.SystemTelegramChatID != "" {
@@ -394,12 +394,12 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		botToken = config.TelegramBotToken
 		chatID = notification.Recipient
 		if !config.TelegramEnabled {
-			return fmt.Errorf("telegram bot is not enabled")
+			return fmt.Errorf("Telegram-бот не включён")
 		}
 	}
 
 	if botToken == "" {
-		return fmt.Errorf("telegram bot token not configured")
+		return fmt.Errorf("токен Telegram-бота не настроен")
 	}
 
 	// Prepare message text
@@ -461,14 +461,14 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 func (ns *NotificationService) sendSMS(notification *Notification) error {
 	// TODO: Implement SMS sending
 	log.Printf("SMS sending not implemented yet for notification %d", notification.ID)
-	return fmt.Errorf("SMS sending not implemented")
+	return fmt.Errorf("отправка SMS не реализована")
 }
 
 // sendPush sends a push notification (placeholder)
 func (ns *NotificationService) sendPush(notification *Notification) error {
 	// TODO: Implement push notification sending
 	log.Printf("Push notification sending not implemented yet for notification %d", notification.ID)
-	return fmt.Errorf("push notification sending not implemented")
+	return fmt.Errorf("отправка push-уведомлений не реализована")
 }
 
 // updateBatchStats updates batch statistics
