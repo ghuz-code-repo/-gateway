@@ -33,6 +33,7 @@ type NotificationService struct {
 	httpClient      *http.Client   // Shared HTTP client for external API calls
 	workerSem       chan struct{}  // Semaphore to limit concurrent send goroutines
 	wg              sync.WaitGroup // Tracks in-flight goroutines for graceful shutdown
+	guard           *ServiceGuard  // Детектор аномалий межсервисных запросов (security.go)
 }
 
 type NotificationType string
@@ -198,6 +199,7 @@ func main() {
 		},
 		workerSem: make(chan struct{}, maxConcurrent),
 	}
+	service.guard = NewServiceGuard(service.sendSecurityAlert)
 	log.Printf("✅ Notification service instance created (max concurrent sends: %d)", maxConcurrent)
 
 	// Initialize router
@@ -332,6 +334,74 @@ func initDB() (*gorm.DB, error) {
 	return db, nil
 }
 
+// loadServiceAPIKeys собирает карту "api-key -> имя сервиса" из окружения.
+//
+// Источники:
+//   - SERVICE_API_KEYS — per-service ключи в формате "referal:key1,client-service:key2,..."
+//   - INTERNAL_API_KEY — общий легаси-ключ (его уже шлёт auth-service / auth-connector)
+func loadServiceAPIKeys() map[string]string {
+	keys := make(map[string]string)
+
+	if raw := os.Getenv("SERVICE_API_KEYS"); raw != "" {
+		for _, pair := range strings.Split(raw, ",") {
+			pair = strings.TrimSpace(pair)
+			if pair == "" {
+				continue
+			}
+			parts := strings.SplitN(pair, ":", 2)
+			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+				log.Printf("⚠️ SERVICE_API_KEYS: пропущена некорректная запись %q (ожидается name:key)", pair)
+				continue
+			}
+			keys[strings.TrimSpace(parts[1])] = strings.TrimSpace(parts[0])
+		}
+	}
+
+	if legacy := os.Getenv("INTERNAL_API_KEY"); legacy != "" {
+		if _, exists := keys[legacy]; !exists {
+			keys[legacy] = "internal-shared-key"
+		}
+	}
+
+	return keys
+}
+
+// serviceAuthMiddleware проверяет X-API-Key входящих запросов от других сервисов
+// и пропускает их через ServiceGuard (rate-limit + алерты при аномалиях).
+// Если ни одного ключа не настроено — аутентификация отключена (с предупреждением в лог),
+// чтобы не сломать существующие деплои до раскатки ключей.
+func (ns *NotificationService) serviceAuthMiddleware() gin.HandlerFunc {
+	keys := loadServiceAPIKeys()
+	if len(keys) == 0 {
+		log.Printf("⚠️ SERVICE_API_KEYS / INTERNAL_API_KEY не заданы — аутентификация сервисов ОТКЛЮЧЕНА")
+		return func(c *gin.Context) { c.Next() }
+	}
+
+	log.Printf("🔐 Service authentication enabled (%d key(s) configured)", len(keys))
+	return func(c *gin.Context) {
+		apiKey := c.GetHeader("X-API-Key")
+		if apiKey == "" {
+			log.Printf("🚫 AUTH REJECT: missing X-API-Key | path=%s ip=%s", c.Request.URL.Path, c.ClientIP())
+			ns.guard.RecordInvalidKey(c.ClientIP(), c.Request.URL.Path)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "X-API-Key header required"})
+			return
+		}
+		serviceName, ok := keys[apiKey]
+		if !ok {
+			log.Printf("🚫 AUTH REJECT: invalid X-API-Key | path=%s ip=%s", c.Request.URL.Path, c.ClientIP())
+			ns.guard.RecordInvalidKey(c.ClientIP(), c.Request.URL.Path)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid X-API-Key"})
+			return
+		}
+		if !ns.guard.Allow(serviceName) {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded, try again later"})
+			return
+		}
+		c.Set("service_name", serviceName)
+		c.Next()
+	}
+}
+
 func (ns *NotificationService) setupRoutes(router *gin.Engine) {
 	// Статические файлы
 	router.Static("/static", "./static")
@@ -346,30 +416,46 @@ func (ns *NotificationService) setupRoutes(router *gin.Engine) {
 	})
 
 	api := router.Group("/api/v1")
+
+	// Health check — без аутентификации (docker healthcheck, monitoring)
+	api.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	// Ханипот-эндпоинты: легитимного трафика на эти пути не существует.
+	// Любое обращение — бинарный индикатор компрометации источника:
+	// лог-маркер GUARD TRIPWIRE ловит guard-watchdog и карантинит контейнер.
+	// Без аутентификации (смысл — поймать пробы), ответ — обычный 404.
+	tripwire := func(c *gin.Context) {
+		ns.guard.Tripwire(c.ClientIP(), c.Request.URL.Path)
+		c.String(http.StatusNotFound, "404 page not found")
+	}
+	for _, p := range []string{"/.env", "/api/v1/internal/keys", "/api/v1/admin/exec", "/api/v1/debug/pprof"} {
+		router.Any(p, tripwire)
+	}
+
+	// Все остальные эндпоинты требуют валидный X-API-Key сервиса
+	protected := api.Group("")
+	protected.Use(ns.serviceAuthMiddleware())
 	{
 		// Batch notifications endpoint
-		api.POST("/notifications/batch", ns.sendBatchNotifications)
+		protected.POST("/notifications/batch", ns.sendBatchNotifications)
 
 		// Single notification endpoint
-		api.POST("/notifications", ns.sendSingleNotification)
+		protected.POST("/notifications", ns.sendSingleNotification)
 
 		// Get notification status
-		api.GET("/notifications/:id", ns.getNotificationStatus)
+		protected.GET("/notifications/:id", ns.getNotificationStatus)
 
 		// Get batch status
-		api.GET("/batches/:batch_id", ns.getBatchStatus)
+		protected.GET("/batches/:batch_id", ns.getBatchStatus)
 
 		// Get notifications by batch
-		api.GET("/batches/:batch_id/notifications", ns.getBatchNotifications)
+		protected.GET("/batches/:batch_id/notifications", ns.getBatchNotifications)
 
 		// Configuration endpoints
-		api.GET("/config", ns.getConfig)
-		api.POST("/config", ns.updateConfig)
-
-		// Health check
-		api.GET("/health", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"status": "ok"})
-		})
+		protected.GET("/config", ns.getConfig)
+		protected.POST("/config", ns.updateConfig)
 	}
 }
 
@@ -386,7 +472,7 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 		req.BatchID = generateBatchID()
 	}
 
-	log.Printf("📦 Received batch notification request: batch_id=%s, count=%d", req.BatchID, len(req.Notifications))
+	log.Printf("📦 Received batch notification request: batch_id=%s, count=%d, from_service=%s", req.BatchID, len(req.Notifications), c.GetString("service_name"))
 
 	// Create batch record
 	batch := NotificationBatch{
@@ -445,7 +531,7 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 		return
 	}
 
-	log.Printf("📧 Received notification: type=%s, recipient=%s, subject=%s", req.Type, req.Recipient, req.Subject)
+	log.Printf("📧 Received notification: type=%s, recipient=%s, subject=%s, from_service=%s", req.Type, req.Recipient, req.Subject, c.GetString("service_name"))
 
 	// Create notification
 	notification := Notification{

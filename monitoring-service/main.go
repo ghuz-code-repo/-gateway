@@ -346,11 +346,17 @@ func (ms *MonitoringService) sendNotification(serviceURL string, notification No
 		return
 	}
 
-	resp, err := ms.httpClient.Post(
-		serviceURL+"/api/v1/notifications",
-		"application/json",
-		bytes.NewBuffer(jsonData),
-	)
+	req, err := http.NewRequest(http.MethodPost, serviceURL+"/api/v1/notifications", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("❌ Failed to build %s notification request: %v", notificationType, err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey := getNotificationAPIKey(); apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := ms.httpClient.Do(req)
 
 	if err != nil {
 		log.Printf("❌ Failed to send %s notification: %v", notificationType, err)
@@ -363,6 +369,14 @@ func (ms *MonitoringService) sendNotification(serviceURL string, notification No
 	} else {
 		log.Printf("❌ Failed to send %s notification: HTTP %d", notificationType, resp.StatusCode)
 	}
+}
+
+// getNotificationAPIKey возвращает ключ для аутентификации в notification-service
+func getNotificationAPIKey() string {
+	if key := os.Getenv("NOTIFICATION_API_KEY"); key != "" {
+		return key
+	}
+	return os.Getenv("INTERNAL_API_KEY")
 }
 
 // capitalizeFirst capitalizes the first letter of a string (replaces deprecated strings.Title)
@@ -423,7 +437,15 @@ func (ms *MonitoringService) getNotificationConfig() NotificationConfig {
 	notificationServiceURL := getEnvOrDefault("NOTIFICATION_SERVICE_URL", "http://notification-service:80")
 
 	// Try to fetch from API
-	resp, err := ms.httpClient.Get(notificationServiceURL + "/api/v1/config")
+	req, err := http.NewRequest(http.MethodGet, notificationServiceURL+"/api/v1/config", nil)
+	if err != nil {
+		log.Printf("⚠️ Failed to build notification config request, using env fallback: %v", err)
+		return ms.getConfigFromEnv()
+	}
+	if apiKey := getNotificationAPIKey(); apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+	resp, err := ms.httpClient.Do(req)
 
 	if err != nil {
 		log.Printf("⚠️ Failed to fetch notification config from API, using env fallback: %v", err)

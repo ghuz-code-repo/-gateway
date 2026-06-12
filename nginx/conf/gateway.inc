@@ -451,6 +451,11 @@ server {
     }
     
     # ================================================================
+    # QUIZ SERVICE (изолированный, только для сайта gh.uz)
+    # ================================================================
+    include /etc/nginx/conf.d/quiz.inc;
+
+    # ================================================================
     # DYNAMIC SERVICE DISCOVERY (master file in dynamic/services.conf)
     # ================================================================
     # Include dynamic service discovery master config
