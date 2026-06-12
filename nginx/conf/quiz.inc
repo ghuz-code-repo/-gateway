@@ -35,8 +35,9 @@ location ^~ /quiz/api/v1/admin/ {
 # --- API (FastAPI backend) ---
 # https://analytics.gh.uz/quiz/api/v1/... -> http://quiz-backend:8000/api/v1/...
 location ^~ /quiz/api/ {
-    # 444 — закрыть соединение (не 403, чтобы не срабатывал общий redirect шлюза)
-    if ($quiz_gh_uz_denied) { return 444; }
+    # ВРЕМЕННО: проверка Origin/Referer отключена для тестирования.
+    # Чтобы вернуть защиту — раскомментировать строку ниже.
+    # if ($quiz_gh_uz_denied) { return 444; }
     limit_req zone=quiz_api burst=20 nodelay;
 
     # Переменная — чтобы nginx стартовал, даже если quiz-backend не запущен
@@ -56,8 +57,9 @@ location ^~ /quiz/api/ {
 # --- Статика виджета (widget.js и ассеты) ---
 # https://analytics.gh.uz/quiz/widget/assets/widget.js -> quiz-widget:80/assets/widget.js
 location ^~ /quiz/widget/ {
-    # 444 — закрыть соединение (не 403, чтобы не срабатывал общий redirect шлюза)
-    if ($quiz_gh_uz_denied) { return 444; }
+    # ВРЕМЕННО: проверка Origin/Referer отключена для тестирования.
+    # Чтобы вернуть защиту — раскомментировать строку ниже.
+    # if ($quiz_gh_uz_denied) { return 444; }
 
     set $quiz_widget_upstream http://quiz-widget:80;
     rewrite ^/quiz/widget/(.*)$ /$1 break;
