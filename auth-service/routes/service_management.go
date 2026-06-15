@@ -150,6 +150,8 @@ func createServiceHandler(c *gin.Context) {
 	key := c.PostForm("key")
 	name := c.PostForm("name")
 	description := c.PostForm("description")
+	menuURL := c.PostForm("menu_url")
+	unmanagedRouting := c.PostForm("unmanaged_routing") == "on" || c.PostForm("unmanaged_routing") == "true"
 
 	if key == "" || name == "" {
 		c.HTML(http.StatusBadRequest, "admin_service_form.html", gin.H{
@@ -167,7 +169,7 @@ func createServiceHandler(c *gin.Context) {
 	}
 
 	// Create service with empty permissions list
-	_, err := models.CreateService(key, name, description, []models.PermissionDef{})
+	_, err := models.CreateService(key, name, description, menuURL, unmanagedRouting, []models.PermissionDef{})
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 			"error": "Не удалось создать сервис: " + err.Error(),

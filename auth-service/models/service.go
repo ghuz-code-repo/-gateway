@@ -108,13 +108,15 @@ func (s *Service) getCategoryForPermission(perm PermissionDef) string {
 }
 
 // CreateService creates a new service with the new schema
-func CreateService(key, name, description string, availablePermissions []PermissionDef) (*Service, error) {
+func CreateService(key, name, description, menuURL string, unmanagedRouting bool, availablePermissions []PermissionDef) (*Service, error) {
 	ctx := context.Background()
 
 	service := &Service{
 		Key:                  key,
 		Name:                 name,
 		Description:          description,
+		MenuURL:              menuURL,
+		UnmanagedRouting:     unmanagedRouting,
 		AvailablePermissions: availablePermissions,
 		Status:               "active",
 		CreatedAt:            time.Now(),
@@ -940,6 +942,8 @@ func CreateDefaultServices() error {
 				defaultService.key,
 				defaultService.name,
 				defaultService.description,
+				"",    // menuURL: дефолт /{key}/
+				false, // unmanagedRouting: обычная авто-маршрутизация
 				defaultService.permissions,
 			)
 			if err != nil {

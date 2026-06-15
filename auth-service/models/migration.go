@@ -682,6 +682,8 @@ func ensureDefaultServices(result *MigrationResult) error {
 				defaultService.key,
 				defaultService.name,
 				defaultService.description,
+				"",    // menuURL: дефолт /{key}/
+				false, // unmanagedRouting: обычная авто-маршрутизация
 				defaultService.permissions,
 			)
 			if err != nil {
