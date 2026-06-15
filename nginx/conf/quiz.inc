@@ -75,6 +75,28 @@ location ^~ /quiz/widget/ {
     add_header X-Content-Type-Options "nosniff" always;
 }
 
+# --- Полноразмерная страница квиза ---
+# https://analytics.gh.uz/quiz/<id> -> index.html виджета (full-page режим).
+# Ассеты (/quiz/widget/assets/...) и API (/quiz/api/...) обслуживаются своими
+# блоками выше. Открывается напрямую в браузере как обычная страница.
+# Regex-локация имеет приоритет над префиксным catch-all `location /quiz/`.
+location ~ ^/quiz/(\d+)/?$ {
+    # ВРЕМЕННО: проверка Origin/Referer отключена для тестирования.
+    # Чтобы вернуть защиту — раскомментировать строку ниже.
+    # if ($quiz_gh_uz_denied) { return 444; }
+
+    set $quiz_widget_upstream http://quiz-widget:80;
+    rewrite ^.*$ /index.html break;
+    proxy_pass $quiz_widget_upstream;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+
+    add_header Cache-Control "no-store" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
+
 # --- Админ-панель (SPA) ---
 # Открывается напрямую в браузере — без проверки Origin/Referer.
 location = /quiz/admin {
