@@ -43,6 +43,8 @@ type Service struct {
 	Name                 string             `bson:"name" json:"name"`                                 // Display name
 	Description          string             `bson:"description" json:"description"`                   // Service description
 	Icon                 string             `bson:"icon,omitempty" json:"icon,omitempty"`             // Font Awesome icon name (e.g. "users", "gift")
+	MenuURL              string             `bson:"menu_url,omitempty" json:"menu_url,omitempty"`     // Optional custom menu link. If empty, menu uses "/{key}/".
+	UnmanagedRouting     bool               `bson:"unmanaged_routing,omitempty" json:"unmanaged_routing,omitempty"` // If true, nginx route is NOT auto-generated (routing owned by a hand-written .inc). Lets a service register an instance (health/logs) while keeping custom routing.
 	AvailablePermissions []PermissionDef    `bson:"availablePermissions" json:"availablePermissions"` // Canonical list of permissions
 	Status               string             `bson:"status" json:"status"`                             // active, deprecated, disabled
 	CreatedAt            time.Time          `bson:"created_at" json:"created_at"`                     // Creation timestamp
@@ -354,7 +356,7 @@ func GetServiceByName(name string) (*Service, error) {
 }
 
 // UpdateService updates an existing service with new schema
-func UpdateService(id primitive.ObjectID, key, name, description, icon string, availablePermissions []PermissionDef) error {
+func UpdateService(id primitive.ObjectID, key, name, description, icon, menuURL string, unmanagedRouting bool, availablePermissions []PermissionDef) error {
 	ctx := context.Background()
 
 	_, err := servicesCol.UpdateOne(
@@ -366,6 +368,8 @@ func UpdateService(id primitive.ObjectID, key, name, description, icon string, a
 				"name":                 name,
 				"description":          description,
 				"icon":                 icon,
+				"menu_url":             menuURL,
+				"unmanaged_routing":    unmanagedRouting,
 				"availablePermissions": availablePermissions,
 				"updated_at":           time.Now(),
 			},

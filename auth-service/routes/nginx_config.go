@@ -242,6 +242,13 @@ func GetActiveServicesForNginx() ([]models.ServiceInstance, error) {
 			continue
 		}
 
+		// Skip services whose routing is owned by a hand-written .inc (e.g. quiz):
+		// don't auto-generate a route even if an instance is registered, otherwise
+		// the generated `location /{key}/` would clash with the custom config.
+		if service.UnmanagedRouting {
+			continue
+		}
+
 		if instance, hasInstance := instancesMap[service.Key]; hasInstance {
 			// Use registered instance details (internal URL, health path, etc.)
 			nginxServices = append(nginxServices, *instance)

@@ -420,6 +420,8 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 	name := c.PostForm("name")
 	description := c.PostForm("description")
 	icon := c.PostForm("icon")
+	menuURL := c.PostForm("menu_url")
+	unmanagedRouting := c.PostForm("unmanaged_routing") == "on" || c.PostForm("unmanaged_routing") == "true"
 	newKey := c.PostForm("key")
 	confirmKeyChange := c.PostForm("confirmKeyChange")
 
@@ -456,7 +458,7 @@ func updateServiceHandlerWithAccess(c *gin.Context) {
 	}
 
 	// Update service with new key and permissions
-	err = models.UpdateService(service.ID, newKey, name, description, icon, service.AvailablePermissions)
+	err = models.UpdateService(service.ID, newKey, name, description, icon, menuURL, unmanagedRouting, service.AvailablePermissions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении сервиса: " + err.Error()})
 		return

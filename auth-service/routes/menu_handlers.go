@@ -77,6 +77,7 @@ func menuHandler(c *gin.Context) {
 			"displayName": getServiceDisplayName(serviceKey),
 			"icon":        getIconForService(serviceKey),
 			"description": getServiceDescription(serviceKey),
+			"menuUrl":     getMenuURLForService(serviceKey),
 		}
 
 		// Can manage service if: system admin OR service manager OR has external role for this service
@@ -135,6 +136,17 @@ func getServiceDisplayName(serviceKey string) string {
 
 	// Default to the original service key if not found
 	return serviceKey
+}
+
+// getMenuURLForService returns the link used by the service card in the menu.
+// If the service defines a custom MenuURL it is used as-is (e.g. quiz -> "/quiz/admin/"),
+// otherwise the default "/{key}/" is returned for backward compatibility.
+func getMenuURLForService(serviceKey string) string {
+	service, err := models.GetServiceByKey(serviceKey)
+	if err == nil && service != nil && service.MenuURL != "" {
+		return service.MenuURL
+	}
+	return "/" + serviceKey + "/"
 }
 
 // getServiceDescription returns a description for a service

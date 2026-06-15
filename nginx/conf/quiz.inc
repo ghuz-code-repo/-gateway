@@ -14,9 +14,18 @@
 # ===================================================================
 
 # --- Admin API (вызывается админкой с analytics.gh.uz, same-origin) ---
-# БЕЗ проверки gh.uz — по явному решению владельца админка публична.
-# ВНИМАНИЕ: любой может редактировать квизы и читать лиды.
+# ЗАКРЫТО авторизацией шлюза: /verify проверяет токен и наличие роли/разрешения
+# для сервиса "quiz" (сервис определяется по первому сегменту пути). Личность
+# пользователя пробрасывается в backend заголовками X-User-* (для будущего
+# enforcement по разрешениям в quiz-backend).
 location ^~ /quiz/api/v1/admin/ {
+    auth_request /verify;
+    auth_request_set $auth_user_id                  $upstream_http_x_user_id;
+    auth_request_set $auth_user_name                $upstream_http_x_user_name;
+    auth_request_set $auth_user_admin               $upstream_http_x_user_admin;
+    auth_request_set $auth_user_service_roles       $upstream_http_x_user_service_roles;
+    auth_request_set $auth_user_service_permissions $upstream_http_x_user_service_permissions;
+
     limit_req zone=quiz_api burst=20 nodelay;
 
     set $quiz_backend_upstream http://quiz-backend:8000;
@@ -27,6 +36,14 @@ location ^~ /quiz/api/v1/admin/ {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Проброс личности в backend
+    proxy_set_header X-User-Id $auth_user_id;
+    proxy_set_header X-User-Name $auth_user_name;
+    proxy_set_header X-User-Admin $auth_user_admin;
+    proxy_set_header X-User-Service-Roles $auth_user_service_roles;
+    proxy_set_header X-User-Service-Permissions $auth_user_service_permissions;
+    proxy_set_header X-Service-Key quiz;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
     add_header X-Content-Type-Options "nosniff" always;
@@ -98,18 +115,35 @@ location ~ ^/quiz/(\d+)/?$ {
 }
 
 # --- Админ-панель (SPA) ---
-# Открывается напрямую в браузере — без проверки Origin/Referer.
+# ЗАКРЫТО авторизацией шлюза. Неаутентифицированный пользователь получит 401 ->
+# редирект на /login (error_page 401 на уровне server-блока), без роли для quiz —
+# 403 -> /access-denied. Меню ведёт сюда (Service.MenuURL = /quiz/admin/).
 location = /quiz/admin {
     return 301 /quiz/admin/;
 }
 
 location ^~ /quiz/admin/ {
+    auth_request /verify;
+    auth_request_set $auth_user_id                  $upstream_http_x_user_id;
+    auth_request_set $auth_user_name                $upstream_http_x_user_name;
+    auth_request_set $auth_user_admin               $upstream_http_x_user_admin;
+    auth_request_set $auth_user_service_roles       $upstream_http_x_user_service_roles;
+    auth_request_set $auth_user_service_permissions $upstream_http_x_user_service_permissions;
+
     set $quiz_admin_upstream http://quiz-admin:80;
     rewrite ^/quiz/admin/(.*)$ /$1 break;
     proxy_pass $quiz_admin_upstream;
 
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
+
+    # Проброс личности в админку
+    proxy_set_header X-User-Id $auth_user_id;
+    proxy_set_header X-User-Name $auth_user_name;
+    proxy_set_header X-User-Admin $auth_user_admin;
+    proxy_set_header X-User-Service-Roles $auth_user_service_roles;
+    proxy_set_header X-User-Service-Permissions $auth_user_service_permissions;
+    proxy_set_header X-Service-Key quiz;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
     add_header X-Content-Type-Options "nosniff" always;
