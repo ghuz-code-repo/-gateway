@@ -75,6 +75,13 @@
                 <a href="/forgot-password" class="forgot-password-link">ВОССТАНОВИТЬ ПАРОЛЬ</a>
             </div>
         </form>
+
+        <div style="margin-top: 18px; text-align: center;">
+            <a href="/login/telegram{{ if .redirect }}?redirect={{ .redirect }}{{ end }}" class="btn" style="display: inline-flex; align-items: center; gap: 8px; justify-content: center; width: 100%; background-color: #2AABEE; color: #fff; border: none;">
+                <i class="fab fa-telegram-plane"></i>
+                Войти через Telegram
+            </a>
+        </div>
     </div>
     <script src="/_shared/js/particles.min.js"></script>
     <script src="/static/js/theme-switcher.js"></script>

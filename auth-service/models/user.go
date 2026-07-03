@@ -152,6 +152,13 @@ type User struct {
 	Address            string     `bson:"address,omitempty" json:"address,omitempty"`
 	BirthDate          *time.Time `bson:"birth_date,omitempty" json:"birth_date,omitempty"`
 
+	// Telegram integration (linking, login confirmation, password reset)
+	TelegramUsername     string     `bson:"telegram_username,omitempty" json:"telegram_username,omitempty"`           // без @, в нижнем регистре
+	TelegramChatID       int64      `bson:"telegram_chat_id,omitempty" json:"-"`                                      // chat_id для отправки через notification-bot
+	TelegramLinkedAt     *time.Time `bson:"telegram_linked_at,omitempty" json:"telegram_linked_at,omitempty"`         // когда подтверждена привязка
+	TelegramLoginRejects int        `bson:"telegram_login_rejects,omitempty" json:"-"`                                // счётчик отклонённых входов
+	TelegramLoginFrozen  bool       `bson:"telegram_login_frozen,omitempty" json:"telegram_login_frozen,omitempty"`   // вход через TG заморожен до входа по паролю
+
 	Documents    []UserDocument          `bson:"documents,omitempty" json:"documents,omitempty"`         // New document system
 	LegacyDocs   []Document              `bson:"legacy_docs,omitempty" json:"legacy_docs,omitempty"`     // Legacy documents
 	IsBanned     bool                    `bson:"is_banned,omitempty" json:"is_banned,omitempty"`         // User ban status
@@ -461,6 +468,53 @@ func InitDB(uri, dbName string) error {
 	})
 	if err != nil {
 		log.Printf("Warning: Failed to create password_reset_tokens user_id index: %v", err)
+	}
+
+	// Indexes for Telegram integration
+	// users.telegram_username / telegram_chat_id for login-via-telegram lookups
+	_, err = usersCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "telegram_username", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create users telegram_username index: %v", err)
+	}
+	_, err = usersCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "telegram_chat_id", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create users telegram_chat_id index: %v", err)
+	}
+
+	// telegram_link_tokens: lookup by token + TTL cleanup
+	tgLinkCol := db.Collection("telegram_link_tokens")
+	_, err = tgLinkCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "token", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create telegram_link_tokens token index: %v", err)
+	}
+	_, err = tgLinkCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(600), // держим 10 минут после истечения
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create telegram_link_tokens TTL index: %v", err)
+	}
+
+	// telegram_login_requests: lookup by request_id + TTL cleanup
+	tgLoginCol := db.Collection("telegram_login_requests")
+	_, err = tgLoginCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "request_id", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create telegram_login_requests request_id index: %v", err)
+	}
+	_, err = tgLoginCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(600),
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create telegram_login_requests TTL index: %v", err)
 	}
 
 	// Index for user_service_roles lookups by service_key + is_active (used in aggregation)

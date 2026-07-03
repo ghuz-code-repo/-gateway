@@ -21,6 +21,8 @@ func SetupProfileRoutes(router *gin.Engine) {
 	router.GET("/profile/avatar/original/file", authRequired(), getOriginalAvatarFileHandler)
 	router.DELETE("/profile/remove-avatar", authRequired(), removeAvatarHandler)
 	router.POST("/profile/password", authRequired(), changePasswordHandler)
+	router.POST("/profile/telegram/link", authRequired(), telegramLinkRequestHandler)
+	router.POST("/profile/telegram/unlink", authRequired(), telegramUnlinkHandler)
 	router.POST("/profile/document", authRequired(), uploadDocumentHandler)
 	router.POST("/profile/document/delete", authRequired(), deleteDocumentHandler)
 	router.GET("/profile/document/:id", authRequired(), downloadDocumentHandler)

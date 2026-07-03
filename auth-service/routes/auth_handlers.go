@@ -92,6 +92,15 @@ func loginHandler(c *gin.Context) {
 	// Reset rate limit on successful login
 	ResetLoginAttempts(c.ClientIP())
 
+	// Successful password login unfreezes Telegram login and resets the reject counter
+	if user.TelegramLoginFrozen || user.TelegramLoginRejects > 0 {
+		if err := models.ResetTelegramLoginFreeze(user.ID); err != nil {
+			log.Printf("Warning: Failed to reset telegram login freeze for user %s: %v", user.Username, err)
+		} else if user.TelegramLoginFrozen {
+			log.Printf("Telegram login unfrozen for user %s after password login", user.Username)
+		}
+	}
+
 	// Redirect to requested page or menu
 	if redirect == "" {
 		redirect = "/menu"
@@ -358,6 +367,12 @@ func forgotPasswordHandler(c *gin.Context) {
 		c.HTML(http.StatusBadRequest, "forgot-password.html", gin.H{
 			"error": "Email или имя пользователя обязательны",
 		})
+		return
+	}
+
+	// Delivery via Telegram bot (same token logic, different channel)
+	if c.PostForm("method") == "telegram" {
+		forgotPasswordViaTelegram(c, identifier)
 		return
 	}
 

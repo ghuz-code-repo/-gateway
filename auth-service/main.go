@@ -197,6 +197,9 @@ func main() {
 	// Initialize notification service client
 	InitNotificationClient()
 
+	// Initialize notification-bot client (Telegram link/login/reset)
+	InitTelegramBotClient()
+
 	// Configure notification service with current SMTP settings
 	ConfigureNotificationService()
 

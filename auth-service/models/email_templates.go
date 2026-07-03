@@ -122,6 +122,40 @@ func GetAccountDeletedEmail(fullName, username string) (string, string) {
 	return subject, content
 }
 
+// GetTelegramLinkEmail returns a formatted email for Telegram account linking
+func GetTelegramLinkEmail(fullName, tgUsername, deepLink string) (string, string) {
+	subject := "Подтверждение привязки Telegram - Портал Golden House"
+
+	content := fmt.Sprintf(`
+Здравствуйте, %s!
+
+Вы запросили привязку Telegram-аккаунта @%s к вашей учетной записи на портале Golden House.
+
+Для подтверждения перейдите по ссылке ниже — она откроет нашего бота и автоматически завершит привязку:
+%s
+
+ВАЖНО:
+- Ссылка действительна в течение 15 минут
+- Переходите по ссылке с устройства, где выполнен вход в Telegram под аккаунтом @%s
+- Если вы не запрашивали привязку Telegram, проигнорируйте это письмо и сообщите администратору системы
+
+После привязки вы сможете:
+- Входить на портал через подтверждение в Telegram
+- Восстанавливать пароль через бота
+
+Если у вас возникли вопросы, обратитесь в службу поддержки:
+- Email: %s
+- Telegram: %s
+
+С уважением,
+	Команда отдела аналитики и развития Golden House
+
+Это автоматическое сообщение, пожалуйста, не отвечайте на него.
+		`, fullName, tgUsername, deepLink, tgUsername, os.Getenv("SUPPORT_EMAIL"), os.Getenv("SUPPORT_TELEGRAM"))
+
+	return subject, content
+}
+
 // GetPasswordResetEmail returns a formatted email for password reset
 func GetPasswordResetEmail(fullName, resetLink string) (string, string) {
 	subject := "Восстановление пароля - Портал Golden House"

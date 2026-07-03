@@ -300,6 +300,58 @@
                             <div class="form-sections">
                                 <div class="form-section">
                                     <h3 class="section-title">
+                                        <i class="fab fa-telegram-plane" style="color:#2AABEE;"></i>
+                                        Telegram
+                                    </h3>
+
+                                    {{ if .user.TelegramUsername }}
+                                    <div id="telegramLinkedBlock">
+                                        <p style="margin-bottom: 10px;">
+                                            Привязан аккаунт: <strong>@{{ .user.TelegramUsername }}</strong>
+                                            {{ if .user.TelegramLinkedAt }}<span style="color: var(--light-text-color);"> (с {{ .user.TelegramLinkedAt.Format "02.01.2006" }})</span>{{ end }}
+                                        </p>
+                                        {{ if .user.TelegramLoginFrozen }}
+                                        <p style="color: #c0392b; margin-bottom: 10px;">
+                                            <i class="fas fa-lock"></i>
+                                            Вход через Telegram заморожен из-за повторных отклонений. Разблокируется при следующем входе по логину и паролю.
+                                        </p>
+                                        {{ else }}
+                                        <p style="color: var(--light-text-color); margin-bottom: 10px;">
+                                            Вы можете входить на портал через подтверждение в Telegram и сбрасывать пароль через бота.
+                                        </p>
+                                        {{ end }}
+                                        <button type="button" class="btn btn-secondary" id="telegramUnlinkBtn">
+                                            <i class="fas fa-unlink"></i>
+                                            Отвязать Telegram
+                                        </button>
+                                    </div>
+                                    {{ else }}
+                                    <div id="telegramLinkBlock">
+                                        <p style="color: var(--light-text-color); margin-bottom: 12px;">
+                                            Укажите ваш Telegram username — на вашу почту придёт ссылка, которая откроет бота
+                                            <strong>@notification_analytics_gh_uz_bot</strong> и подтвердит привязку.
+                                            После этого вы сможете входить через Telegram и сбрасывать пароль через бота.
+                                        </p>
+                                        <div class="form-grid">
+                                            <div class="form-group">
+                                                <label for="telegramUsername">Telegram username</label>
+                                                <input type="text" id="telegramUsername" placeholder="@username">
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn btn-primary" id="telegramLinkBtn" style="background-color:#2AABEE; border-color:#2AABEE;">
+                                            <i class="fab fa-telegram-plane"></i>
+                                            Подключить Telegram
+                                        </button>
+                                        <p id="telegramLinkHint" style="display:none; color: var(--light-text-color); margin-top: 10px;">
+                                            <i class="fas fa-envelope"></i>
+                                            Письмо отправлено. Перейдите по ссылке из письма, чтобы завершить привязку, затем обновите эту страницу.
+                                        </p>
+                                    </div>
+                                    {{ end }}
+                                </div>
+
+                                <div class="form-section">
+                                    <h3 class="section-title">
                                         <i class="fas fa-shield-alt"></i>
                                         Смена пароля
                                     </h3>
@@ -601,6 +653,75 @@
     });
     </script>
     
+    <!-- Telegram link/unlink -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const linkBtn = document.getElementById('telegramLinkBtn');
+        const unlinkBtn = document.getElementById('telegramUnlinkBtn');
+
+        if (linkBtn) {
+            linkBtn.addEventListener('click', async function() {
+                const usernameInput = document.getElementById('telegramUsername');
+                const tgUsername = usernameInput.value.trim();
+                if (!tgUsername) {
+                    showNotification('Укажите ваш Telegram username', 'error');
+                    usernameInput.focus();
+                    return;
+                }
+
+                linkBtn.disabled = true;
+                try {
+                    const formData = new URLSearchParams();
+                    formData.append('tg_username', tgUsername);
+                    const resp = await fetch('/profile/telegram/link', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: formData.toString(),
+                        credentials: 'same-origin'
+                    });
+                    const data = await resp.json();
+                    if (resp.ok && data.success) {
+                        showNotification(data.message, 'success');
+                        document.getElementById('telegramLinkHint').style.display = '';
+                    } else {
+                        showNotification(data.error || 'Не удалось отправить ссылку', 'error');
+                    }
+                } catch (e) {
+                    showNotification('Ошибка сети. Попробуйте ещё раз.', 'error');
+                } finally {
+                    linkBtn.disabled = false;
+                }
+            });
+        }
+
+        if (unlinkBtn) {
+            unlinkBtn.addEventListener('click', async function() {
+                if (!confirm('Отвязать Telegram от аккаунта? Вход через Telegram станет недоступен.')) {
+                    return;
+                }
+                unlinkBtn.disabled = true;
+                try {
+                    const resp = await fetch('/profile/telegram/unlink', {
+                        method: 'POST',
+                        credentials: 'same-origin'
+                    });
+                    const data = await resp.json();
+                    if (resp.ok && data.success) {
+                        showNotification(data.message, 'success');
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        showNotification(data.error || 'Не удалось отвязать Telegram', 'error');
+                        unlinkBtn.disabled = false;
+                    }
+                } catch (e) {
+                    showNotification('Ошибка сети. Попробуйте ещё раз.', 'error');
+                    unlinkBtn.disabled = false;
+                }
+            });
+        }
+    });
+    </script>
+
     <!-- Initialize Smart Phone Input and Avatar Crop -->
     <script>
         window.addEventListener('load', function() {

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход через Telegram - Портал Golden House</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+      body {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity .05s ease-in-out;
+      }
+      .tg-waiting {
+        display: none;
+        text-align: center;
+        padding: 20px 0;
+      }
+      .tg-waiting .tg-spinner {
+        font-size: 42px;
+        color: #2AABEE;
+        margin-bottom: 15px;
+      }
+      .tg-waiting p {
+        color: var(--light-text-color);
+      }
+    </style>
+</head>
+<body>
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+            }
+            requestAnimationFrame(() => {
+                document.body.style.visibility = 'visible';
+                document.body.style.opacity = 1;
+            });
+        })();
+    </script>
+    <div id="particles-js"></div>
+    <div class="login-page-theme-switcher-container">
+        <button id="theme-switcher" title="Toggle theme"><i class="fas fa-moon"></i></button>
+    </div>
+    <div class="login-container">
+        <h1 class="login-title"><i class="fab fa-telegram-plane" style="color:#2AABEE;"></i> Вход через Telegram</h1>
+
+        <div class="flash-message danger" id="errorBox" style="display:none;"></div>
+        <div class="flash-message success" id="infoBox" style="display:none;"></div>
+
+        <form class="login-form" id="tgLoginForm" autocomplete="on">
+            <p style="text-align: center; color: var(--light-text-color); margin-bottom: 20px;">
+                Введите Telegram username, email или логин — мы отправим запрос на подтверждение входа в ваш Telegram
+            </p>
+            <div class="form-group">
+                <input type="text" id="identifier" name="identifier" placeholder="@username, email или логин"
+                       spellcheck="false" required autofocus>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn primary" id="tgSubmitBtn" style="background-color:#2AABEE; border:none;">
+                    <i class="fab fa-telegram-plane"></i>
+                    <span id="tgBtnText">Отправить запрос</span>
+                </button>
+            </div>
+        </form>
+
+        <div class="tg-waiting" id="tgWaiting">
+            <div class="tg-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+            <p><strong>Проверьте Telegram</strong></p>
+            <p>Мы отправили сообщение с кнопками подтверждения.<br>Подтвердите вход в боте — эта страница обновится автоматически.</p>
+            <p id="tgCountdown" style="margin-top:10px; font-size: 0.9em;"></p>
+        </div>
+
+        <div style="margin-top: 18px; text-align: center;">
+            <a href="/login{{ if .redirect }}?redirect={{ .redirect }}{{ end }}">
+                <i class="fas fa-arrow-left"></i>
+                Вернуться к обычному входу
+            </a>
+        </div>
+    </div>
+    <script src="/_shared/js/particles.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
+    <script src="/static/js/layout-adjust.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
+    <script>
+    particlesJS('particles-js', {
+        "particles": {
+            "number": { "value": 120, "density": { "enable": true, "value_area": 800 } },
+            "color": { "value": "#c4a668" },
+            "shape": { "type": "polygon", "stroke": { "width": 1, "color": "#c4a668" }, "polygon": { "nb_sides": 6 } },
+            "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+            "size": { "value": 4, "random": true },
+            "line_linked": { "enable": true, "distance": 180, "color": "#c4a668", "opacity": 0.15, "width": 1 },
+            "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+        },
+        "interactivity": {
+            "detect_on": "canvas",
+            "events": { "onhover": { "enable": true, "mode": "bubble" }, onclick: { "enable": true, "mode": "push" } },
+            "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+        },
+        "retina_detect": true
+    });
+    </script>
+    <script>
+    (function() {
+        const redirect = {{ if .redirect }}{{ .redirect }}{{ else }}""{{ end }};
+        const form = document.getElementById('tgLoginForm');
+        const submitBtn = document.getElementById('tgSubmitBtn');
+        const btnText = document.getElementById('tgBtnText');
+        const errorBox = document.getElementById('errorBox');
+        const infoBox = document.getElementById('infoBox');
+        const waiting = document.getElementById('tgWaiting');
+        const countdown = document.getElementById('tgCountdown');
+
+        const POLL_INTERVAL_MS = 2000;
+        const REQUEST_TTL_SEC = 180; // должен совпадать со сроком жизни запроса на сервере
+
+        let pollTimer = null;
+        let countdownTimer = null;
+
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.style.display = 'block';
+            infoBox.style.display = 'none';
+        }
+
+        function resetForm() {
+            if (pollTimer) clearInterval(pollTimer);
+            if (countdownTimer) clearInterval(countdownTimer);
+            waiting.style.display = 'none';
+            form.style.display = '';
+            submitBtn.disabled = false;
+            btnText.textContent = 'Отправить запрос';
+        }
+
+        function startPolling(requestId) {
+            form.style.display = 'none';
+            errorBox.style.display = 'none';
+            waiting.style.display = 'block';
+
+            let secondsLeft = REQUEST_TTL_SEC;
+            countdown.textContent = 'Запрос действителен ещё ' + secondsLeft + ' сек.';
+            countdownTimer = setInterval(() => {
+                secondsLeft--;
+                if (secondsLeft <= 0) {
+                    resetForm();
+                    showError('Время подтверждения истекло. Отправьте запрос ещё раз.');
+                    return;
+                }
+                countdown.textContent = 'Запрос действителен ещё ' + secondsLeft + ' сек.';
+            }, 1000);
+
+            pollTimer = setInterval(async () => {
+                try {
+                    const url = '/login/telegram/status?request_id=' + encodeURIComponent(requestId) +
+                        (redirect ? '&redirect=' + encodeURIComponent(redirect) : '');
+                    const resp = await fetch(url, { credentials: 'same-origin' });
+                    const data = await resp.json();
+
+                    if (data.status === 'approved') {
+                        clearInterval(pollTimer);
+                        clearInterval(countdownTimer);
+                        window.location.href = data.redirect || '/menu';
+                    } else if (data.status === 'rejected') {
+                        resetForm();
+                        showError('Вход отклонён в Telegram.');
+                    } else if (data.status === 'expired') {
+                        resetForm();
+                        showError('Время подтверждения истекло. Отправьте запрос ещё раз.');
+                    }
+                    // pending — продолжаем ждать
+                } catch (e) {
+                    // сетевые сбои игнорируем, продолжаем поллинг
+                }
+            }, POLL_INTERVAL_MS);
+        }
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            errorBox.style.display = 'none';
+            submitBtn.disabled = true;
+            btnText.textContent = 'Отправляем...';
+
+            try {
+                const formData = new URLSearchParams();
+                formData.append('identifier', document.getElementById('identifier').value.trim());
+
+                const resp = await fetch('/login/telegram', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData.toString(),
+                    credentials: 'same-origin'
+                });
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    submitBtn.disabled = false;
+                    btnText.textContent = 'Отправить запрос';
+                    showError(data.error || 'Не удалось отправить запрос. Попробуйте позже.');
+                    return;
+                }
+
+                startPolling(data.request_id);
+            } catch (err) {
+                submitBtn.disabled = false;
+                btnText.textContent = 'Отправить запрос';
+                showError('Ошибка сети. Попробуйте ещё раз.');
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

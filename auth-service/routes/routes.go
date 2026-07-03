@@ -42,6 +42,10 @@ func SetupAllRoutes(router *gin.Engine) {
 		api.GET("/auth/roles/:roleName", getAuthRoleByNameHandler)
 		api.GET("/auth/roles/:roleName/users", getAuthRoleUsersHandler)
 
+		// Telegram integration API (called by notification-bot)
+		api.POST("/telegram/link/confirm", telegramLinkConfirmAPIHandler)
+		api.POST("/telegram/login/decision", telegramLoginDecisionAPIHandler)
+
 		// Service Registry API (Service Discovery)
 		registry := api.Group("/registry")
 		{
@@ -83,6 +87,11 @@ func SetupAuthRoutes(router *gin.Engine) {
 	router.POST("/forgot-password", forgotPasswordHandler)
 	router.GET("/reset-password", resetPasswordPageHandler)
 	router.POST("/reset-password", resetPasswordHandler)
+
+	// Telegram login routes
+	router.GET("/login/telegram", telegramLoginPageHandler)
+	router.POST("/login/telegram", telegramLoginRateLimit(), telegramLoginStartHandler)
+	router.GET("/login/telegram/status", telegramLoginStatusHandler)
 
 	// Document system routes
 	router.GET("/document-types", authRequired(), getDocumentTypesHandler)
