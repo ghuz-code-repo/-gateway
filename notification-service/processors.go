@@ -404,9 +404,19 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		chatIDStr = notification.Recipient
 	}
 
-	chatID, err := strconv.ParseInt(strings.TrimSpace(chatIDStr), 10, 64)
+	chatIDStr = strings.TrimSpace(chatIDStr)
+	chatID, err := strconv.ParseInt(chatIDStr, 10, 64)
 	if err != nil {
-		return fmt.Errorf("некорректный chat_id «%s»: получатель должен быть числовым Telegram chat ID", chatIDStr)
+		// Получатель задан username'ом — резолвим в chat_id через auth-service.
+		// Работает для аккаунтов, привязавших Telegram в личном кабинете портала.
+		resolved, rerr := ns.resolveTelegramChatID(chatIDStr)
+		if rerr != nil {
+			return fmt.Errorf("получатель «%s»: %v", chatIDStr, rerr)
+		}
+		chatID, err = strconv.ParseInt(resolved, 10, 64)
+		if err != nil {
+			return fmt.Errorf("некорректный chat_id «%s» от auth-service", resolved)
+		}
 	}
 
 	// Prepare message text
@@ -612,6 +622,7 @@ func isPermanentError(err error) bool {
 		"recipient address rejected", // Адрес получателя отклонён
 		"invalid recipient",          // Недействительный получатель
 		"некорректный chat_id",       // Telegram: получатель не числовой chat ID
+		"не найден или не привязал",  // Telegram: username не привязан на портале (ответ auth-service)
 		"chat not found",             // Telegram: чат не существует / бот не запущен
 		"bot was blocked",            // Telegram: пользователь заблокировал бота
 		"550",                        // SMTP 550 Requested action not taken: mailbox unavailable (permanent)

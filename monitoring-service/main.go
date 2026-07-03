@@ -225,6 +225,7 @@ func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
 	service.LastCheck = time.Now()
 
 	previousStatus := service.Status
+	previousErrors := service.ErrorCount
 
 	if err != nil {
 		service.Status = "unhealthy"
@@ -262,13 +263,17 @@ func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
 		return
 	}
 
-	// Send alert if status changed from healthy to unhealthy
-	if previousStatus == "healthy" && service.Status == "unhealthy" {
-		ms.sendAlert(name, service, "Service became unhealthy")
+	// Anti-flapping: алерт уходит только после N последовательных неудачных
+	// проверок — разовые сбои DNS/сети не должны генерировать почту
+	failureThreshold := getEnvAsInt("ALERT_FAILURE_THRESHOLD", 3)
+
+	// Send alert once, after N consecutive failed checks
+	if service.Status == "unhealthy" && service.ErrorCount == failureThreshold {
+		ms.sendAlert(name, service, fmt.Sprintf("Service became unhealthy (%d consecutive failed checks)", failureThreshold))
 	}
 
-	// Send recovery alert if status changed from unhealthy to healthy
-	if previousStatus == "unhealthy" && service.Status == "healthy" {
+	// Send recovery alert only if the down alert was actually sent
+	if previousStatus == "unhealthy" && service.Status == "healthy" && previousErrors >= failureThreshold {
 		ms.sendAlert(name, service, "Service recovered")
 	}
 
