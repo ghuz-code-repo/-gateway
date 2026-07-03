@@ -239,10 +239,12 @@ networks:
     driver: bridge
     internal: true  # Изолирована от внешнего мира
   
-  # Сеть для сервисов, которым нужен выход в интернет (SMTP, Telegram API)
+  # Сеть для сервисов, которым нужен выход в интернет (SMTP, Telegram API).
+  # Создаётся заранее скриптом start_all.sh (docker network create с
+  # enable_icc=false — контейнеры в ней не видят друг друга), поэтому external.
   egress_network:
     name: egress_network
-    driver: bridge
+    external: true
   
   # Изолированная сеть для auth-service и MongoDB
   data_network:
