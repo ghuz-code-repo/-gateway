@@ -725,6 +725,8 @@ func getContainerFilterForService(serviceKey string) string {
 		"notification":   "name=notification*",
 		"monitoring":     "name=monitoring*",
 		"auth":           "name=gateway-auth*,name=gateway-mongo*",
+		// ключ сервиса hr_bot (подчёркивание) != имена контейнеров hr-bot* (дефис)
+		"hr_bot": "name=hr-bot*",
 	}
 
 	if pattern, ok := containerPatterns[serviceKey]; ok {
