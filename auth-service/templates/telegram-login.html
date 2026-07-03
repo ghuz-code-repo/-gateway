@@ -62,7 +62,7 @@
             </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn primary" id="tgSubmitBtn" style="background-color:#2AABEE; border:none;">
+                <button type="submit" class="btn primary" id="tgSubmitBtn" style="background-color:#2AABEE; border:none; color:#000;">
                     <i class="fab fa-telegram-plane"></i>
                     <span id="tgBtnText">Отправить запрос</span>
                 </button>
@@ -76,7 +76,7 @@
             <p id="tgCountdown" style="margin-top:10px; font-size: 0.9em;"></p>
         </div>
 
-        <div style="margin-top: 18px; text-align: center;">
+        <div class="back-to-login" style="margin-top: 18px;">
             <a href="/login{{ if .redirect }}?redirect={{ .redirect }}{{ end }}">
                 <i class="fas fa-arrow-left"></i>
                 Вернуться к обычному входу

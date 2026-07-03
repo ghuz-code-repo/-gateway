@@ -134,24 +134,20 @@ func telegramLoginStartHandler(c *gin.Context) {
 		return
 	}
 
-	// Generic response used when we must not reveal whether the account exists
-	genericResponse := func() {
-		fakeID, _ := models.GenerateRandomRequestID()
-		c.JSON(http.StatusOK, gin.H{
-			"request_id": fakeID,
-			"message":    "Если аккаунт привязан к Telegram, вам отправлен запрос на подтверждение входа.",
-		})
-	}
+	// Combined "not found" / "not linked" message keeps account existence hidden
+	// while still telling the user Telegram login is unavailable for this input.
+	const notLinkedMsg = "К этому аккаунту не привязан Telegram, либо аккаунт не найден. " +
+		"Войдите по логину и паролю и привяжите Telegram в личном кабинете."
 
 	user, err := models.GetUserByLoginIdentifier(identifier)
 	if err != nil {
 		log.Printf("Error looking up user for telegram login: %v", err)
-		genericResponse()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Внутренняя ошибка. Попробуйте позже."})
 		return
 	}
 	if user == nil || user.TelegramChatID == 0 || user.IsBanned {
 		debugLog("DEBUG: telegram login rejected for identifier '%s' (not found / not linked / banned)", identifier)
-		genericResponse()
+		c.JSON(http.StatusBadRequest, gin.H{"error": notLinkedMsg})
 		return
 	}
 
@@ -197,7 +193,7 @@ func telegramLoginStartHandler(c *gin.Context) {
 	log.Printf("Telegram login request %s sent to user %s", request.RequestID, user.Username)
 	c.JSON(http.StatusOK, gin.H{
 		"request_id": request.RequestID,
-		"message":    "Если аккаунт привязан к Telegram, вам отправлен запрос на подтверждение входа.",
+		"message":    "Запрос на подтверждение входа отправлен в ваш Telegram.",
 	})
 }
 
@@ -257,17 +253,21 @@ func telegramLoginStatusHandler(c *gin.Context) {
 // forgotPasswordViaTelegram sends the password reset link through the bot
 // instead of email (called from forgotPasswordHandler when method=telegram)
 func forgotPasswordViaTelegram(c *gin.Context, identifier string) {
-	// Same generic response regardless of the outcome — do not reveal accounts
-	genericSuccess := func() {
-		c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
-			"success": "Если аккаунт привязан к Telegram, ссылка для восстановления пароля отправлена вам в бот.",
-		})
-	}
-
 	user, err := models.GetUserByLoginIdentifier(identifier)
-	if err != nil || user == nil || user.TelegramChatID == 0 || user.IsBanned {
+	if err != nil {
+		log.Printf("Error looking up user for telegram password reset: %v", err)
+		c.HTML(http.StatusInternalServerError, "forgot-password-result.html", gin.H{
+			"error": "Внутренняя ошибка. Попробуйте позже.",
+		})
+		return
+	}
+	// Combined "not found" / "not linked" message keeps account existence hidden
+	if user == nil || user.TelegramChatID == 0 || user.IsBanned {
 		debugLog("DEBUG: telegram password reset rejected for identifier '%s' (not found / not linked / banned)", identifier)
-		genericSuccess()
+		c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
+			"error": "К этому аккаунту не привязан Telegram, либо аккаунт не найден. " +
+				"Используйте восстановление по email или войдите по паролю и привяжите Telegram в личном кабинете.",
+		})
 		return
 	}
 
@@ -309,7 +309,9 @@ func forgotPasswordViaTelegram(c *gin.Context, identifier string) {
 	}
 
 	log.Printf("Password reset link sent via Telegram to user %s", user.Username)
-	genericSuccess()
+	c.HTML(http.StatusOK, "forgot-password-result.html", gin.H{
+		"success": "Ссылка для восстановления пароля отправлена в ваш Telegram.",
+	})
 }
 
 // ============================================================

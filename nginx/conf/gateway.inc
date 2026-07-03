@@ -138,8 +138,10 @@ server {
     }
     
     # Password recovery
+    # Лимит применяется только к POST (см. map $recovery_limit_key в nginx.conf);
+    # burst даёт запас на повторные отправки без 503.
     location /forgot-password {
-        limit_req zone=auth_recovery burst=3 nodelay;
+        limit_req zone=auth_recovery burst=5 nodelay;
         proxy_pass http://auth-service:80/forgot-password;
     }
     

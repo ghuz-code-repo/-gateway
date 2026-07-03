@@ -83,12 +83,6 @@ func generateRandomHex(n int) (string, error) {
 	return fmt.Sprintf("%x", buf), nil
 }
 
-// GenerateRandomRequestID returns a random ID in the same format as real
-// login request IDs (used for indistinguishable fake responses)
-func GenerateRandomRequestID() (string, error) {
-	return generateRandomHex(16)
-}
-
 // CreateTelegramLinkToken creates a one-time Telegram link token for the user.
 // Any previous tokens of the user are invalidated.
 // Token is 48 hex chars — fits the 64-char limit of a /start deep-link payload.
