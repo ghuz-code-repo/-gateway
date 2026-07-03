@@ -305,7 +305,7 @@
                                     </h3>
 
                                     {{ if .user.TelegramUsername }}
-                                    <div id="telegramLinkedBlock">
+                                    <div id="telegramLinkedBlock" style="margin-bottom: 10px;">
                                         <p style="margin-bottom: 10px;">
                                             Привязан аккаунт: <strong>@{{ .user.TelegramUsername }}</strong>
                                             {{ if .user.TelegramLinkedAt }}<span style="color: var(--light-text-color);"> (с {{ .user.TelegramLinkedAt.Format "02.01.2006" }})</span>{{ end }}
@@ -326,7 +326,7 @@
                                         </button>
                                     </div>
                                     {{ else }}
-                                    <div id="telegramLinkBlock">
+                                    <div id="telegramLinkBlock" style="margin-bottom: 10px;">
                                         <p style="color: var(--light-text-color); margin-bottom: 12px;">
                                             Укажите ваш Telegram username — на вашу почту придёт ссылка, которая откроет бота
                                             <strong>@notification_analytics_gh_uz_bot</strong> и подтвердит привязку.
