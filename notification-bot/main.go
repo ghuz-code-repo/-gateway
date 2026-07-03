@@ -79,9 +79,10 @@ func apiKeyRequired(apiKey string) gin.HandlerFunc {
 
 // sendMessageRequest is the payload other services use to send a Telegram message
 type sendMessageRequest struct {
-	ChatID  int64  `json:"chat_id" binding:"required"`
-	Text    string `json:"text" binding:"required"`
-	Buttons [][]InlineButton `json:"buttons,omitempty"`
+	ChatID    int64            `json:"chat_id" binding:"required"`
+	Text      string           `json:"text" binding:"required"`
+	ParseMode string           `json:"parse_mode,omitempty" binding:"omitempty,oneof=Markdown MarkdownV2 HTML"`
+	Buttons   [][]InlineButton `json:"buttons,omitempty"`
 }
 
 // sendMessageHandler sends a message (optionally with inline keyboard) to a chat
@@ -93,7 +94,7 @@ func sendMessageHandler(bot *TelegramBot) gin.HandlerFunc {
 			return
 		}
 
-		messageID, err := bot.SendMessage(req.ChatID, req.Text, req.Buttons)
+		messageID, err := bot.SendMessage(req.ChatID, req.Text, req.ParseMode, req.Buttons)
 		if err != nil {
 			log.Printf("ERROR: failed to send message to chat %d: %v", req.ChatID, err)
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})

@@ -42,9 +42,10 @@ func SetupAllRoutes(router *gin.Engine) {
 		api.GET("/auth/roles/:roleName", getAuthRoleByNameHandler)
 		api.GET("/auth/roles/:roleName/users", getAuthRoleUsersHandler)
 
-		// Telegram integration API (called by notification-bot)
+		// Telegram integration API (called by notification-bot / notification-service)
 		api.POST("/telegram/link/confirm", telegramLinkConfirmAPIHandler)
 		api.POST("/telegram/login/decision", telegramLoginDecisionAPIHandler)
+		api.GET("/telegram/chat-id", telegramChatIDLookupAPIHandler)
 
 		// Service Registry API (Service Discovery)
 		registry := api.Group("/registry")

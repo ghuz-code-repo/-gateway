@@ -114,7 +114,7 @@ func handleCallbackQuery(bot *TelegramBot, authClient *AuthClient, update *Updat
 
 // reply sends a plain text message, logging failures
 func reply(bot *TelegramBot, chatID int64, text string) {
-	if _, err := bot.SendMessage(chatID, text, nil); err != nil {
+	if _, err := bot.SendMessage(chatID, text, "", nil); err != nil {
 		log.Printf("ERROR: failed to send reply to chat %d: %v", chatID, err)
 	}
 }

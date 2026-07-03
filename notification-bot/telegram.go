@@ -143,11 +143,15 @@ func (b *TelegramBot) GetUpdates(offset int64) ([]Update, error) {
 	return updates, nil
 }
 
-// SendMessage sends a text message with an optional inline keyboard, returns message_id
-func (b *TelegramBot) SendMessage(chatID int64, text string, buttons [][]InlineButton) (int64, error) {
+// SendMessage sends a text message with an optional inline keyboard, returns message_id.
+// parseMode is optional ("Markdown", "MarkdownV2", "HTML" or "" for plain text).
+func (b *TelegramBot) SendMessage(chatID int64, text, parseMode string, buttons [][]InlineButton) (int64, error) {
 	payload := map[string]interface{}{
 		"chat_id": chatID,
 		"text":    text,
+	}
+	if parseMode != "" {
+		payload["parse_mode"] = parseMode
 	}
 	if len(buttons) > 0 {
 		payload["reply_markup"] = map[string]interface{}{

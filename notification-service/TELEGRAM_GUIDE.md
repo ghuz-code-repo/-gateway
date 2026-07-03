@@ -1,5 +1,22 @@
 # 📱 Telegram Bot Integration Guide
 
+> ## ⚠️ ВАЖНО: архитектура изменена (июль 2026)
+>
+> Все telegram-уведомления теперь отправляются через **единый сервис `notification-bot`**
+> (бот @notification_analytics_gh_uz_bot). Notification Service больше НЕ обращается к
+> Telegram API напрямую и НЕ использует собственные токены ботов:
+>
+> - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_SYSTEM_BOT_TOKEN` — **устарели**, игнорируются при отправке
+> - Токен единого бота задаётся только в `notification-bot/.env`
+> - Типы `telegram` и `telegram_system` сохранены и работают как раньше (флаги
+>   `telegram_enabled` / `telegram_system_enabled` по-прежнему включают/выключают каналы)
+> - Резолв `system_telegram_username` → chat_id идёт через auth-service: админ должен
+>   привязать Telegram в личном кабинете портала. Можно также задать
+>   `system_telegram_chat_id` напрямую через POST /api/v1/config
+> - Новые env: `NOTIFICATION_BOT_URL`, `AUTH_SERVICE_URL`, `INTERNAL_API_KEY` (X-API-Key для notification-bot)
+>
+> Разделы ниже про создание двух ботов и их токены оставлены для истории.
+
 ## Обзор
 
 Notification Service теперь поддерживает отправку уведомлений через **два независимых Telegram бота**:

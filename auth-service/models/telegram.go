@@ -221,6 +221,26 @@ func GetUserByLoginIdentifier(identifier string) (*User, error) {
 	return &user, nil
 }
 
+// GetTelegramChatIDByUsername returns the chat_id of the user whose Telegram
+// username is linked (used by notification-service to resolve alert recipients)
+func GetTelegramChatIDByUsername(username string) (int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
+
+	var user User
+	err := usersCol.FindOne(ctx, bson.M{
+		"telegram_username": NormalizeTelegramUsername(username),
+		"telegram_chat_id":  bson.M{"$ne": 0},
+	}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return 0, fmt.Errorf("пользователь @%s не найден или не привязал Telegram на портале", NormalizeTelegramUsername(username))
+		}
+		return 0, err
+	}
+	return user.TelegramChatID, nil
+}
+
 // CreateTelegramLoginRequest creates a pending login confirmation request.
 // Previous pending requests of the user are invalidated.
 func CreateTelegramLoginRequest(userID primitive.ObjectID, ip, userAgent string) (*TelegramLoginRequest, error) {

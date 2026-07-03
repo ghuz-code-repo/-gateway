@@ -751,18 +751,24 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 		}
 	}
 
-	// --- Special: Telegram username → Chat ID resolution ---
+	// --- Special: explicit system chat ID (e.g. group chats that cannot be resolved by username) ---
+	if systemChatID, ok := config["system_telegram_chat_id"].(string); ok {
+		dbConfig.SystemTelegramChatID = systemChatID
+		updated = append(updated, "SYSTEM_TELEGRAM_CHAT_ID")
+	}
+
+	// --- Special: Telegram username → Chat ID resolution (via auth-service linked accounts) ---
 	if systemTelegramUsername, ok := config["system_telegram_username"].(string); ok {
 		usernameChanged := dbConfig.SystemTelegramUsername != systemTelegramUsername
 		dbConfig.SystemTelegramUsername = systemTelegramUsername
 		updated = append(updated, "SYSTEM_TELEGRAM_USERNAME")
 
-		if usernameChanged && systemTelegramUsername != "" && dbConfig.TelegramSystemBotToken != "" {
-			log.Printf("📱 Telegram username changed to %s, attempting to resolve Chat ID...", systemTelegramUsername)
-			chatID, err := ns.resolveTelegramChatID(dbConfig.TelegramSystemBotToken, systemTelegramUsername)
+		if usernameChanged && systemTelegramUsername != "" {
+			log.Printf("📱 Telegram username changed to %s, attempting to resolve Chat ID via auth-service...", systemTelegramUsername)
+			chatID, err := ns.resolveTelegramChatID(systemTelegramUsername)
 			if err != nil {
 				log.Printf("⚠️ Failed to resolve Chat ID for %s: %v", systemTelegramUsername, err)
-				log.Printf("💡 User must send /start to the bot first")
+				log.Printf("💡 Пользователь должен привязать Telegram в личном кабинете портала")
 			} else {
 				dbConfig.SystemTelegramChatID = chatID
 				updated = append(updated, "SYSTEM_TELEGRAM_CHAT_ID")
@@ -798,58 +804,50 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	})
 }
 
-// resolveTelegramChatID attempts to get Chat ID from Telegram username
-// by querying bot updates. User must have sent /start to the bot first.
-func (ns *NotificationService) resolveTelegramChatID(botToken, username string) (string, error) {
-	// Remove @ prefix if present
-	username = strings.TrimPrefix(username, "@")
+// resolveTelegramChatID resolves a Telegram username to a chat ID through
+// auth-service (users who linked Telegram in the portal profile).
+// Direct getUpdates calls are no longer possible: updates are consumed by
+// the notification-bot long-polling loop.
+func (ns *NotificationService) resolveTelegramChatID(username string) (string, error) {
+	authServiceURL := os.Getenv("AUTH_SERVICE_URL")
+	if authServiceURL == "" {
+		authServiceURL = "http://auth-service:80"
+	}
 
-	// Request recent updates from Telegram API
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?limit=100", botToken)
-
-	resp, err := ns.httpClient.Get(url)
+	url := fmt.Sprintf("%s/api/telegram/chat-id?username=%s", authServiceURL, strings.TrimPrefix(username, "@"))
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to request Telegram API: %v", err)
+		return "", fmt.Errorf("failed to create auth-service request: %v", err)
+	}
+	if apiKey := os.Getenv("INTERNAL_API_KEY"); apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := ns.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("auth-service request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("Telegram API returned status %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("auth-service returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
 	var result struct {
-		Ok     bool `json:"ok"`
-		Result []struct {
-			Message struct {
-				Chat struct {
-					ID       int64  `json:"id"`
-					Username string `json:"username"`
-					Type     string `json:"type"`
-				} `json:"chat"`
-			} `json:"message"`
-		} `json:"result"`
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+		ChatID  int64  `json:"chat_id"`
 	}
-
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("failed to parse Telegram API response: %v", err)
+		return "", fmt.Errorf("failed to parse auth-service response: %v", err)
 	}
 
-	if !result.Ok {
-		return "", fmt.Errorf("Telegram API returned ok=false")
+	if !result.Success {
+		return "", fmt.Errorf("%s (пользователь должен привязать Telegram в личном кабинете портала)", result.Message)
 	}
 
-	// Search for matching username in updates
-	for _, update := range result.Result {
-		chat := update.Message.Chat
-		if chat.Type == "private" && strings.EqualFold(chat.Username, username) {
-			chatID := strconv.FormatInt(chat.ID, 10)
-			return chatID, nil
-		}
-	}
-
-	return "", fmt.Errorf("чат для пользователя @%s не найден (пользователь должен сначала отправить боту команду /start)", username)
+	return strconv.FormatInt(result.ChatID, 10), nil
 }
 
 // These functions are now defined as variables in processors.go and initialized there

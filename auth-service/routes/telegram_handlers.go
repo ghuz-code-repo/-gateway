@@ -342,6 +342,24 @@ func telegramLinkConfirmAPIHandler(c *gin.Context) {
 	})
 }
 
+// telegramChatIDLookupAPIHandler (GET /api/telegram/chat-id?username=) resolves a
+// linked Telegram username to its chat_id (used by notification-service for system alerts)
+func telegramChatIDLookupAPIHandler(c *gin.Context) {
+	username := c.Query("username")
+	if username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "username обязателен"})
+		return
+	}
+
+	chatID, err := models.GetTelegramChatIDByUsername(username)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "chat_id": chatID})
+}
+
 // telegramLoginDecisionAPIHandler (POST /api/telegram/login/decision) is called by
 // notification-bot when the user presses Approve/Reject
 func telegramLoginDecisionAPIHandler(c *gin.Context) {

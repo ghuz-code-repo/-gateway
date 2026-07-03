@@ -371,35 +371,42 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	return nil
 }
 
-// sendTelegram sends a Telegram notification
+// getNotificationBotURL returns the notification-bot service URL
+func getNotificationBotURL() string {
+	url := os.Getenv("NOTIFICATION_BOT_URL")
+	if url == "" {
+		url = "http://notification-bot:80"
+	}
+	return url
+}
+
+// sendTelegram sends a Telegram notification through the notification-bot service.
+// All telegram/telegram_system messages go through the single portal bot
+// (@notification_analytics_gh_uz_bot); own bot tokens are no longer used.
 func (ns *NotificationService) sendTelegram(notification *Notification, isSystemBot bool) error {
 	config := ns.getConfigFromDB()
 
-	// Select appropriate bot token and recipient
-	var botToken string
-	var chatID string
-
+	// Select recipient chat
+	var chatIDStr string
 	if isSystemBot {
-		botToken = config.TelegramSystemBotToken
 		if !config.TelegramSystemEnabled {
-			return fmt.Errorf("системный Telegram-бот не включён")
+			return fmt.Errorf("системный Telegram-канал не включён")
 		}
-
 		if config.SystemTelegramChatID != "" {
-			chatID = config.SystemTelegramChatID
+			chatIDStr = config.SystemTelegramChatID
 		} else {
-			chatID = notification.Recipient
+			chatIDStr = notification.Recipient
 		}
 	} else {
-		botToken = config.TelegramBotToken
-		chatID = notification.Recipient
 		if !config.TelegramEnabled {
-			return fmt.Errorf("Telegram-бот не включён")
+			return fmt.Errorf("Telegram-канал не включён")
 		}
+		chatIDStr = notification.Recipient
 	}
 
-	if botToken == "" {
-		return fmt.Errorf("токен Telegram-бота не настроен")
+	chatID, err := strconv.ParseInt(strings.TrimSpace(chatIDStr), 10, 64)
+	if err != nil {
+		return fmt.Errorf("некорректный chat_id «%s»: получатель должен быть числовым Telegram chat ID", chatIDStr)
 	}
 
 	// Prepare message text
@@ -408,7 +415,7 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		messageText = fmt.Sprintf("*%s*\n\n%s", notification.Subject, notification.Content)
 	}
 
-	// Prepare request payload
+	// Send through notification-bot internal API
 	payload := map[string]interface{}{
 		"chat_id":    chatID,
 		"text":       messageText,
@@ -420,40 +427,34 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		return fmt.Errorf("failed to marshal payload: %v", err)
 	}
 
-	// Send request to Telegram Bot API
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
-	resp, err := ns.httpClient.Post(url, "application/json", bytes.NewBuffer(payloadBytes))
+	req, err := http.NewRequest("POST", getNotificationBotURL()+"/api/v1/send", bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		return fmt.Errorf("telegram API request failed: %v", err)
+		return fmt.Errorf("failed to create notification-bot request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey := os.Getenv("INTERNAL_API_KEY"); apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := ns.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("notification-bot request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response: %v", err)
+		return fmt.Errorf("failed to read notification-bot response: %v", err)
 	}
 
-	// Check response
+	// notification-bot returns 200 on success and forwards the Telegram API
+	// error text otherwise (rate-limit detection relies on that text)
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("❌ Telegram API error (status %d): %s", resp.StatusCode, string(body))
-		return fmt.Errorf("telegram API error: %s", string(body))
+		log.Printf("❌ notification-bot error (status %d): %s", resp.StatusCode, string(body))
+		return fmt.Errorf("notification-bot error: %s", string(body))
 	}
 
-	// Parse response to check if message was sent
-	var response map[string]interface{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		return fmt.Errorf("failed to parse response: %v", err)
-	}
-
-	if ok, exists := response["ok"].(bool); !exists || !ok {
-		description := "unknown error"
-		if desc, exists := response["description"].(string); exists {
-			description = desc
-		}
-		return fmt.Errorf("telegram API returned error: %s", description)
-	}
-
-	log.Printf("✅ Telegram message sent to %s (notification #%d)", notification.Recipient, notification.ID)
+	log.Printf("✅ Telegram message sent to %s via notification-bot (notification #%d)", chatIDStr, notification.ID)
 	return nil
 }
 
@@ -610,6 +611,9 @@ func isPermanentError(err error) bool {
 		"user unknown",               // Неизвестный пользователь
 		"recipient address rejected", // Адрес получателя отклонён
 		"invalid recipient",          // Недействительный получатель
+		"некорректный chat_id",       // Telegram: получатель не числовой chat ID
+		"chat not found",             // Telegram: чат не существует / бот не запущен
+		"bot was blocked",            // Telegram: пользователь заблокировал бота
 		"550",                        // SMTP 550 Requested action not taken: mailbox unavailable (permanent)
 		"551",                        // SMTP 551 User not local
 		"553",                        // SMTP 553 Requested action not taken: mailbox name not allowed
