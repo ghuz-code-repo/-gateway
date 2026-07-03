@@ -86,7 +86,7 @@ func generateRandomHex(n int) (string, error) {
 // GenerateRandomRequestID returns a random ID in the same format as real
 // login request IDs (used for indistinguishable fake responses)
 func GenerateRandomRequestID() (string, error) {
-	return generateRandomHex(32)
+	return generateRandomHex(16)
 }
 
 // CreateTelegramLinkToken creates a one-time Telegram link token for the user.
@@ -252,7 +252,9 @@ func CreateTelegramLoginRequest(userID primitive.ObjectID, ip, userAgent string)
 		log.Printf("Warning: Failed to delete pending telegram login requests for user %s: %v", userID.Hex(), err)
 	}
 
-	requestID, err := generateRandomHex(32)
+	// 16 байт = 32 hex-символа: callback_data кнопки «login:<id>:approve»
+	// не должен превышать телеграмный лимит в 64 байта
+	requestID, err := generateRandomHex(16)
 	if err != nil {
 		return nil, err
 	}
