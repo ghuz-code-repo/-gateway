@@ -34,6 +34,16 @@ type NotificationService struct {
 	workerSem       chan struct{}  // Semaphore to limit concurrent send goroutines
 	wg              sync.WaitGroup // Tracks in-flight goroutines for graceful shutdown
 	guard           *ServiceGuard  // Детектор аномалий межсервисных запросов (security.go)
+
+	// Кэш резолва telegram username -> chat_id (чтобы не ходить в auth-service
+	// на каждую отправку и не тормозить доставку telegram-уведомлений)
+	chatIDCache map[string]chatIDEntry
+	chatIDMu    sync.RWMutex
+}
+
+type chatIDEntry struct {
+	chatID string
+	at     time.Time
 }
 
 type NotificationType string
@@ -193,7 +203,8 @@ func main() {
 	// Create service instance
 	maxConcurrent := getEnvAsInt("MAX_CONCURRENT_SENDS", 10)
 	service := &NotificationService{
-		db: db,
+		db:          db,
+		chatIDCache: make(map[string]chatIDEntry),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -809,12 +820,22 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 // Direct getUpdates calls are no longer possible: updates are consumed by
 // the notification-bot long-polling loop.
 func (ns *NotificationService) resolveTelegramChatID(username string) (string, error) {
+	key := strings.ToLower(strings.TrimPrefix(username, "@"))
+
+	// Cache hit (10 min TTL) — избегаем HTTP к auth-service на каждой отправке
+	ns.chatIDMu.RLock()
+	if e, ok := ns.chatIDCache[key]; ok && time.Since(e.at) < 10*time.Minute {
+		ns.chatIDMu.RUnlock()
+		return e.chatID, nil
+	}
+	ns.chatIDMu.RUnlock()
+
 	authServiceURL := os.Getenv("AUTH_SERVICE_URL")
 	if authServiceURL == "" {
 		authServiceURL = "http://auth-service:80"
 	}
 
-	url := fmt.Sprintf("%s/api/telegram/chat-id?username=%s", authServiceURL, strings.TrimPrefix(username, "@"))
+	url := fmt.Sprintf("%s/api/telegram/chat-id?username=%s", authServiceURL, key)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create auth-service request: %v", err)
@@ -847,7 +868,11 @@ func (ns *NotificationService) resolveTelegramChatID(username string) (string, e
 		return "", fmt.Errorf("%s (пользователь должен привязать Telegram в личном кабинете портала)", result.Message)
 	}
 
-	return strconv.FormatInt(result.ChatID, 10), nil
+	chatID := strconv.FormatInt(result.ChatID, 10)
+	ns.chatIDMu.Lock()
+	ns.chatIDCache[key] = chatIDEntry{chatID: chatID, at: time.Now()}
+	ns.chatIDMu.Unlock()
+	return chatID, nil
 }
 
 // These functions are now defined as variables in processors.go and initialized there
