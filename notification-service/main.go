@@ -25,8 +25,7 @@ import (
 
 type NotificationService struct {
 	db              *gorm.DB
-	sendMutex       sync.Mutex // Мьютекс для синхронизации отправки
-	lastSendTime    time.Time  // Время последней отправки
+	sendGates       map[string]*channelGate // Пер-канальный throttle (email/telegram/sms/push независимы)
 	configCache     *NotificationConfig
 	configCacheMu   sync.RWMutex
 	lastConfigFetch time.Time
@@ -44,6 +43,12 @@ type NotificationService struct {
 type chatIDEntry struct {
 	chatID string
 	at     time.Time
+}
+
+// channelGate throttles sends within one channel independently of others
+type channelGate struct {
+	mu   sync.Mutex
+	last time.Time
 }
 
 type NotificationType string
@@ -140,7 +145,8 @@ type NotificationConfig struct {
 	MaxRetryAttempts                int    `json:"max_retry_attempts" gorm:"default:3"`
 	BatchSize                       int    `json:"batch_size" gorm:"default:10"`
 	DelayBetweenBatchesMS           int    `json:"delay_between_batches_ms" gorm:"default:1000"`
-	DelayBetweenMessagesMS          int    `json:"delay_between_messages_ms" gorm:"default:100"` // Задержка между отдельными сообщениями
+	DelayBetweenMessagesMS          int    `json:"delay_between_messages_ms" gorm:"default:100"`          // Задержка между email-сообщениями (мс)
+	TelegramDelayBetweenMessagesMS  int    `json:"telegram_delay_between_messages_ms" gorm:"default:0"`  // Задержка между telegram-сообщениями (мс); 0 = мгновенно
 	CreatedAt                       int64  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt                       int64  `json:"updated_at" gorm:"autoUpdateTime"`
 }
@@ -205,6 +211,12 @@ func main() {
 	service := &NotificationService{
 		db:          db,
 		chatIDCache: make(map[string]chatIDEntry),
+		sendGates: map[string]*channelGate{
+			"email":    {},
+			"telegram": {},
+			"sms":      {},
+			"push":     {},
+		},
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -659,6 +671,7 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 			BatchSize:                       getEnvAsInt("BATCH_SIZE", 10),
 			DelayBetweenBatchesMS:           getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
 			DelayBetweenMessagesMS:          getEnvAsInt("DELAY_BETWEEN_MESSAGES_MS", 100),
+			TelegramDelayBetweenMessagesMS:  getEnvAsInt("TELEGRAM_DELAY_BETWEEN_MESSAGES_MS", 0),
 		}
 		// Save default config to DB
 		ns.db.Create(&dbConfig)
@@ -687,6 +700,7 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 		"batch_size":                         dbConfig.BatchSize,
 		"delay_between_batches_ms":           dbConfig.DelayBetweenBatchesMS,
 		"delay_between_messages_ms":          dbConfig.DelayBetweenMessagesMS,
+		"telegram_delay_between_messages_ms": dbConfig.TelegramDelayBetweenMessagesMS,
 	}
 	c.JSON(http.StatusOK, config)
 }
@@ -752,8 +766,9 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 	intFields := map[string]*int{
 		"max_retry_attempts":        &dbConfig.MaxRetryAttempts,
 		"batch_size":                &dbConfig.BatchSize,
-		"delay_between_batches_ms":  &dbConfig.DelayBetweenBatchesMS,
-		"delay_between_messages_ms": &dbConfig.DelayBetweenMessagesMS,
+		"delay_between_batches_ms":           &dbConfig.DelayBetweenBatchesMS,
+		"delay_between_messages_ms":          &dbConfig.DelayBetweenMessagesMS,
+		"telegram_delay_between_messages_ms": &dbConfig.TelegramDelayBetweenMessagesMS,
 	}
 	for key, ptr := range intFields {
 		if val, ok := config[key].(float64); ok {
@@ -943,7 +958,8 @@ func (ns *NotificationService) getConfigFromDB() NotificationConfig {
 			MaxRetryAttempts:       getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
 			BatchSize:              getEnvAsInt("BATCH_SIZE", 10),
 			DelayBetweenBatchesMS:  getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
-			DelayBetweenMessagesMS: getEnvAsInt("DELAY_BETWEEN_MESSAGES_MS", 100),
+			DelayBetweenMessagesMS:         getEnvAsInt("DELAY_BETWEEN_MESSAGES_MS", 100),
+			TelegramDelayBetweenMessagesMS: getEnvAsInt("TELEGRAM_DELAY_BETWEEN_MESSAGES_MS", 0),
 		}
 	}
 

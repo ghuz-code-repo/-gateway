@@ -20,25 +20,55 @@ import (
 	"github.com/google/uuid"
 )
 
-// waitForSendSlot применяет глобальную задержку между ВСЕМИ отправками
-func (ns *NotificationService) waitForSendSlot() {
-	ns.sendMutex.Lock()
-	defer ns.sendMutex.Unlock()
+// channelGroup maps a notification type to its throttle group.
+// telegram и telegram_system делят один лимит (общий Telegram Bot API).
+func channelGroup(t NotificationType) string {
+	switch t {
+	case NotificationTypeTelegram, NotificationTypeTelegramSystem:
+		return "telegram"
+	case NotificationTypeSMS:
+		return "sms"
+	case NotificationTypePush:
+		return "push"
+	default:
+		return "email"
+	}
+}
 
-	config := ns.getConfigFromDB()
-	delayBetweenMessages := time.Duration(config.DelayBetweenMessagesMS) * time.Millisecond
+// channelDelay returns the configured min interval for a channel group.
+// 0 => throttling disabled for that channel (send immediately).
+func (ns *NotificationService) channelDelay(group string, config NotificationConfig) time.Duration {
+	ms := config.DelayBetweenMessagesMS
+	if group == "telegram" {
+		ms = config.TelegramDelayBetweenMessagesMS
+	}
+	return time.Duration(ms) * time.Millisecond
+}
 
-	// Проверяем прошло ли достаточно времени с последней отправки
-	if !ns.lastSendTime.IsZero() {
-		timeSinceLastSend := time.Since(ns.lastSendTime)
-		if timeSinceLastSend < delayBetweenMessages {
-			waitTime := delayBetweenMessages - timeSinceLastSend
-			time.Sleep(waitTime)
-		}
+// waitForSendSlot enforces a per-channel minimum interval between sends.
+// Channels are independent: a slow email send never delays a telegram send.
+// delay <= 0 => no throttle (instant).
+func (ns *NotificationService) waitForSendSlot(t NotificationType) {
+	group := channelGroup(t)
+	delay := ns.channelDelay(group, ns.getConfigFromDB())
+	if delay <= 0 {
+		return
 	}
 
-	// Обновляем время последней отправки
-	ns.lastSendTime = time.Now()
+	gate := ns.sendGates[group]
+	if gate == nil {
+		return
+	}
+
+	gate.mu.Lock()
+	defer gate.mu.Unlock()
+
+	if !gate.last.IsZero() {
+		if since := time.Since(gate.last); since < delay {
+			time.Sleep(delay - since)
+		}
+	}
+	gate.last = time.Now()
 }
 
 // processBatch processes all notifications in a batch
@@ -113,7 +143,7 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 		notification.Attempts = attempt
 
 		// Применяем глобальную задержку перед отправкой
-		ns.waitForSendSlot()
+		ns.waitForSendSlot(notification.Type)
 
 		switch notification.Type {
 		case NotificationTypeEmail:
