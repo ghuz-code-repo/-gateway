@@ -386,21 +386,15 @@ func getNotificationBotURL() string {
 func (ns *NotificationService) sendTelegram(notification *Notification, isSystemBot bool) error {
 	config := ns.getConfigFromDB()
 
-	// Select recipient chat
+	// NOTE: флаги telegram_enabled / telegram_system_enabled больше НЕ гейтят
+	// отправку. Раньше они означали «настроен собственный токен бота»; теперь
+	// единственный канал — notification-bot, который всегда доступен. Включение
+	// системных алертов управляется send_system_telegram_notifications на стороне
+	// вызывающего сервиса (monitoring-service, security guard).
 	var chatIDStr string
-	if isSystemBot {
-		if !config.TelegramSystemEnabled {
-			return fmt.Errorf("системный Telegram-канал не включён")
-		}
-		if config.SystemTelegramChatID != "" {
-			chatIDStr = config.SystemTelegramChatID
-		} else {
-			chatIDStr = notification.Recipient
-		}
+	if isSystemBot && config.SystemTelegramChatID != "" {
+		chatIDStr = config.SystemTelegramChatID
 	} else {
-		if !config.TelegramEnabled {
-			return fmt.Errorf("Telegram-канал не включён")
-		}
 		chatIDStr = notification.Recipient
 	}
 

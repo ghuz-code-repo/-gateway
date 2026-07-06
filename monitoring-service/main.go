@@ -36,6 +36,8 @@ type ServiceStatus struct {
 	LastHealthy time.Time `json:"last_healthy"`
 	ErrorCount  int       `json:"error_count"`
 	LastError   string    `json:"last_error,omitempty"`
+	AlertedDown bool      `json:"alerted_down"`           // down-алерт уже отправлен для текущего инцидента
+	LastAlertAt time.Time `json:"last_alert_at,omitempty"` // время последнего алерта (для кулдауна)
 }
 
 type NotificationRequest struct {
@@ -219,70 +221,68 @@ func (ms *MonitoringService) checkAllServices() {
 }
 
 func (ms *MonitoringService) checkService(name string, service *ServiceStatus) {
+	// Fetch alert settings (cached) before locking — network call must not hold the lock
+	config := ms.getNotificationConfig()
+	alertsEnabled := config.SendSystemEmailNotifications || config.SendSystemTelegramNotifications
+	failureThreshold := getEnvAsInt("ALERT_FAILURE_THRESHOLD", 3)
+	cooldown := time.Duration(getEnvAsInt("ALERT_COOLDOWN_MINUTES", 15)) * time.Minute
+
 	resp, err := ms.httpClient.Get(service.URL)
+	if err == nil {
+		defer resp.Body.Close()
+	}
 
 	ms.mu.Lock()
 	service.LastCheck = time.Now()
 
-	previousStatus := service.Status
-	previousErrors := service.ErrorCount
-
-	if err != nil {
+	switch {
+	case err != nil:
 		service.Status = "unhealthy"
 		service.ErrorCount++
 		service.LastError = err.Error()
-		ms.mu.Unlock()
-		log.Printf("❌ %s is unhealthy: %v", name, err)
+	case resp.StatusCode == http.StatusOK:
+		service.Status = "healthy"
+		service.LastHealthy = time.Now()
+		service.ErrorCount = 0
+		service.LastError = ""
+	default:
+		service.Status = "unhealthy"
+		service.ErrorCount++
+		service.LastError = fmt.Sprintf("HTTP %d", resp.StatusCode)
+	}
+
+	// Decide alert under lock; actually send after unlock (sendAlert does HTTP)
+	var alertMsg string
+	var doAlert bool
+	if alertsEnabled {
+		switch {
+		// Down: only after N consecutive failures, once per incident, throttled by cooldown
+		case service.Status == "unhealthy" && service.ErrorCount >= failureThreshold &&
+			!service.AlertedDown && time.Since(service.LastAlertAt) >= cooldown:
+			service.AlertedDown = true
+			service.LastAlertAt = time.Now()
+			doAlert = true
+			alertMsg = fmt.Sprintf("Service became unhealthy (%d consecutive failed checks)", service.ErrorCount)
+		// Recovery: only if a down-alert was actually sent for this incident
+		case service.Status == "healthy" && service.AlertedDown:
+			service.AlertedDown = false
+			service.LastAlertAt = time.Now()
+			doAlert = true
+			alertMsg = "Service recovered"
+		}
+	}
+
+	snapshot := *service
+	ms.mu.Unlock()
+
+	if snapshot.Status == "healthy" {
+		log.Printf("✅ %s is healthy", name)
 	} else {
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusOK {
-			service.Status = "healthy"
-			service.LastHealthy = time.Now()
-			service.ErrorCount = 0
-			service.LastError = ""
-			ms.mu.Unlock()
-			log.Printf("✅ %s is healthy", name)
-		} else {
-			service.Status = "unhealthy"
-			service.ErrorCount++
-			service.LastError = fmt.Sprintf("HTTP %d", resp.StatusCode)
-			ms.mu.Unlock()
-			log.Printf("❌ %s is unhealthy: HTTP %d", name, resp.StatusCode)
-		}
+		log.Printf("❌ %s is unhealthy: %s", name, snapshot.LastError)
 	}
 
-	// Get notification settings from API (with caching)
-	config := ms.getNotificationConfig()
-	sendEmailAlerts := config.SendSystemEmailNotifications
-	sendTelegramAlerts := config.SendSystemTelegramNotifications
-	enablePersistentAlerts := getEnvAsBool("ENABLE_PERSISTENT_ALERTS", false)
-
-	if !sendEmailAlerts && !sendTelegramAlerts {
-		// Skip all alerts if both notification types are disabled
-		return
-	}
-
-	// Anti-flapping: алерт уходит только после N последовательных неудачных
-	// проверок — разовые сбои DNS/сети не должны генерировать почту
-	failureThreshold := getEnvAsInt("ALERT_FAILURE_THRESHOLD", 3)
-
-	// Send alert once, after N consecutive failed checks
-	if service.Status == "unhealthy" && service.ErrorCount == failureThreshold {
-		ms.sendAlert(name, service, fmt.Sprintf("Service became unhealthy (%d consecutive failed checks)", failureThreshold))
-	}
-
-	// Send recovery alert only if the down alert was actually sent
-	if previousStatus == "unhealthy" && service.Status == "healthy" && previousErrors >= failureThreshold {
-		ms.sendAlert(name, service, "Service recovered")
-	}
-
-	// Send persistent alert if service is unhealthy for too long (only if enabled)
-	if enablePersistentAlerts {
-		persistentAlertThreshold := getEnvAsInt("PERSISTENT_ALERT_THRESHOLD", 20)
-		if service.Status == "unhealthy" && service.ErrorCount > 0 && service.ErrorCount%persistentAlertThreshold == 0 {
-			ms.sendAlert(name, service, fmt.Sprintf("Service still unhealthy after %d checks", service.ErrorCount))
-		}
+	if doAlert {
+		ms.sendAlert(name, &snapshot, alertMsg)
 	}
 }
 
