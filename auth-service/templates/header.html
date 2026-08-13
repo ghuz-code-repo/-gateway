@@ -2,9 +2,17 @@
 <!-- HEADER DEBUG: username=[{{ .username }}], short_name=[{{ .short_name }}], user=[{{ .user }}] -->
 <header class="header-container">
     <div class="header-logo-section"> <!-- Changed from top-left for consistency with CSS -->
-        <a href="/menu">
-            <!-- Ensure the path to static assets is correct if your Go server serves them from /auth/static -->
-            <img src="/static/img/logo-dark.svg" alt="Golden House Logo" class="logo-img" id="dynamic-logo">
+        <!-- В сервисах логотип ведёт в меню сервисов, а название — на главную
+             своего сервиса. Здесь портал и есть это меню, поэтому обе половины
+             ведут в /menu и объединены в одну ссылку. -->
+        <a href="/menu" class="brand-link" title="К меню сервисов">
+            <!-- Только герб, без словесной части: название компании в шапке
+                 дублировало бы название сервиса рядом. Герб золотой в обеих
+                 темах, поэтому id="dynamic-logo" снят — подмена по теме не нужна
+                 (оба обработчика в theme-switcher.js и mobile-menu.js проверяют
+                 элемент на null, так что ничего не ломается). -->
+            <img src="/static/img/logo-mark.svg" alt="Golden House" class="logo-img">
+            <span class="brand-name">Портал</span>
         </a>
     </div>
 

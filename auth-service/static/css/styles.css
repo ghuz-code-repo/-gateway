@@ -280,10 +280,12 @@ body {
 }
 
 .logo-img {
-    /* New class for the img itself */
-    height: auto;
-    min-width: 100px;
-    /* Maintain aspect ratio */
+    /* Только герб: фиксируем высоту, ширина считается по пропорции.
+       Прежний min-width: 100px был рассчитан на логотип со словесной частью
+       и растянул бы герб. */
+    height: 30px;
+    width: auto;
+    display: block;
 }
 
 .logout-btn {
@@ -1000,6 +1002,34 @@ input[type="file"]:hover {
     /* No specific flex properties needed, it will align left by default */
     display: flex;
     align-items: center;
+}
+
+/* Логотип и название портала — одна ссылка на /menu, поэтому и подсвечиваются
+   вместе: пользователь видит единую кликабельную область, а не две разные. */
+.brand-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.brand-link:hover {
+    opacity: 0.75;
+    transform: translateY(-1px);
+}
+
+.brand-link .brand-name {
+    font-size: 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--text-color);
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.brand-link:hover .brand-name {
+    border-bottom-color: currentColor;
 }
 
 .header-controls-section {
