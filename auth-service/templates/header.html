@@ -5,19 +5,19 @@
         <!-- В сервисах логотип ведёт в меню сервисов, а название — на главную
              своего сервиса. Здесь портал и есть это меню, поэтому обе половины
              ведут в /menu и объединены в одну ссылку. -->
-        <a href="/menu" class="brand-link" title="К меню сервисов">
+        <a href="/menu" class="gh-brand gh-brand-link" title="К меню сервисов">
             <!-- Только герб, без словесной части: название компании в шапке
                  дублировало бы название сервиса рядом. Герб золотой в обеих
                  темах, поэтому id="dynamic-logo" снят — подмена по теме не нужна
                  (оба обработчика в theme-switcher.js и mobile-menu.js проверяют
                  элемент на null, так что ничего не ломается). -->
-            <img src="/static/img/logo-mark.svg" alt="Golden House" class="logo-img">
-            <span class="brand-name">Портал</span>
+            <img src="/static/img/logo-mark.svg" alt="Golden House" class="logo-img gh-brand-logo-img">
+            <span class="gh-brand-name">Портал</span>
         </a>
     </div>
 
     <!-- Desktop Header Controls -->
-    <div class="header-controls-section">
+    <div class="header-controls-section gh-header-actions">
         <!-- TEMP: Removed {{if .username }} check for debugging -->
         <a href="/profile" class="header-profilr-link" title="Личный кабинет">
             <div class="avatar-section">
