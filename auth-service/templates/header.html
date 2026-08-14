@@ -19,31 +19,26 @@
     <!-- Desktop Header Controls -->
     <div class="header-controls-section gh-header-actions">
         <!-- TEMP: Removed {{if .username }} check for debugging -->
-        <a href="/profile" class="header-profilr-link" title="Личный кабинет">
-            <div class="avatar-section">
-                <div class="avatar-mini">
-                    {{ if .user.AvatarPath }}
-                        <img src="{{ .user.AvatarPath }}" alt="Аватар" id="headerAvatarImage">
-                    {{ else }}
-                        <i class="fas fa-user-circle" id="headerDefaultAvatar"></i>
-                    {{ end }}
-                </div>
-            </div>
-            <div class="header-user-info">
-                <!-- DEBUG: short_name=[{{ .short_name }}], full_name=[{{ .full_name }}], username=[{{ .username }}] -->
-                {{ if .short_name }}<span class="header-fullname">{{ .short_name }}</span>{{ else }}<!-- NO SHORT_NAME -->{{ end }}
-                <span class="header-username">({{ .username }})</span>
-            </div>
+        <a href="/profile" class="gh-user" title="Личный кабинет">
+            <span class="gh-avatar">
+                {{ if .user.AvatarPath }}
+                    <img src="{{ .user.AvatarPath }}" alt="" id="headerAvatarImage">
+                {{ else }}
+                    <i class="fas fa-user-circle" id="headerDefaultAvatar"></i>
+                {{ end }}
+            </span>
+            <span class="gh-user-info">
+                {{ if .short_name }}<span class="gh-user-fullname">{{ .short_name }}</span>{{ end }}
+                <span class="gh-user-login">({{ .username }})</span>
+            </span>
         </a>
-        <!-- TEMP: Removed {{end}} -->
-        <div class="header-buttons">
-            <button id="theme-switcher" title="Сменить тему">
+        <div class="header-buttons gh-header-actions">
+            <button id="theme-switcher" class="gh-btn" title="Сменить тему">
                 <i class="fas fa-moon"></i> <!-- Icon changes via JS -->
             </button>
-            <!-- TEMP: Removed {{if .username }} check for logout button -->
-            <a href="/logout" class="logout-btn" title="Выход">
+            <!-- Выход есть только здесь, в портале; в сервисах его нет. -->
+            <a href="/logout" class="gh-btn logout-btn" title="Выход">
                 <i class="fas fa-sign-out-alt"></i>
-                <!-- <span class="logout-text">Выход</span> --> <!-- Optional: text next to icon -->
             </a>
             <!-- TEMP: Removed {{end}} -->
         </div>
