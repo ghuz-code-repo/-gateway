@@ -217,20 +217,16 @@ func verifyHandler(c *gin.Context) {
 
 	debugLog("DEBUG verifyHandler: user '%s', service '%s', serviceRoles: %v, servicePermissions: %v", user.Username, service, serviceRoles, servicePermissions)
 
-	// Check if user has any access to this service
+	// Check if user has any access to this service.
+	//
+	// Прежняя аварийная ветка «нет ролей — значит, если системный админ, выдать
+	// роль admin» убрана: она подставляла роль с пустым списком прав, и сервис
+	// показывал пустое приложение вместо честного отказа. Администратор получает
+	// доступ обычным путём — ролью admin с правом "<service>.*", которую
+	// заводит EnsureServiceAdminRoles при старте.
 	if len(serviceRoles) == 0 && len(servicePermissions) == 0 {
-		// Admin role always has access to all services (legacy support)
-		// Use pre-fetched roles to check admin status (avoid extra DB query)
-		allRoles := fetchUserRoles(user)
-		if hasAdminRoleWithRoles(allRoles, user.Username) {
-			serviceRoles = []string{"admin"}
-			// For admin, get all available permissions for the service
-			adminPermissions, _ := models.GetUserServicePermissions(claims.UserID, service)
-			servicePermissions = adminPermissions
-		} else {
-			c.AbortWithStatus(http.StatusForbidden)
-			return
-		}
+		c.AbortWithStatus(http.StatusForbidden)
+		return
 	}
 
 	// Set user information in response headers according to ADR-001
@@ -343,9 +339,11 @@ func verifyHandler(c *gin.Context) {
 
 	// Legacy header populated from user_service_roles for backward compatibility
 	c.Header("X-User-Roles", strings.Join(serviceRoles, ","))
-	if hasAdminRole(user) {
-		c.Header("X-User-Admin", "true")
-	}
+
+	// X-User-Admin намеренно больше не отдаётся. Сервисы делали на нём ранний
+	// выход до сравнения прав, из-за чего администратор проходил куда угодно,
+	// а админка показывала не то, что действует. Полный доступ выдаётся правом
+	// "<service>.*" в обычном списке разрешений.
 
 	debugLog("DEBUG verifyHandler: FINAL HEADERS - X-User-Full-Name: '%s', X-User-Avatar: '%s', X-User-Email: '%s', X-User-Service-Roles: '%s', X-User-Service-Permissions: '%s'",
 		encodedFullName, user.AvatarPath, user.Email, strings.Join(serviceRoles, ","), strings.Join(servicePermissions, ","))

@@ -107,6 +107,119 @@ func EnsureExternalRolesForAllServices() {
 	log.Println("[EXTERNAL_ROLES] External roles check completed.")
 }
 
+// EnsureServiceAdminRoles gives system administrators an explicit way into every
+// registered service.
+//
+// Раньше доступ администратора держался на двух неявных механизмах: заголовке
+// X-User-Admin, по которому сервисы пропускали запрос до проверки права, и на
+// ветке в GetUserServicePermissions, возвращавшей админу вообще все права
+// сервиса. Оба убраны — админка показывала не то, что действует. Взамен для
+// каждого сервиса заводится роль "admin" с правом "<serviceKey>.*", и она
+// назначается всем системным администраторам. Сервисы разбирают такое право
+// как шаблон, покрывающий любое право этого сервиса.
+//
+// Функция идемпотентна и безопасна при каждом старте.
+func EnsureServiceAdminRoles() {
+	log.Println("[SERVICE_ADMIN] Ensuring per-service admin roles...")
+
+	services, err := GetAllServices()
+	if err != nil {
+		log.Printf("[SERVICE_ADMIN] Failed to get services: %v", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	adminIDs, err := systemAdminUserIDs(ctx)
+	if err != nil {
+		log.Printf("[SERVICE_ADMIN] Failed to collect system admins: %v", err)
+		return
+	}
+
+	for _, service := range services {
+		if service.Key == "auth" || service.Key == "" {
+			continue
+		}
+
+		wildcard := fmt.Sprintf("%s.*", service.Key)
+		ensureServiceRoleHasPermission(ctx, service.Key, "admin",
+			fmt.Sprintf("Администратор сервиса (%s)", service.Name),
+			[]string{wildcard},
+		)
+
+		for _, userID := range adminIDs {
+			assignServiceRoleIfMissing(ctx, userID, service.Key, "admin")
+		}
+	}
+
+	log.Printf("[SERVICE_ADMIN] Done for %d system admin(s).", len(adminIDs))
+}
+
+// systemAdminUserIDs returns user ids holding any of the system-wide admin roles.
+// Keep in sync with checkAdminInRoles() in routes/middleware.go.
+func systemAdminUserIDs(ctx context.Context) ([]primitive.ObjectID, error) {
+	filter := bson.M{
+		"is_active": true,
+		"$or": []bson.M{
+			{"service_key": "auth", "role_name": "GOD"},
+			{"service_key": "auth", "role_name": "admin"},
+			{"service_key": "system", "role_name": "admin"},
+		},
+	}
+
+	cursor, err := userServiceRolesCol.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	seen := make(map[primitive.ObjectID]bool)
+	var ids []primitive.ObjectID
+	for cursor.Next(ctx) {
+		var usr UserServiceRole
+		if err := cursor.Decode(&usr); err != nil {
+			continue
+		}
+		if !seen[usr.UserID] {
+			seen[usr.UserID] = true
+			ids = append(ids, usr.UserID)
+		}
+	}
+	return ids, cursor.Err()
+}
+
+// assignServiceRoleIfMissing links a user to a service role, skipping if the
+// active assignment already exists.
+func assignServiceRoleIfMissing(ctx context.Context, userID primitive.ObjectID, serviceKey, roleName string) {
+	exists, err := userServiceRolesCol.CountDocuments(ctx, bson.M{
+		"user_id":     userID,
+		"service_key": serviceKey,
+		"role_name":   roleName,
+		"is_active":   true,
+	})
+	if err != nil {
+		log.Printf("[SERVICE_ADMIN] Failed to check %s/%s for user %s: %v", serviceKey, roleName, userID.Hex(), err)
+		return
+	}
+	if exists > 0 {
+		return
+	}
+
+	_, insertErr := userServiceRolesCol.InsertOne(ctx, UserServiceRole{
+		UserID:     userID,
+		ServiceKey: serviceKey,
+		RoleName:   roleName,
+		AssignedAt: time.Now(),
+		IsActive:   true,
+	})
+	if insertErr != nil {
+		log.Printf("[SERVICE_ADMIN] Failed to assign %s/%s to user %s: %v", serviceKey, roleName, userID.Hex(), insertErr)
+	} else {
+		log.Printf("[SERVICE_ADMIN] Assigned role '%s/%s' to user %s", serviceKey, roleName, userID.Hex())
+	}
+}
+
 // ensureExternalRole creates an external role in auth-service for managing
 // the given service, if it doesn't already exist. If the role exists, ensures
 // it has all the required permissions (adds missing ones).
@@ -192,11 +305,18 @@ func ensureExternalRole(ctx context.Context, managedService, roleName, descripti
 // at least the given permissions. Creates the role if missing, adds permissions
 // if they are absent.
 func ensureAuthRoleHasPermission(ctx context.Context, roleName, description string, requiredPerms []string) {
+	ensureServiceRoleHasPermission(ctx, "auth", roleName, description, requiredPerms)
+}
+
+// ensureServiceRoleHasPermission makes sure a role of the given service exists
+// with at least the given permissions. Creates the role if missing, adds
+// permissions if they are absent. Idempotent.
+func ensureServiceRoleHasPermission(ctx context.Context, serviceKey, roleName, description string, requiredPerms []string) {
 	// Search by both legacy "service" and new "service_key" fields
 	filter := bson.M{
 		"$or": []bson.M{
-			{"service": "auth", "name": roleName},
-			{"service_key": "auth", "name": roleName},
+			{"service": serviceKey, "name": roleName},
+			{"service_key": serviceKey, "name": roleName},
 		},
 	}
 
@@ -206,7 +326,7 @@ func ensureAuthRoleHasPermission(ctx context.Context, roleName, description stri
 	if err == mongo.ErrNoDocuments {
 		// Role does not exist — create it
 		newRole := Role{
-			ServiceKey:  "auth",
+			ServiceKey:  serviceKey,
 			Name:        roleName,
 			Description: description,
 			Permissions: requiredPerms,
@@ -216,13 +336,13 @@ func ensureAuthRoleHasPermission(ctx context.Context, roleName, description stri
 		}
 		_, insertErr := serviceRolesCol.InsertOne(ctx, newRole)
 		if insertErr != nil {
-			log.Printf("[INTEGRITY] Failed to create role %s: %v", roleName, insertErr)
+			log.Printf("[INTEGRITY] Failed to create role %s/%s: %v", serviceKey, roleName, insertErr)
 		} else {
-			log.Printf("[INTEGRITY] Created auth role '%s' with permissions %v", roleName, requiredPerms)
+			log.Printf("[INTEGRITY] Created role '%s/%s' with permissions %v", serviceKey, roleName, requiredPerms)
 		}
 		return
 	} else if err != nil {
-		log.Printf("[INTEGRITY] Error looking up role %s: %v", roleName, err)
+		log.Printf("[INTEGRITY] Error looking up role %s/%s: %v", serviceKey, roleName, err)
 		return
 	}
 
@@ -241,9 +361,9 @@ func ensureAuthRoleHasPermission(ctx context.Context, roleName, description stri
 				bson.M{"$addToSet": bson.M{"permissions": perm}},
 			)
 			if addErr != nil {
-				log.Printf("[INTEGRITY] Failed to add permission %s to role %s: %v", perm, roleName, addErr)
+				log.Printf("[INTEGRITY] Failed to add permission %s to role %s/%s: %v", perm, serviceKey, roleName, addErr)
 			} else {
-				log.Printf("[INTEGRITY] Added missing permission '%s' to role '%s'", perm, roleName)
+				log.Printf("[INTEGRITY] Added missing permission '%s' to role '%s/%s'", perm, serviceKey, roleName)
 			}
 		}
 	}

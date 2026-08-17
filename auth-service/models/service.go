@@ -786,36 +786,17 @@ func ValidateRolePermissions(serviceKey string, permissions []string) (bool, []s
 	return len(invalidPerms) == 0, invalidPerms
 }
 
-// GetUserServicePermissions returns all permissions a user has for a specific service
+// GetUserServicePermissions returns all permissions a user has for a specific service.
+//
+// Раньше здесь была отдельная ветка для системного администратора: она
+// возвращала весь AvailablePermissions сервиса, игнорируя назначенные роли.
+// Из-за неё выданное в админке расходилось с тем, что действовало на самом
+// деле — пользователь получал права, которых его ролям никто не давал.
+// Теперь права всегда собираются из ролей; администратор получает роль с
+// правом "<serviceKey>.*", которое сервисы разбирают как шаблон.
 func GetUserServicePermissions(userID, serviceKey string) ([]string, error) {
-	objID, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
+	if _, err := primitive.ObjectIDFromHex(userID); err != nil {
 		return nil, fmt.Errorf("неверный ID пользователя: %v", err)
-	}
-
-	// Admin users have all permissions
-	if IsSystemAdmin(objID) {
-		service, err := GetServiceByKey(serviceKey)
-		if err != nil {
-			return []string{}, nil // Return empty if service not found
-		}
-
-		// Return all active permissions for admin
-		permMap := make(map[string]bool)
-		for _, perm := range service.AvailablePermissions {
-			if perm.DeletedAt.IsZero() {
-				permMap[perm.Name] = true
-			}
-		}
-		for _, perm := range service.Permissions {
-			permMap[perm] = true
-		}
-
-		uniquePerms := make([]string, 0, len(permMap))
-		for perm := range permMap {
-			uniquePerms = append(uniquePerms, perm)
-		}
-		return uniquePerms, nil
 	}
 
 	// For regular users, collect permissions from user_service_roles collection

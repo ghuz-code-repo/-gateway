@@ -30,7 +30,18 @@ const serviceConfigTemplate = `# AUTO-GENERATED SERVICE CONFIG: {{.ServiceKey}}
 # Container: {{.ContainerName}}
 # Status: {{.Status}}
 
-# Static files for {{.ServiceKey}}
+# Загруженные файлы под static недоступны: этот блок идёт без auth_request,
+# и всё, что сервис клал в static/uploads, скачивалось анонимно. Загрузки
+# отдаются с отдельного роута сервиса ({{.ExternalPrefix}}/media/...), который
+# проходит общую проверку ниже. Префикс длиннее, поэтому nginx выберет его
+# раньше блока со static независимо от порядка в файле.
+location {{.ExternalPrefix}}/static/uploads/ {
+    return 404;
+}
+
+# Static files for {{.ServiceKey}} — стили, скрипты, шрифты, иконки.
+# Остаются без авторизации намеренно: их запрашивает в том числе страница
+# логина, и они должны кэшироваться.
 location {{.ExternalPrefix}}/static/ {
     proxy_pass {{.InternalURL}}/static/;
     proxy_set_header Host $host;
@@ -51,7 +62,6 @@ location {{.ExternalPrefix}}/ {
     auth_request_set $auth_status $upstream_status;
     auth_request_set $auth_user_name $upstream_http_x_user_name;
     auth_request_set $auth_user_id $upstream_http_x_user_id;
-    auth_request_set $auth_user_admin $upstream_http_x_user_admin;
     auth_request_set $auth_user_roles $upstream_http_x_user_roles;
     auth_request_set $auth_user_permissions $upstream_http_x_user_permissions;
     auth_request_set $auth_user_service_roles $upstream_http_x_user_service_roles;
@@ -80,8 +90,10 @@ location {{.ExternalPrefix}}/ {
     # Pass authentication information
     proxy_set_header X-User-Name $auth_user_name;
     proxy_set_header X-User-ID $auth_user_id;
-    proxy_set_header X-User-Admin $auth_user_admin;
     proxy_set_header X-User-Roles $auth_user_roles;
+    # Заголовок отменён, но затираем его явно: без этой строки клиентский
+    # X-User-Admin проходил бы к сервису нетронутым.
+    proxy_set_header X-User-Admin "";
     proxy_set_header X-User-Permissions $auth_user_permissions;
     proxy_set_header X-User-Service-Roles $auth_user_service_roles;
     proxy_set_header X-User-Service-Permissions $auth_user_service_permissions;

@@ -145,6 +145,11 @@ func main() {
 	// This fills in missing data for services restored from backup.
 	models.EnsureExternalRolesForAllServices()
 
+	// Дать системным администраторам явную роль "admin" с правом "<service>.*"
+	// в каждом сервисе. Заменяет прежний обход по заголовку X-User-Admin —
+	// без этого шага админ остался бы без доступа к сервисам.
+	models.EnsureServiceAdminRoles()
+
 	// ADR-001: Perform migration to new schema
 	log.Println("Checking for ADR-001 schema migration...")
 	migrationResult, err := models.MigrateToADR001Schema()
