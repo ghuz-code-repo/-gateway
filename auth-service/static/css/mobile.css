@@ -890,16 +890,23 @@
            если скрипт не отработал. */
         height: 70vh !important;
         height: var(--gh-logs-h, 70dvh) !important;
-        min-height: 260px !important;
+        /* Высоту целиком задаёт mobile-ux.js — свой пол ему не мешаем. */
+        min-height: 0 !important;
         max-height: none !important;
         padding: 0 !important;
         overflow: auto !important;
         -webkit-overflow-scrolling: touch;
         border: 1px solid var(--border-color);
-        /* Низ упирается в край экрана — скруглять и обводить там нечего. */
+        border-radius: 8px;
+        background: var(--card-background-color);
+    }
+
+    /* Класс ставит mobile-ux.js, когда фрейм упёрся в нижний край экрана:
+       обводить и скруглять там нечего. Если внутри мало содержимого, фрейм
+       короче экрана — тогда рамка нужна со всех сторон. */
+    #logs.tab-content.gh-logs-flush {
         border-bottom: none;
         border-radius: 8px 8px 0 0;
-        background: var(--card-background-color);
     }
 
     /* Нижний отступ страницы под открытыми логами не нужен: он оставлял
@@ -926,7 +933,6 @@
     #logs.tab-content {
         height: 78vh !important;
         height: var(--gh-logs-h, 78dvh) !important;
-        min-height: 200px !important;
     }
 }
 

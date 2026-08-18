@@ -127,7 +127,50 @@
        (шапка, заголовок, флеш-сообщения, лента вкладок) в CSS не выразить:
        высота зависит от контента. Поэтому меряем и отдаём в CSS-переменную
        --gh-logs-h, а правило в mobile.css её использует. */
-    var LOGS_MIN_HEIGHT = 260;
+    /* Два разных порога, их нельзя путать:
+       MIN_AVAIL — минимум доступной высоты, когда сверху занято почти всё
+       (альбомная ориентация): лучше пусть страница прокрутится, чем полоска
+       логов в 90px;
+       MIN_FIT — минимум при подгонке под короткое содержимое, чтобы страница
+       ошибки не превращалась в узкую щель. */
+    var LOGS_MIN_AVAIL = 260;
+    var LOGS_MIN_FIT = 120;
+
+    /* Высота содержимого внутри фрейма. Просмотрщик лежит на том же хосте
+       (`/services/<key>/logs/`), поэтому документ доступен. Если вдруг нет —
+       возвращаем null, и фрейм остаётся во всю доступную высоту. */
+    function logsContentHeight(frame) {
+        try {
+            var doc = frame.contentDocument;
+            if (!doc || !doc.body) {
+                return null;
+            }
+            // Именно body: у короткой страницы documentElement.scrollHeight
+            // равен высоте окна фрейма, а не содержимого, и подгонка
+            // «подтверждала» бы любую выставленную высоту.
+            return Math.max(
+                doc.body.scrollHeight,
+                Math.round(doc.body.getBoundingClientRect().height)
+            );
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /* Сколько места от верха вкладки до нижнего края экрана. */
+    function logsAvailableHeight(tab) {
+        // Неактивная вкладка скрыта и размеров не имеет — тогда отсчитываем
+        // от низа ленты вкладок, сразу под которой она и появится.
+        var anchorEl = tab.classList.contains('active') ? tab : document.querySelector('.tabs-nav');
+        if (!anchorEl) {
+            return null;
+        }
+        var box = anchorEl.getBoundingClientRect();
+        // Координата верха блока в документе — не зависит от текущей прокрутки.
+        var topInDoc = (anchorEl === tab ? box.top : box.bottom) + window.pageYOffset;
+        var height = Math.round(window.innerHeight - topInDoc);
+        return isFinite(height) ? Math.max(height, LOGS_MIN_AVAIL) : null;
+    }
 
     function sizeLogsFrame() {
         var tab = document.getElementById('logs');
@@ -139,25 +182,39 @@
         if (!isMobile()) {
             // На десктопе работает штатная одноэкранная раскладка.
             root.style.removeProperty('--gh-logs-h');
+            tab.classList.remove('gh-logs-flush');
             return;
         }
 
-        // Неактивная вкладка скрыта и размеров не имеет — тогда отсчитываем
-        // от низа ленты вкладок, сразу под которой она и появится.
-        var anchorEl = tab.classList.contains('active') ? tab : document.querySelector('.tabs-nav');
-        if (!anchorEl) {
+        var avail = logsAvailableHeight(tab);
+        if (avail === null) {
             return;
         }
 
-        var box = anchorEl.getBoundingClientRect();
-        // Координата верха блока в документе — не зависит от текущей прокрутки.
-        var topInDoc = (anchorEl === tab ? box.top : box.bottom) + window.pageYOffset;
-        var height = Math.round(window.innerHeight - topInDoc);
+        // Сначала разворачиваем на всю доступную высоту и только потом меряем
+        // содержимое. Порядок важен: просмотрщик обычно тянется на 100% своего
+        // окна, и если мерить его в уже сжатом фрейме, он «подтвердит» любую
+        // высоту — получится схлопывание с каждым проходом.
+        root.style.setProperty('--gh-logs-h', avail + 'px');
+        tab.classList.add('gh-logs-flush');
 
-        if (!isFinite(height) || height < LOGS_MIN_HEIGHT) {
-            height = LOGS_MIN_HEIGHT;
+        var frame = tab.querySelector('.logs-iframe');
+        if (!frame) {
+            return;
         }
-        root.style.setProperty('--gh-logs-h', height + 'px');
+
+        // Чтение scrollHeight ниже само вызывает пересчёт раскладки, поэтому
+        // значение уже учитывает выставленную высоту.
+        var inner = logsContentHeight(frame);
+        if (inner === null || inner <= 0) {
+            return;
+        }
+
+        // Пустой список или короткая страница ошибки не должны разворачиваться
+        // в чёрный прямоугольник на пол-экрана: подгоняем фрейм по содержимому.
+        var fit = Math.min(avail, Math.max(LOGS_MIN_FIT, inner + 2));
+        root.style.setProperty('--gh-logs-h', fit + 'px');
+        tab.classList.toggle('gh-logs-flush', fit >= avail - 2);
     }
 
     var logsResizeTimer = null;
@@ -173,10 +230,19 @@
     }
 
     function initLogsFrame() {
-        if (!document.getElementById('logs')) {
+        var tab = document.getElementById('logs');
+        if (!tab) {
             return;
         }
         sizeLogsFrame();
+
+        // Фрейм помечен loading="lazy" и грузится уже после открытия вкладки —
+        // до этого мерить внутри нечего.
+        var frame = tab.querySelector('.logs-iframe');
+        if (frame) {
+            frame.addEventListener('load', sizeLogsFrame);
+        }
+
         // Переключение вкладок меняет высоту контента над фреймом.
         document.addEventListener('click', function (event) {
             if (event.target && event.target.closest && event.target.closest('.tabs-nav')) {
@@ -185,6 +251,12 @@
         });
         window.addEventListener('resize', scheduleLogsResize);
         window.addEventListener('orientationchange', scheduleLogsResize);
+
+        // Просмотрщик дорисовывает интерфейс асинхронно — добираем несколько
+        // отложенных проходов, дальше высота уже не меняется.
+        [500, 2000, 5000].forEach(function (delay) {
+            window.setTimeout(sizeLogsFrame, delay);
+        });
     }
 
     /* ── 4. Разгрузка фона из частиц ──────────────────────────────────────
