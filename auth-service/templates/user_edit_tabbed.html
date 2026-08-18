@@ -3,14 +3,24 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Мобильное веб-приложение: контент заходит под вырез (viewport-fit),
+         запуск с домашнего экрана — без адресной строки, системная строка
+         красится в цвет шапки (актуальный цвет ставит mobile-ux.js). -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Портал GH">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/img/logo-mark.svg">
     <title>{{ .title }} - Сервис аутентификации</title>
     <link rel="icon" type="image/svg+xml" href="/static/img/vite.svg">
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/admin-service-form.css">
     <link rel="stylesheet" href="/static/css/user-form.css">
     <link rel="stylesheet" href="/static/css/profile.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
     <script src="/_shared/js/particles.min.js"></script>
     <script src="/static/js/user-form.js"></script>
     <style>
@@ -18,25 +28,42 @@
             visibility: hidden;
             opacity: 0;
             transition: opacity .05s ease-in-out;
-            overflow: hidden !important;
-            height: 100vh !important;
         }
-        
-        body .admin-page-container {
-            flex: 1;
-            overflow: hidden;
+
+        /* Одноэкранная раскладка с внутренним скроллом формы — только на
+           широких экранах. На телефоне body{overflow:hidden;height:100vh}
+           обрезал форму, и доскроллить до кнопки «Сохранить» было нельзя. */
+        @media (min-width: 769px) {
+            body {
+                overflow: hidden;
+                height: 100vh;
+            }
+
+            body .admin-page-container {
+                flex: 1;
+                overflow: hidden;
+            }
+
+            .tabs-container {
+                flex: 1;
+                overflow: hidden;
+                min-height: 0;
+            }
+
+            .tabs-container > form {
+                flex: 1;
+                overflow-y: auto;
+                min-height: 0;
+            }
         }
-        
+
         /* Tabbed Interface Styles */
         .tabs-container {
             margin-top: 0;
-            flex: 1;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            min-height: 0;
         }
-        
+
         .tabs-nav {
             display: flex;
             gap: 0;
@@ -46,16 +73,13 @@
             padding: 0 30px;
             background: var(--card-background-color);
         }
-        
+
         .tabs-container > form {
-            flex: 1;
-            overflow-y: auto;
             display: flex;
             flex-direction: column;
-            min-height: 0;
             padding: 0;
         }
-        
+
         .tab-btn {
             padding: 1rem 1.5rem;
             background: transparent;
@@ -235,6 +259,10 @@
             font-size: 0.8rem;
         }
     </style>
+    <!-- Мобильный слой подключается последним: он переопределяет легаси-правила
+         выше и инлайновые <style> этой страницы при равной специфичности. -->
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <script src="/static/js/mobile-ux.js"></script>
 </head>
 <body>
     <script>
@@ -1065,6 +1093,7 @@
             document.body.style.opacity = '1';
         });
     </script>
+    <script src="/static/js/mobile-menu.js"></script>
 </body>
 </html>
 {{ end }}

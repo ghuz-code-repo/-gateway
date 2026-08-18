@@ -6,11 +6,43 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeSwitcherMobile = document.getElementById('theme-switcher-mobile'); // Mobile theme switcher
     const htmlElement = document.documentElement;
 
+    // Блокировка скролла страницы делается классом через ghScrollLock
+    // (mobile-ux.js): инлайновый style.overflowY проигрывал !important-правилам
+    // легаси, и страница под открытым меню продолжала скроллиться.
+    function lockPageScroll() {
+        if (window.ghScrollLock) {
+            window.ghScrollLock.lock();
+        } else {
+            document.documentElement.classList.add('gh-scroll-lock');
+            document.body.classList.add('gh-scroll-lock');
+        }
+    }
+
+    function unlockPageScroll() {
+        if (window.ghScrollLock) {
+            window.ghScrollLock.reset();
+        } else {
+            document.documentElement.classList.remove('gh-scroll-lock');
+            document.body.classList.remove('gh-scroll-lock');
+        }
+    }
+
+    function isMenuOpen() {
+        return !!(mobileMenuModal && mobileMenuModal.classList.contains('open'));
+    }
+
     function openMenu() {
         if (mobileMenuModal && modalBackdrop) {
             mobileMenuModal.classList.add('open');
             modalBackdrop.classList.add('open');
-            document.body.style.overflowY = 'hidden'; // Prevent body scroll when menu is open
+            lockPageScroll();
+            if (burgerMenuToggle) {
+                burgerMenuToggle.classList.add('active');
+                burgerMenuToggle.setAttribute('aria-expanded', 'true');
+            }
+            if (mobileMenuClose) {
+                mobileMenuClose.focus();
+            }
         }
     }
 
@@ -18,12 +50,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mobileMenuModal && modalBackdrop) {
             mobileMenuModal.classList.remove('open');
             modalBackdrop.classList.remove('open');
-            document.body.style.overflowY = ''; // Restore body scroll
+            unlockPageScroll();
+            if (burgerMenuToggle) {
+                burgerMenuToggle.classList.remove('active');
+                burgerMenuToggle.setAttribute('aria-expanded', 'false');
+            }
         }
     }
 
     if (burgerMenuToggle) {
-        burgerMenuToggle.addEventListener('click', openMenu);
+        // Тап по бургеру при открытом меню должен его закрывать: иконка
+        // превращается в крестик, и другого поведения от неё не ждут.
+        burgerMenuToggle.addEventListener('click', function () {
+            if (isMenuOpen()) {
+                closeMenu();
+            } else {
+                openMenu();
+            }
+        });
     }
 
     if (mobileMenuClose) {
@@ -33,6 +77,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (modalBackdrop) {
         modalBackdrop.addEventListener('click', closeMenu);
     }
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && isMenuOpen()) {
+            closeMenu();
+        }
+    });
+
+    // При повороте экрана или переходе на планшетную ширину меню теряет
+    // смысл: десктопные контролы возвращаются, а скролл остался бы заблокирован.
+    window.addEventListener('resize', function () {
+        if (isMenuOpen() && window.innerWidth > 768) {
+            closeMenu();
+        }
+    });
 
     // Cookie functions
     function setCookie(name, value, days) {

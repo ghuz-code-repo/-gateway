@@ -170,6 +170,9 @@ html {
     /* Prevent horizontal scroll on the html element */
     box-sizing: border-box;
     /* Include padding and border in the element's total width and height */
+    /* Мобильный Safari/Chrome иначе масштабируют шрифт при повороте экрана. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
 *,
@@ -184,6 +187,9 @@ body {
     width: 100%;
     /* Explicitly set width to 100% of html */
     min-height: 100vh;
+    /* dvh учитывает выезжающую адресную строку мобильных браузеров;
+       100vh там больше видимой области и добавляет ложный скролл. */
+    min-height: 100dvh;
     /* Ensures body is at least viewport height, allows growing */
     display: flex;
     /* Keep flex if you need a footer pushed to the bottom, but ensure main content area can grow */
@@ -876,6 +882,28 @@ input[type="file"]:hover {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* Список разрешений в форме роли: чекбокс и подпись в одну строку.
+   Глобальное label { display: block } отрывало подпись на новую строку,
+   и список выглядел как чередование квадратиков и текста. */
+.checkbox-group > div {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 32px;
+}
+
+.checkbox-group > div > input[type="checkbox"] {
+    width: auto;
+    min-width: auto;
+    margin: 0;
+    flex: none;
+}
+
+.checkbox-group > div > label {
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
 /* Role checkboxes */
 .role-checkboxes {
     max-height: 200px;
@@ -1357,8 +1385,9 @@ input[type="file"]:hover {
 /* Ensure existing media queries correctly hide/show burger vs desktop controls */
 @media (max-width: 768px) {
     .header-container {
-        height: 60px;
-        /* Меньшая высота на планшетах */
+        /* Была фиксированная height: 60px — при переносе строки шапка
+           обрезала содержимое. Минимальная высота позволяет ей расти. */
+        min-height: 56px;
         padding: 0 15px;
     }
 
@@ -1381,17 +1410,16 @@ input[type="file"]:hover {
 
     /* Mobile phones */
     .header-container {
-        height: 55px;
-        /* Еще меньше на мобильных */
+        min-height: 52px;
         padding: 0 10px;
     }
 
     .container {
-        width: calc(100% - 10px);
-        max-width: calc(100vw - 10px);
+        width: 100%;
+        max-width: 100%;
         border-radius: 0;
-        margin: 5px auto;
-        padding: 15px 10px;
+        margin: 0 auto;
+        padding: 15px 12px;
     }
 
     h1 {
@@ -1443,9 +1471,8 @@ input[type="file"]:hover {
         padding: 10px;
     }
 
-    .logo-img {
-        min-width: 70px;
-    }
+    /* .logo-img { min-width: 70px } удалён: герб 28x28 растягивался
+       в 70px по ширине и плющился на мобильных. */
 }
 
 /* ---------- LOGIN FORM SPECIFICS ---------- */
@@ -1787,9 +1814,8 @@ button.manage-btn:hover {
         padding: 10px;
     }
 
-    .logo-img {
-        min-width: 70px;
-    }
+    /* .logo-img { min-width: 70px } удалён: герб 28x28 растягивался
+       в 70px по ширине и плющился на мобильных. */
 }
 
 /* Login page password toggle and forgot password styles */
@@ -2326,6 +2352,86 @@ button.manage-btn:hover {
     font-weight: 600;
     border-bottom: 2px solid var(--primary-color);
     background-color: var(--light-background-color);
+}
+
+/* ---------- РАЗМЕТКА В КЛАССАХ BOOTSTRAP БЕЗ САМОГО BOOTSTRAP ----------
+   Страницы импорта (import_logs, import_log_details, service_import)
+   размечены классами Bootstrap, которого в проекте нет. Таблицы и пагинация
+   там оставались вообще без стилей: маркеры списка, синие ссылки-подчёркивания,
+   нулевые отступы в ячейках. Приводим их к виду остального портала. */
+table.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    background-color: var(--card-background-color);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+table.table th {
+    background-color: var(--table-header-background-color);
+    color: var(--table-header-text-color);
+    font-weight: 500;
+    text-align: left;
+}
+
+table.table.table-striped tbody tr:nth-child(even) {
+    background-color: var(--table-row-even-background-color);
+}
+
+table.table tbody tr:hover {
+    background-color: var(--table-row-hover-background-color);
+}
+
+table.table.table-sm th,
+table.table.table-sm td {
+    padding: 8px 10px;
+}
+
+/* Пагинация на <ul>: убираем маркеры и делаем из ссылок кнопки. */
+ul.pagination {
+    list-style: none;
+    padding: 0;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+ul.pagination .page-item {
+    margin: 0;
+}
+
+.page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--input-background-color);
+    color: var(--text-color);
+    font-size: 14px;
+    text-decoration: none;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+a.page-link:hover {
+    background-color: var(--table-row-hover-background-color);
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+.page-item.active .page-link {
+    background-color: var(--primary-color);
+    color: var(--primary-text-color);
+    border-color: var(--primary-color);
+    font-weight: 600;
+}
+
+.page-item.disabled .page-link {
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .multiselect-select-all .multiselect-option-label {

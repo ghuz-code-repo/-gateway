@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -259,6 +260,20 @@ func main() {
 
 	// Set maximum memory for multipart forms to 10MB
 	router.MaxMultipartMemory = 10 << 20 // 10 MB
+
+	// Базовый образ alpine идёт без /etc/mime.types, а во встроенной таблице Go
+	// шрифтовых типов нет — вендоренный Font Awesome отдавался бы как
+	// application/octet-stream. Браузеры шрифты и так грузят, но правильный тип
+	// нужен строгим прокси и CSP.
+	for ext, typ := range map[string]string{
+		".woff2": "font/woff2",
+		".woff":  "font/woff",
+		".ttf":   "font/ttf",
+	} {
+		if err := mime.AddExtensionType(ext, typ); err != nil {
+			log.Printf("Warning: could not register MIME type for %s: %v", ext, err)
+		}
+	}
 
 	// Set up static file serving
 	router.Static("/static", "./static")

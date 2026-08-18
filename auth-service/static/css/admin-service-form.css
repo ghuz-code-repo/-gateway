@@ -2,38 +2,28 @@
 
 /* ========== SINGLE PAGE LAYOUT ARCHITECTURE ========== */
 
-/* Prevent body scroll - single page behavior */
+/* Базовая раскладка — мобильная: документ скроллится как обычная страница.
+   «Одноэкранный» режим с внутренним скроллом включается только с планшета
+   (min-width: 769px): на телефоне он обрезал контент без возможности до него
+   доскроллить. */
 html,
 body {
-    height: 100%;
-    overflow: hidden;
-    /* Убираем скролл основной страницы */
     margin: 0;
     padding: 0;
 }
 
-/* Main page container - full viewport height */
 .admin-page-container {
-    height: 100vh;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
-    max-width: 100vw;
-    overflow: hidden;
+    max-width: 100%;
     position: relative;
     z-index: 1; /* Above particles */
-    /* Предотвращаем любой скролл */
 }
 
 /* Header spacer - фиксированная высота под header */
 
-/* Main content area - занимает оставшееся место */
 .admin-content {
-    flex: 1;
-    /* Занимает всё оставшееся пространство */
-    overflow-y: hidden;
-    /* Скролл только здесь при необходимости */
-    overflow-x: hidden;
     padding: 20px;
     position: relative;
     z-index: 1; /* Above particles */
@@ -41,18 +31,51 @@ body {
     display: flex;
     flex-direction: column;
     align-self: center;
+    width: 100%;
+    min-width: 0;
 }
 
-/* Container optimized for single page */
 .container {
     display: flex;
     flex-direction: column;
     max-width: 1200px;
     margin: 0 auto;
     width: 100%;
-    height: 100%;
     box-sizing: border-box;
     padding: 20px;
+    min-width: 0;
+}
+
+/* Одноэкранная раскладка с внутренним скроллом — только на широких экранах */
+@media (min-width: 769px) {
+    html,
+    body {
+        height: 100%;
+        overflow: hidden;
+        /* Убираем скролл основной страницы */
+    }
+
+    /* Main page container - full viewport height */
+    .admin-page-container {
+        height: 100vh;
+        max-width: 100vw;
+        overflow: hidden;
+        /* Предотвращаем любой скролл */
+    }
+
+    /* Main content area - занимает оставшееся место */
+    .admin-content {
+        flex: 1;
+        /* Занимает всё оставшееся пространство */
+        overflow-y: hidden;
+        /* Скролл только здесь при необходимости */
+        overflow-x: hidden;
+    }
+
+    /* Container optimized for single page */
+    .container {
+        height: 100%;
+    }
 }
 
 /* Title section - компактный */
@@ -1158,17 +1181,27 @@ body {
         padding: 15px;
     }
 
+    /* Никаких фиксированных/vh-высот: блок растёт по контенту, скроллится
+       сама страница. Раньше max-height обрезал вкладки без скролла,
+       а overflow:hidden срезал всё, что не влезло. */
     .tabs {
-        min-height: 500px;
-        /* Меньшая высота для планшетов */
-        max-height: calc(100vh - 150px);
+        min-height: 0;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .content-section,
+    .list-section {
+        height: auto;
+        min-height: 0;
+        overflow: visible;
     }
 
     .tabs-nav {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 5px;
-        min-height: 50px;
-        height: 50px;
+        min-height: 0;
+        height: auto;
     }
 
     .tabs-nav button {
@@ -1178,44 +1211,34 @@ body {
 
     .tab-content {
         padding: 15px;
-        /* height: calc(100% - 50px); */
-        /* Адаптируем под новую высоту навигации */
-        /* min-height: 350px; */
-        /* Минимальная высота для планшетов */
+        height: auto;
+        max-height: none;
     }
 
     .roles-container,
     .permissions-container,
     .users-container {
-        height: 300px;
-        /* Меньшая фиксированная высота на планшетах */
-        max-height: 300px;
-        min-height: 150px;
+        height: auto;
+        max-height: none;
+        min-height: 0;
+        overflow: visible;
     }
 }
 
 /* Mobile styles */
 @media (max-width: 600px) {
 
-    html,
-    body {
-        height: 100vh;
-        /* Точное значение для мобильных */
-        position: fixed;
-        /* Предотвращаем любой скролл на мобильных */
-        width: 100%;
-    }
-
-
+    /* Раньше здесь стояло html,body{position:fixed;height:100vh} — это
+       полностью убивало скролл страницы, из-за чего нижняя часть любой
+       формы была недостижима. Документ должен скроллиться нативно. */
 
     .admin-content {
         padding: 10px;
     }
 
     .tabs {
-        min-height: 400px;
-        /* Меньшая высота для мобильных */
-        max-height: calc(100vh - 120px);
+        min-height: 0;
+        max-height: none;
     }
 
     .page-title-section h1 {
@@ -1223,38 +1246,37 @@ body {
         /* margin-bottom: 8px; */
     }
 
+    /* Вкладки — горизонтальная лента со снапом (mobile web app), а не
+       вертикальный столбик кнопок на пол-экрана. */
     .tabs-nav {
-        flex-direction: column;
+        flex-direction: row;
         align-items: stretch;
-        min-height: auto;
+        min-height: 0;
         height: auto;
-        /* Авто высота для мобильной навигации */
     }
 
     .tabs-nav button {
         text-align: center;
-        width: 100%;
+        width: auto;
         border-radius: 5px;
-        margin-bottom: 2px;
-        padding: 8px 12px;
-        font-size: 12px;
+        margin-bottom: 0;
+        padding: 10px 12px;
+        font-size: 13px;
     }
 
     .tab-content {
         padding: 10px;
-        /* height: calc(100% - 120px); */
-        /* Адаптируем под вертикальную навигацию */
-        /* min-height: 300px; */
-        /* Минимальная высота для мобильных */
+        height: auto;
+        max-height: none;
     }
 
     .roles-container,
     .permissions-container,
     .users-container {
-        height: 250px;
-        /* Фиксированная высота для мобильных */
-        max-height: 250px;
-        min-height: 120px;
+        height: auto;
+        max-height: none;
+        min-height: 0;
+        overflow: visible;
         padding: 8px;
     }
 
@@ -1262,28 +1284,18 @@ body {
     .search-input {
         font-size: 16px;
         /* Prevent zoom on iOS */
-        padding: 8px 10px;
+        padding: 10px 12px;
     }
 
     .role-item,
     .permission-item {
-        padding: 6px;
+        padding: 10px;
         font-size: 13px;
     }
 }
 
 /* Very small screens */
 @media (max-width: 480px) {
-
-
-    .roles-container,
-    .permissions-container,
-    .users-container {
-        height: 200px;
-        /* Еще меньшая фиксированная высота */
-        max-height: 200px;
-        min-height: 100px;
-    }
 
     .tab-content {
         padding: 8px;
@@ -1995,12 +2007,14 @@ body {
         max-width: 100%;
     }
 
-    /* Обновленные размеры контейнеров для мобильных */
+    /* Списки растут по контенту — скроллится страница, а не вложенный блок
+       фиксированной высоты (в него на телефоне влезало 2 строки). */
     .roles-container,
     .permissions-container,
     .users-container {
-        height: 300px;
-        max-height: 300px;
+        height: auto;
+        max-height: none;
+        overflow: visible;
     }
 }
 
@@ -2016,14 +2030,6 @@ body {
         padding: 12px;
         font-size: 12px;
     }
-
-    /* Обновленные размеры контейнеров для очень маленьких экранов */
-    .roles-container,
-    .permissions-container,
-    .users-container {
-        height: 200px;
-        max-height: 200px;
-    }
 }
 
 /* КРИТИЧЕСКИЙ ФИКС СКРОЛЛБАРА - МАКСИМАЛЬНЫЙ ПРИОРИТЕТ */
@@ -2034,6 +2040,14 @@ body {
     height: auto !important;
     max-height: calc(100vh - 200px) !important;
     /* Ограничиваем максимальную высоту */
+}
+
+/* На мобильных ограничение по vh снимаем — иначе контент обрезается,
+   а внутреннего скролла у блока нет (overflow-y: visible). */
+@media (max-width: 768px) {
+    .tabs-container {
+        max-height: none !important;
+    }
 }
 
 /* КРИТИЧЕСКИЙ ФИКС - ПРИНУДИТЕЛЬНОЕ ПРИМЕНЕНИЕ ТЕМНОЙ ТЕМЫ */

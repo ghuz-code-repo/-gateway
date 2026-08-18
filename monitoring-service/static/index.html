@@ -2,7 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#667eea">
     <title>Service Monitoring Dashboard</title>
     <style>
         * {
@@ -15,6 +16,8 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            /* dvh учитывает выезжающую адресную строку мобильных браузеров. */
+            min-height: 100dvh;
             padding: 20px;
         }
         
@@ -42,7 +45,9 @@
         
         .services-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            /* min(100%, 300px): трек в 300px не сжимается ниже своего минимума
+               и на экране 320px выезжал за край вместе с карточками. */
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
             gap: 20px;
         }
         
@@ -177,7 +182,7 @@
         
         .summary-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
             gap: 20px;
         }
         
@@ -199,6 +204,65 @@
         .healthy-count { color: #10b981; }
         .unhealthy-count { color: #ef4444; }
         .unknown-count { color: #f59e0b; }
+
+        /* Мобильная раскладка */
+        @media (max-width: 768px) {
+            body {
+                /* Учитываем вырез и жест-бар. */
+                padding: calc(12px + env(safe-area-inset-top, 0px))
+                         calc(12px + env(safe-area-inset-right, 0px))
+                         calc(12px + env(safe-area-inset-bottom, 0px))
+                         calc(12px + env(safe-area-inset-left, 0px));
+            }
+
+            header {
+                margin-bottom: 24px;
+            }
+
+            /* 2.5rem = 40px — на экране 320px заголовок занимал три строки. */
+            header h1 {
+                font-size: clamp(1.35rem, 6vw, 1.9rem);
+                line-height: 1.2;
+            }
+
+            .service-card {
+                padding: 16px;
+                border-radius: 12px;
+            }
+
+            .service-header {
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+
+            /* Длинные значения (URL, ошибки) переносятся под подпись,
+               а не наезжают на неё. */
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 2px;
+            }
+
+            .info-value {
+                overflow-wrap: anywhere;
+            }
+
+            .summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+            }
+
+            .summary-value {
+                font-size: 1.6rem;
+            }
+
+            /* Кнопка обновления не должна попадать под жест-бар. */
+            .refresh-button {
+                bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+                right: calc(16px + env(safe-area-inset-right, 0px));
+            }
+        }
     </style>
 </head>
 <body>

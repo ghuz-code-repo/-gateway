@@ -4,9 +4,15 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    max-width: 1400px;
+    /* Родитель .admin-page-container центрирует детей (align-items: center из
+       styles.css), поэтому блок получает размер по своему контенту, а не по
+       ширине окна: min-content 787px (747px контента + 40px padding)
+       выдавливал его за оба края экрана на узком десктопе (~769px).
+       min() ограничивает блок окном, сохраняя предел 1400px на широких. */
+    max-width: min(1400px, 100%);
     /* margin: 0 auto; */
     padding: 20px;
+    min-width: 0;
 }
 
 .search-header {
@@ -14,6 +20,9 @@
     justify-content: start;
     align-items: baseline;
     gap: 50px;
+    /* Заголовок и подсказка переносятся вместо того, чтобы вместе с gap: 50px
+       задавать min-content шире окна. */
+    flex-wrap: wrap;
 }
 
 .search-section{

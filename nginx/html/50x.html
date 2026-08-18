@@ -52,6 +52,36 @@
         .home-link:hover {
             background: #B8854D;
         }
+
+        @media (max-width: 600px) {
+            body {
+                /* 100vh больше видимой области при выехавшей адресной строке. */
+                min-height: 100dvh;
+                padding: 16px;
+                box-sizing: border-box;
+            }
+            .error-container {
+                padding: 28px 20px;
+                border-radius: 16px;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            /* 120px занимали почти всю ширину экрана 320px. */
+            .error-code {
+                font-size: clamp(56px, 22vw, 96px);
+                line-height: 1;
+            }
+            .error-message {
+                font-size: clamp(17px, 5.5vw, 22px);
+            }
+            .error-description {
+                font-size: 15px;
+            }
+            .home-link {
+                display: block;
+                padding: 14px 20px;
+            }
+        }
     </style>
 </head>
 <body>

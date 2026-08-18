@@ -3,11 +3,6 @@
 /* Note: body visibility is controlled via inline styles in HTML template */
 
 /* Override parent containers when enhanced-user-form is present */
-.admin-page-container:has(.enhanced-user-form) {
-    flex: 1;
-    overflow: hidden;
-}
-
 .admin-content:has(.enhanced-user-form) {
     width: 100%;
     max-width: 100%;
@@ -16,7 +11,6 @@
 .profile-container:has(.enhanced-user-form) {
     width: 100%;
     max-width: 100%;
-    padding: 0 40px;
     display: flex;
     justify-content: center;
 }
@@ -31,8 +25,33 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 100px);
-    overflow: hidden;
+    min-width: 0;
+}
+
+/* Одноэкранная форма с внутренним скроллом — только на широких экранах.
+   На телефоне max-height: calc(100vh - 100px) + overflow: hidden обрезали
+   форму профиля/пользователя: было видно ~650px из 3000px контента,
+   доскроллить до остального было нельзя. */
+@media (min-width: 769px) {
+    .admin-page-container:has(.enhanced-user-form) {
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .profile-container:has(.enhanced-user-form) {
+        padding: 0 40px;
+    }
+
+    .enhanced-user-form {
+        max-height: calc(100vh - 100px);
+        /* Было overflow: hidden — форма создания пользователя (≈2500px)
+           обрезалась до высоты экрана и на десктопе тоже: до кнопки
+           «Сохранить» было не добраться ни скроллом страницы (body
+           заблокирован), ни скроллом блока (его не было). Вид тот же,
+           но содержимое теперь доступно. */
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
 }
 
 .page-title-section {

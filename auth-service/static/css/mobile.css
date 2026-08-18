@@ -1,0 +1,1407 @@
+/* ═══ МОБИЛЬНЫЙ СЛОЙ ПОРТАЛА GOLDEN HOUSE ══════════════════════════════════
+   Подключается ПОСЛЕДНИМ на каждой странице — после styles.css, после
+   постраничных css и после инлайновых <style> в шапке. Порядок важен:
+   слой должен переопределять легаси-правила при равной специфичности.
+
+   Задача слоя — резиновая вёрстка под телефон и планшет в существующей
+   стилистике портала: тот же золотой акцент, те же карточки и рамки,
+   но без обрезанного контента, без горизонтального выезда и с нативным
+   скроллом. Внешний вид десктопа (>= 769px) слой не меняет вообще:
+   всё живёт внутри @media (max-width: …).
+
+   Правила:
+   • никаких фиксированных height/max-height в px и vh на контентных блоках —
+     блок растёт по контенту, скроллится документ;
+   • ни одного вложенного скролл-контейнера, кроме модалок, лент вкладок
+     и широких таблиц;
+   • тач-цели не меньше 44px, поля ввода не меньше 16px (иначе iOS зумит
+     страницу при фокусе и ломает вёрстку);
+   • учёт safe-area (вырез и жест-бар на iPhone/Android).
+   ────────────────────────────────────────────────────────────────────── */
+
+:root {
+    /* Внешние отступы контента на мобильном */
+    --gh-m-gutter: 12px;
+    /* Высота шапки — используется для sticky-смещений */
+    --gh-m-header-h: 52px;
+    /* Минимальная тач-цель по рекомендациям Apple HIG / Material */
+    --gh-m-touch: 44px;
+    /* Безопасные зоны (вырез, скруглённые углы, жест-бар) */
+    --gh-safe-top: env(safe-area-inset-top, 0px);
+    --gh-safe-right: env(safe-area-inset-right, 0px);
+    --gh-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --gh-safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* ═══ 1. ДОКУМЕНТ И СКРОЛЛ ════════════════════════════════════════════════
+   Главный класс поломок на портале: страница «одноэкранная», внутренний
+   скролл в блоке фиксированной высоты, а на телефоне контент в него не
+   влезает — и доскроллить некуда. Здесь скролл документа гарантируется
+   принудительно, чтобы ни одно легаси-правило больше не смогло его убить. */
+@media (max-width: 768px) {
+
+    html {
+        /* position:fixed на html/body полностью убивал скролл. */
+        position: static !important;
+        height: auto !important;
+        min-height: 100%;
+        max-height: none !important;
+        overflow-x: hidden;
+        overflow-y: visible;
+    }
+
+    body {
+        /* relative, а не static: styles.css рассчитывает на relative как
+           на систему координат для absolute-потомков. */
+        position: relative !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow-x: hidden;
+        /* overflow-y НЕ трогаем и НЕ ставим !important: блокировка скролла
+           при открытом меню работает через .gh-scroll-lock (см. §4). */
+        /* Инерционный скролл и обрезание «оттяжки» за границами документа. */
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+        -webkit-tap-highlight-color: rgba(var(--gh-brand-gold-rgb), 0.18);
+    }
+
+    /* Ни один контентный блок не должен создавать вложенный скролл или
+       обрезать содержимое. Перечислены все блоки, где легаси задавало
+       height/max-height в px или vh. */
+    .admin-page-container,
+    .admin-content,
+    .container,
+    .tabs,
+    .tabs-container,
+    .tab-content,
+    .content-section,
+    .list-section,
+    .roles-container,
+    .permissions-container,
+    .users-container,
+    .external-roles-container,
+    .user-management-container,
+    .profile-container,
+    .enhanced-user-form,
+    .data-table-wrapper,
+    .view-container {
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* Флекс-потомки не должны сжиматься до нуля и обрезать текст. */
+    .admin-content,
+    .tabs,
+    .tabs-container,
+    .content-section,
+    .list-section {
+        flex: 0 0 auto !important;
+    }
+
+    /* Каркас страницы — флекс-колонка с align-items: center, поэтому её
+       прямые дети получают размер по контенту (fit-content), а не по ширине
+       контейнера. Широкая таблица внутри раздувала такой блок до 870px при
+       экране 390px, и он выезжал за оба края экрана — контент был не виден
+       и не скроллился, потому что .container обрезает по overflow-x: hidden.
+       min-width: 0 разрешает сжатие ниже min-content содержимого,
+       max-width: 100% ограничивает ширину контейнером. Ширину дальше берёт
+       на себя горизонтальный скролл таблицы (.gh-table-scroll). */
+    body > *,
+    .container > *,
+    .admin-page-container > *,
+    .admin-content > *,
+    .centered-container > *,
+    .profile-container > *,
+    .user-management-container > *,
+    .enhanced-user-form > *,
+    .form-sections > *,
+    .form-section > *,
+    .tabs > *,
+    .tabs-container > *,
+    .tab-content > *,
+    .service-section > *,
+    .data-table-wrapper > *,
+    .view-container > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* Глобальная страховка от горизонтального выезда: длинные логины,
+       email и URL рвём по символам, картинки и видео вписываем. */
+    img,
+    svg,
+    video,
+    canvas {
+        max-width: 100%;
+    }
+
+    p,
+    li,
+    dd,
+    dt,
+    label,
+    td,
+    th,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    .user-name,
+    .user-email,
+    .user-login,
+    .role-name,
+    .permission-name,
+    .service-description,
+    .breadcrumb-current {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    /* Фоновый слой частиц: тяжёлый repaint при скролле над fixed-канвасом.
+       Убавляем плотность визуально, полностью не убираем — стилистика. */
+    #particles-js {
+        opacity: 0.45;
+        pointer-events: none;
+    }
+}
+
+/* ═══ 2. ШАПКА ════════════════════════════════════════════════════════════
+   Шапка становится прилипающей — базовое поведение mobile web app: навигация
+   всегда под рукой, не надо скроллить наверх. На десктопе поведение не
+   меняется (шапка там в потоке). */
+@media (max-width: 768px) {
+
+    .header-container {
+        position: sticky;
+        top: 0;
+        /* Выше .container (z-index: 1) и фона частиц, ниже меню (1000+). */
+        z-index: 100;
+        /* Фиксированная height обрезала содержимое при переносе. */
+        height: auto;
+        min-height: var(--gh-m-header-h);
+        gap: 10px;
+        padding: 6px calc(var(--gh-m-gutter) + var(--gh-safe-right)) 6px calc(var(--gh-m-gutter) + var(--gh-safe-left));
+        /* Шапка непрозрачна: под ней проезжает контент. */
+        background-color: var(--header-background-color);
+    }
+
+    /* Бренд занимает всё свободное место, но не выдавливает бургер. */
+    .header-logo-section {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .gh-brand,
+    .gh-brand-link {
+        min-width: 0;
+        gap: 8px;
+    }
+
+    .gh-brand-logo-img,
+    .logo-img {
+        height: 26px;
+        width: auto;
+        /* Легаси min-width: 70px расплющивал герб 26x26 в 70px по ширине. */
+        min-width: 0;
+        flex: none;
+    }
+
+    /* Название сервиса сжимается с многоточием вместо переноса шапки
+       в две строки или выдавливания бургера за экран. */
+    .gh-brand-name {
+        font-size: 18px;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .burger-menu-button {
+        flex: none;
+        width: var(--gh-m-touch);
+        height: var(--gh-m-touch);
+    }
+}
+
+@media (max-width: 380px) {
+    .gh-brand-name {
+        font-size: 16px;
+    }
+}
+
+/* ═══ 3. КАРКАС СТРАНИЦЫ ══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    .admin-page-container {
+        width: 100%;
+        max-width: 100%;
+        padding: 0;
+    }
+
+    .admin-content,
+    .container,
+    .centered-container,
+    .user-management-container,
+    .profile-container {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding-left: calc(var(--gh-m-gutter) + var(--gh-safe-left));
+        padding-right: calc(var(--gh-m-gutter) + var(--gh-safe-right));
+        box-sizing: border-box;
+    }
+
+    .container {
+        padding-top: var(--gh-m-gutter);
+        /* Запас под жест-бар, иначе последняя кнопка уходит под него. */
+        padding-bottom: calc(24px + var(--gh-safe-bottom));
+        border-radius: 0;
+        /* backdrop-filter на блоке во всю высоту страницы поверх fixed-канваса
+           частиц — главный источник рывков при скролле на среднем телефоне.
+           Полупрозрачная подложка выглядит почти так же, но не тормозит. */
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none;
+    }
+
+    .admin-content {
+        padding-top: var(--gh-m-gutter);
+        padding-bottom: calc(24px + var(--gh-safe-bottom));
+    }
+
+    /* Вложенные обёртки не должны удваивать боковые отступы. */
+    .container .container,
+    .admin-content .container,
+    .container .profile-container,
+    .container .user-management-container,
+    .admin-content .profile-container,
+    .admin-content .user-management-container {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    /* .header-spacer нужен только под position:fixed шапку, которой нет. */
+    .header-spacer {
+        display: none;
+    }
+
+    /* На части страниц (role_form, permissions_list, user_import) ссылка
+       «Назад…» лежит в безымянном <div> вне .container — она прижималась
+       к самому левому краю за пределами карточки. */
+    body > div:not([id]):not([class]) {
+        padding: 12px calc(var(--gh-m-gutter) + var(--gh-safe-right)) calc(12px + var(--gh-safe-bottom)) calc(var(--gh-m-gutter) + var(--gh-safe-left));
+        text-align: center;
+    }
+
+    body > div:not([id]):not([class]) > .btn {
+        width: 100%;
+    }
+
+    /* Заголовок страницы: центрируется и не выдавливает соседей. */
+    .page-title-section,
+    .header-section {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        text-align: center;
+    }
+
+    .header-section {
+        padding: var(--gh-m-gutter);
+        margin-bottom: 16px;
+    }
+}
+
+/* ═══ 4. МОБИЛЬНОЕ МЕНЮ ═══════════════════════════════════════════════════ */
+
+/* Блокировка скролла страницы при открытом меню/модалке. Класс вешает JS.
+   Через класс, а не инлайн-стиль: инлайн проигрывает !important-правилам
+   легаси и переставал работать. */
+.gh-scroll-lock {
+    overflow: hidden !important;
+    /* touch-action страхует от протаскивания страницы под оверлеем. */
+    touch-action: none;
+}
+
+@media (max-width: 768px) {
+
+    #mobile-menu-modal {
+        /* dvh: с 100% при выехавшей адресной строке низ меню обрезался. */
+        height: 100dvh;
+        width: min(320px, 88%);
+        max-width: none;
+        right: -100%;
+        gap: 8px;
+        padding: calc(48px + var(--gh-safe-top)) 16px calc(16px + var(--gh-safe-bottom));
+        /* Инерционный скролл внутри меню, без «оттяжки» всей страницы. */
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .mobile-menu-close-button {
+        top: calc(8px + var(--gh-safe-top));
+        right: 8px;
+        width: var(--gh-m-touch);
+        height: var(--gh-m-touch);
+        font-size: 26px;
+        line-height: 1;
+    }
+
+    #mobile-menu-modal .btn,
+    #mobile-menu-modal #theme-switcher-mobile {
+        min-height: var(--gh-m-touch);
+        margin-bottom: 0;
+        font-size: 15px;
+    }
+
+    .mobile-menu-modal .mobile-user-info {
+        margin-bottom: 12px;
+        gap: 2px;
+    }
+
+    .mobile-menu-modal .mobile-user-info .header-username {
+        font-weight: 600;
+        overflow-wrap: anywhere;
+        text-align: center;
+    }
+}
+
+/* ═══ 5. ТИПОГРАФИКА ══════════════════════════════════════════════════════
+   Плавная шкала через clamp: заголовки не наезжают друг на друга на 320px
+   и не выглядят мелко на 768px. */
+@media (max-width: 768px) {
+
+    h1 {
+        font-size: clamp(1.25rem, 5.2vw, 1.6rem);
+        margin-bottom: 16px;
+        line-height: 1.25;
+    }
+
+    h2 {
+        font-size: clamp(1.1rem, 4.6vw, 1.4rem);
+        margin-bottom: 14px;
+        line-height: 1.3;
+    }
+
+    h3 {
+        font-size: clamp(1rem, 4.2vw, 1.15rem);
+        margin-bottom: 10px;
+        line-height: 1.35;
+    }
+
+    .page-title,
+    .page-title-section h1 {
+        font-size: clamp(1.2rem, 5vw, 1.5rem);
+    }
+
+    .breadcrumb-nav {
+        margin-bottom: 16px;
+        font-size: 13px;
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    .breadcrumb-separator {
+        margin: 0 6px;
+    }
+}
+
+/* ═══ 6. КНОПКИ И ТАЧ-ЦЕЛИ ════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    button,
+    .btn,
+    a.btn,
+    .gh-btn,
+    input[type="submit"],
+    input[type="button"] {
+        min-height: var(--gh-m-touch);
+        /* Промахи по 24px-кнопкам — вторая по частоте жалоба после скролла. */
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        line-height: 1.2;
+        /* Длинная подпись переносится внутри кнопки, а не рвёт раскладку. */
+        white-space: normal;
+    }
+
+    /* Мелкие кнопки в списках остаются мелкими по кеглю, но кликабельными. */
+    .btn.small,
+    .user-actions .btn,
+    .user-actions .btn.small,
+    .role-actions .btn,
+    .permission-actions .btn {
+        min-height: 36px;
+        padding: 8px 10px;
+    }
+
+    /* Группы кнопок — в столбец, во всю ширину: на 360px они всё равно
+       не встают в строку, а раньше выезжали за экран. */
+    .form-actions,
+    .action-buttons,
+    .buttons,
+    .modal-actions,
+    .service-modal-actions,
+    .user-card-actions,
+    .document-actions,
+    .button-group {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        /* Легаси gap: 40px на мобильном рвал форму на несвязанные куски. */
+        margin-top: 16px;
+        width: 100%;
+    }
+
+    .form-actions > *,
+    .action-buttons > *,
+    .buttons > *,
+    .modal-actions > *,
+    .service-modal-actions > *,
+    .user-card-actions > *,
+    .document-actions > * {
+        width: 100%;
+        margin: 0;
+    }
+
+    /* Ссылка «восстановить пароль» кнопкой не является. */
+    .form-actions .forgot-password-link,
+    .form-actions a:not(.btn) {
+        min-height: 0;
+        padding: 4px 0;
+    }
+
+    /* Панель действий формы бывает разбита на левую и правую группы. На
+       телефоне обе — столбцы во всю ширину, иначе «Сохранить изменения»
+       оставалась узкой кнопкой у правого края. */
+    .form-actions .left-actions,
+    .form-actions .right-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        width: 100%;
+        margin: 0;
+    }
+
+    .form-actions .left-actions > *,
+    .form-actions .right-actions > * {
+        width: 100%;
+        margin: 0;
+    }
+
+    /* Пустая группа добавляла лишний gap перед кнопками. */
+    .form-actions .left-actions:empty,
+    .form-actions .right-actions:empty {
+        display: none;
+    }
+}
+
+/* ═══ 7. ФОРМЫ И ПОЛЯ ═════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    form {
+        /* styles.css даёт форме padding: 20px, который удваивал отступы
+           контейнера и съедал 40px из 360px ширины экрана. */
+        padding: 0;
+        width: 100%;
+    }
+
+    .form-container {
+        max-width: 100%;
+        padding: 0;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    label {
+        margin-bottom: 6px;
+        font-size: 14px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="date"],
+    input[type="number"],
+    input[type="search"],
+    input[type="url"],
+    input[type="file"],
+    select,
+    textarea,
+    .search-box,
+    .search-input {
+        /* Ровно 16px: при меньшем кегле iOS Safari зумит страницу на фокусе
+           и после этого вёрстка «уезжает» — выглядит как сломанный layout. */
+        font-size: 16px !important;
+        min-height: var(--gh-m-touch);
+        padding: 10px 12px;
+        margin-bottom: 0;
+        /* min-width: 100% из styles.css вместе с padding контейнера давал
+           выезд за правый край. */
+        min-width: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    textarea {
+        min-height: 96px;
+        resize: vertical;
+    }
+
+    /* Нативный вид селектов на iOS съедает стрелку — оставляем как есть,
+       но выравниваем высоту с остальными полями. */
+    select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: none;
+    }
+
+    /* Поля даты/файла в styles.css центрированы — на узком экране это
+       выглядит как ошибка выравнивания рядом с остальными полями. */
+    input[type="date"],
+    input[type="file"] {
+        text-align: left;
+    }
+
+    /* Строки формы в две-четыре колонки — в одну. */
+    .form-row,
+    .form-grid,
+    .info-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+    }
+
+    .form-row > *,
+    .form-grid > * {
+        width: 100%;
+        min-width: 0;
+    }
+
+    /* Пара «подпись — значение» в просмотре профиля. */
+    .info-group,
+    .info-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    /* Чекбоксы и радио: кликабельная зона по всей строке. */
+    .role-checkbox,
+    .permission-checkbox,
+    .service-permission-checkbox,
+    .checkbox-item {
+        min-height: var(--gh-m-touch);
+        padding: 10px !important;
+        gap: 10px;
+    }
+
+    input[type="checkbox"],
+    input[type="radio"] {
+        width: 20px !important;
+        min-width: 20px !important;
+        height: 20px;
+        margin-bottom: 0;
+        flex: none;
+        accent-color: var(--primary-color);
+    }
+
+    /* Списки чекбоксов: без внутреннего скролла в 120px, иначе видно
+       две строки из тридцати. */
+    .role-checkboxes,
+    .permissions-list,
+    .checkbox-list {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* Кнопка-глаз в поле пароля: тач-цель 40px и центровка по полю. */
+    .login-form .eye-toggle,
+    .recovery-form .password-toggle-btn,
+    .password-wrapper .eye-toggle {
+        top: 50% !important;
+        transform: translateY(-50%);
+        right: 6px !important;
+        width: 40px;
+        height: 40px;
+        margin-top: 0;
+    }
+
+    .password-wrapper input,
+    .login-form .password-wrapper input,
+    .recovery-form .password-input-container input {
+        padding-right: 52px;
+    }
+
+    /* Подсказка по ховеру на тач-устройстве недоступна — только мешает. */
+    .password-tooltip::before,
+    .password-tooltip::after {
+        display: none;
+    }
+}
+
+/* ═══ 8. ВХОД И ВОССТАНОВЛЕНИЕ ════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    .login-container {
+        /* width: 30vw при min-width: 200px давал на телефоне колонку
+           в 200px — форма входа была уже, чем экран, втрое. */
+        width: 100%;
+        max-width: 420px;
+        min-width: 0;
+        margin: 0 auto;
+        padding: 24px 18px calc(24px + var(--gh-safe-bottom));
+        border-radius: 16px;
+        box-sizing: border-box;
+    }
+
+    /* .login-container — флекс-колонка с align-items: center, поэтому её дети
+       получают ширину по контенту. Кнопка «Войти через Telegram» из-за этого
+       была вдвое уже кнопки «Войти», хотя у неё стоит width: 100%: проценты
+       считались от обёртки, а обёртка сжималась до текста. */
+    .login-container > div,
+    .login-container > form,
+    .login-container > h1,
+    .login-container > .flash-message {
+        width: 100%;
+    }
+
+    /* Страница входа целиком: центрируем по вертикали, но с отступами —
+       если форма выше экрана, она скроллится, а не обрезается. */
+    body:has(> .login-container) {
+        justify-content: center;
+        padding: calc(16px + var(--gh-safe-top)) var(--gh-m-gutter) calc(16px + var(--gh-safe-bottom));
+    }
+
+    .login-page-theme-switcher-container {
+        top: calc(10px + var(--gh-safe-top));
+        right: calc(10px + var(--gh-safe-right));
+    }
+
+    .login-title {
+        margin-bottom: 20px;
+    }
+
+    .login-logo {
+        max-width: 110px;
+        margin-bottom: 20px;
+    }
+
+    .recovery-form,
+    .recovery-result {
+        padding: 20px 16px;
+        border-radius: 14px;
+        max-width: 100%;
+    }
+
+    .recovery-result {
+        padding: 28px 18px;
+    }
+
+    .result-icon i {
+        font-size: 48px;
+    }
+
+    .admin-contacts {
+        padding: 14px;
+    }
+
+    .contact-item {
+        flex-wrap: wrap;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* ═══ 9. СЕТКИ → ОДНА КОЛОНКА ═════════════════════════════════════════════
+   auto-fit/auto-fill сетки с minmax(250…400px) не «схлопываются» ниже своего
+   минимума: в контейнере 336px трек 400px даёт горизонтальный выезд.
+   На мобильном все они — одна колонка. */
+@media (max-width: 768px) {
+
+    .services-list,
+    .users-grid,
+    .roles-grid,
+    .permissions-grid,
+    .service-permissions-grid,
+    .documents-grid,
+    .service-info-grid,
+    .file-previews,
+    .attached-files,
+    .enhanced-user-form .roles-checkboxes,
+    .enhanced-user-form .service-roles-checkboxes,
+    .edit-role-modal-body {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+
+    /* Превью файлов — единственная сетка, где две колонки на телефоне
+       уместны: это квадратные миниатюры. */
+    .file-previews,
+    .attached-files {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .services-list,
+    .user-info {
+        max-width: 100%;
+    }
+
+    .service-card {
+        padding: 16px;
+        border-radius: 14px;
+    }
+
+    .service-icon {
+        font-size: 32px;
+        margin-bottom: 10px;
+    }
+
+    .service-description {
+        font-size: 14px;
+    }
+
+    .inactive-label {
+        font-size: 18px;
+        letter-spacing: 1px;
+        padding: 8px 14px;
+    }
+
+    .service-manage-btn .manage-btn {
+        min-height: 38px;
+    }
+}
+
+/* ═══ 10. ВКЛАДКИ → ГОРИЗОНТАЛЬНАЯ ЛЕНТА ═════════════════════════════════
+   Легаси разворачивало навигацию вкладок в вертикальный столбик кнопок:
+   на 360x640 пять вкладок занимали половину экрана до начала контента.
+   Лента со снапом — стандартное решение mobile web app. */
+@media (max-width: 768px) {
+
+    .tabs-nav {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        height: auto !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 0 12px;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+        overscroll-behavior-x: contain;
+        /* Полосу прокрутки прячем — жест понятен по обрезанной вкладке. */
+        scrollbar-width: none;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .tabs-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tabs-nav li {
+        flex: none;
+    }
+
+    .tabs-nav button,
+    .tabs-nav .tab-btn,
+    .tab-btn {
+        flex: none;
+        width: auto !important;
+        min-height: var(--gh-m-touch);
+        padding: 10px 14px !important;
+        margin-bottom: 0 !important;
+        font-size: 14px !important;
+        white-space: nowrap;
+        scroll-snap-align: start;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .tab-content {
+        padding: 12px 0 !important;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+
+    .tabs {
+        margin-top: 12px;
+        border-bottom: none;
+    }
+}
+
+/* ═══ 11. СПИСКИ И КАРТОЧКИ ═══════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    /* Карточка пользователя. Легаси задавало height: 70px при контенте
+       из имени, email, двух строк мета и бейджей ролей — всё лишнее
+       вылезало из карточки и наезжало на следующую. */
+    .user-card,
+    .user-item {
+        height: auto !important;
+        min-height: 0 !important;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        overflow: visible;
+        border-radius: 12px;
+    }
+
+    /* Аватар — узкой полосой сверху не смотрится; делаем строку
+       «аватар + имя», а действия уводим в отдельную строку ниже. */
+    .user-card > .user-avatar,
+    .user-item > .user-avatar {
+        display: none;
+    }
+
+    .user-details,
+    .user-item .user-details {
+        padding: 12px !important;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .user-actions,
+    .user-item .user-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+        padding: 0 12px 12px !important;
+        border-top: 1px solid var(--light-border-color);
+        padding-top: 10px !important;
+    }
+
+    .user-meta {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .user-roles,
+    .system-roles,
+    .service-roles {
+        gap: 4px;
+    }
+
+    .role-badge,
+    .status-badge,
+    .system-role-badge,
+    .service-role-badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        /* .user-details — флекс-колонка, её дети растягиваются по ширине:
+           бейдж «ЗАБЛОКИРОВАН» превращался в полосу через всю карточку
+           вместо плашки по размеру текста. */
+        align-self: flex-start;
+    }
+
+    /* Наведение на тач-устройстве срабатывает после тапа и «залипает» —
+       приподнятая карточка перекрывает соседнюю. */
+    .user-card:hover,
+    .user-item:hover,
+    .service-card:hover:not(.inactive),
+    .role-item:hover,
+    .permission-item:hover {
+        transform: none;
+    }
+
+    /* Строки ролей и разрешений. */
+    .role-item,
+    .permission-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .role-details,
+    .permission-details {
+        margin-right: 0;
+        min-width: 0;
+    }
+
+    .role-actions,
+    .permission-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .role-actions .btn,
+    .permission-actions .btn {
+        flex: 1 1 auto;
+    }
+
+    /* Поиск над списком. */
+    .search-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px !important;
+    }
+
+    .search-section,
+    .permissions-search-section,
+    .roles-search-section,
+    .users-search-section {
+        margin-top: 10px !important;
+        margin-bottom: 10px !important;
+        align-self: stretch;
+    }
+
+    .search-category-header {
+        margin: 14px 0 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .no-users-found,
+    .no-results-message {
+        padding: 28px 14px;
+    }
+
+    .no-users-found i,
+    .no-results-content i {
+        font-size: 36px;
+    }
+}
+
+/* ═══ 12. ТАБЛИЦЫ ═════════════════════════════════════════════════════════
+   Таблицу на 360px не сжать без потери смысла, поэтому она скроллится
+   по горизонтали в своей обёртке (её навешивает mobile-ux.js), а страница
+   по вертикали. Плюс снимаем легаси-хак display:block на tbody —
+   он ломает горизонтальный скролл и сбивает ширины колонок. */
+.gh-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    /* Вертикальные отступы переезжают с таблицы на обёртку. Обёртка создаёт
+       новый контекст форматирования (из-за overflow), поэтому margin таблицы
+       внутри перестал бы схлопываться с соседями — на десктопе это сдвигало
+       вёрстку на десятки пикселей. С отступами на обёртке геометрия та же,
+       что была без обёртки. */
+    margin: 20px 0;
+}
+
+.gh-table-scroll > table {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+
+    .gh-table-scroll {
+        margin: 12px 0;
+    }
+
+    .data-table,
+    table.data-table {
+        display: table !important;
+        width: auto !important;
+        min-width: 100%;
+        font-size: 14px;
+        /* styles.css ставит overflow: hidden ради скругления углов — на узком
+           экране это срезало последнюю колонку. Скроллом занимается обёртка
+           .gh-table-scroll, самой таблице обрезать нечего. */
+        overflow: visible !important;
+        border-radius: 0;
+    }
+
+    .data-table thead {
+        display: table-header-group !important;
+    }
+
+    .data-table tbody {
+        display: table-row-group !important;
+        max-height: none !important;
+        overflow: visible !important;
+        width: auto !important;
+    }
+
+    .data-table tbody tr,
+    .data-table thead tr {
+        display: table-row !important;
+        width: auto !important;
+        table-layout: auto !important;
+    }
+
+    .data-table th,
+    .data-table td,
+    th,
+    td {
+        padding: 10px 12px;
+        /* Колонки не сжимаются в столбик из букв: ширину даёт контент,
+           лишнее уезжает в горизонтальный скролл. */
+        white-space: nowrap;
+    }
+
+    /* Колонка действий фиксированной ширины 180px на узком экране забирала
+       половину таблицы. */
+    .actions-column,
+    .data-table .actions {
+        width: auto;
+    }
+
+    .data-table .btn {
+        margin: 0 2px;
+    }
+
+    /* Пагинация. */
+    .pagination {
+        flex-wrap: wrap;
+        gap: 4px;
+        row-gap: 6px;
+    }
+
+    .pagination button {
+        min-height: 38px;
+        min-width: 38px;
+        margin: 0;
+        padding: 6px 10px;
+    }
+
+    .pagination-controls {
+        gap: 10px;
+    }
+
+    .items-per-page,
+    .page-jump {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .items-per-page select {
+        width: auto !important;
+        min-width: 72px !important;
+    }
+}
+
+/* ═══ 13. МОДАЛКИ → ЛИСТЫ ════════════════════════════════════════════════
+   На телефоне модалка занимает почти весь экран, шапка и футер закреплены,
+   скроллится только тело. Так работают нативные листы — и, главное, кнопка
+   подтверждения больше не уезжает за нижнюю границу. */
+@media (max-width: 768px) {
+
+    .modal,
+    .service-modal,
+    .crop-modal,
+    .file-preview-modal {
+        padding: 0;
+    }
+
+    /* Лист прижат к низу через position: fixed, а не через флекс-выравнивание
+       оверлея: модалки открываются из JS как display:block, display:flex и
+       display:'' — на выравнивание родителя опираться нельзя. */
+    .modal-content,
+    .modal-dialog,
+    .service-modal-content,
+    .crop-modal .modal-content,
+    .file-preview-modal .modal-content {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        max-height: 92dvh !important;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        border-radius: 16px 16px 0 0;
+        box-sizing: border-box;
+    }
+
+    .modal-header,
+    .service-modal-header {
+        flex: none;
+        padding: 14px 16px;
+        position: relative;
+    }
+
+    .modal-header h3,
+    .modal-header h4,
+    .service-modal-header h3 {
+        font-size: 16px;
+        padding-right: 40px;
+        overflow-wrap: anywhere;
+    }
+
+    .modal-close,
+    .service-modal .close,
+    .modal-header .close {
+        width: var(--gh-m-touch);
+        height: var(--gh-m-touch);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+
+    .modal-body,
+    .modal-form,
+    .service-modal-body,
+    .edit-role-modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none !important;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        padding: 14px 16px !important;
+    }
+
+    .modal-actions,
+    .service-modal-actions {
+        flex: none;
+        margin-top: 0;
+        padding: 12px 16px calc(12px + var(--gh-safe-bottom)) !important;
+        border-top: 1px solid var(--border-color);
+        background: var(--card-background-color);
+    }
+
+    /* Кроп аватара: превью под картинкой, а не рядом. */
+    .crop-container {
+        flex-direction: column;
+    }
+
+    .crop-preview,
+    .preview-container {
+        width: 100%;
+    }
+
+    .file-preview-modal img,
+    .file-preview-modal iframe {
+        max-width: 100%;
+        max-height: 70dvh;
+    }
+
+    /* Уведомления-тосты — во всю ширину сверху, под шапкой. */
+    .notifications-container {
+        top: calc(var(--gh-m-header-h) + 8px + var(--gh-safe-top)) !important;
+        left: var(--gh-m-gutter) !important;
+        right: var(--gh-m-gutter) !important;
+        max-width: none !important;
+    }
+
+    .notification {
+        font-size: 13px;
+        padding: 12px 14px;
+    }
+}
+
+/* ═══ 14. ВЫПАДАЮЩИЕ СПИСКИ ══════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    .dropdown-content {
+        /* Меню в 180px у правого края уезжало за экран в узких карточках. */
+        right: 0;
+        left: auto;
+        min-width: 180px;
+        max-width: calc(100vw - 2 * var(--gh-m-gutter));
+    }
+
+    .dropdown-content button,
+    .dropdown-content a {
+        min-height: var(--gh-m-touch);
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        padding: 10px 14px;
+    }
+
+    .multiselect-toggle {
+        min-height: var(--gh-m-touch);
+        font-size: 16px;
+    }
+
+    .multiselect-dropdown {
+        max-height: 50dvh;
+        overscroll-behavior: contain;
+    }
+
+    .multiselect-option {
+        min-height: var(--gh-m-touch);
+        padding: 10px 12px;
+    }
+
+    .multiselect-option-label {
+        font-size: 14px;
+    }
+}
+
+/* ═══ 15. ПРОФИЛЬ ════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    .profile-header {
+        padding: 12px var(--gh-m-gutter) !important;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .avatar {
+        width: 56px;
+        height: 56px;
+    }
+
+    .avatar i,
+    .avatar #defaultAvatar {
+        font-size: 28px;
+    }
+
+    .profile-info,
+    .profile-info h1 {
+        min-width: 0;
+    }
+
+    .profile-info h1 {
+        font-size: clamp(1.05rem, 4.6vw, 1.3rem);
+        margin-bottom: 4px;
+        text-align: left;
+    }
+
+    .user-role,
+    .profile-info p {
+        font-size: 13px;
+        overflow-wrap: anywhere;
+    }
+
+    /* Ховер-оверлей аватара на тач-устройстве не появляется — показываем
+       иконку камеры постоянно, иначе непонятно, что аватар меняется тапом. */
+    .avatar-overlay {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.35);
+    }
+
+    .avatar-overlay i {
+        font-size: 20px;
+    }
+
+    .avatar:hover {
+        transform: none;
+    }
+
+    .profile-form {
+        max-width: 100%;
+    }
+
+    .documents-grid .document-card,
+    .document-card {
+        min-width: 0;
+    }
+}
+
+/* ═══ 16. ОЧЕНЬ УЗКИЕ ЭКРАНЫ (<= 480px) ═════════════════════════════════ */
+@media (max-width: 480px) {
+
+    :root {
+        --gh-m-gutter: 10px;
+    }
+
+    .service-card {
+        padding: 14px;
+    }
+
+    .user-actions,
+    .user-item .user-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .user-actions .btn,
+    .user-item .user-actions .btn {
+        width: 100%;
+    }
+
+    .role-actions .btn,
+    .permission-actions .btn {
+        flex: 1 1 100%;
+    }
+
+    .tabs-nav button,
+    .tab-btn {
+        padding: 10px 12px !important;
+        font-size: 13px !important;
+    }
+
+    .modal-content,
+    .service-modal-content {
+        max-height: 95dvh !important;
+    }
+
+    .file-previews,
+    .attached-files {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+/* ═══ 17. ЛАНДШАФТ НА ТЕЛЕФОНЕ ═══════════════════════════════════════════
+   Экран высотой 380px: шапка не должна прилипать (съедает 14% высоты),
+   а модалка-лист занимает почти всё. */
+@media (max-width: 900px) and (max-height: 460px) and (orientation: landscape) {
+
+    .header-container {
+        position: static;
+        min-height: 46px;
+    }
+
+    .modal-content,
+    .service-modal-content {
+        max-height: 100dvh !important;
+        border-radius: 0;
+    }
+
+    #mobile-menu-modal {
+        padding-top: 44px;
+    }
+}
+
+/* ═══ 18. ДОСТУПНОСТЬ ════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* Пульсация индикатора статуса сервиса — единственная анимация,
+       которая несёт смысл; заменяем её статичной точкой. */
+    .service-status-indicator .status-dot {
+        animation: none !important;
+    }
+}
+
+/* Видимый фокус для клавиатуры и скринридеров: легаси убирало outline,
+   не давая замены на части элементов. */
+@media (max-width: 768px) {
+
+    a:focus-visible,
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    [tabindex]:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+}

@@ -2,11 +2,25 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Мобильное веб-приложение: контент заходит под вырез (viewport-fit),
+         запуск с домашнего экрана — без адресной строки, системная строка
+         красится в цвет шапки (актуальный цвет ставит mobile-ux.js). -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Портал GH">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/img/logo-mark.svg">
     <title>{{ .title }} - Golden House Analytics</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/logs.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    <!-- Мобильный слой подключается последним: он переопределяет легаси-правила
+         выше и инлайновые <style> этой страницы при равной специфичности. -->
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    <script src="/static/js/mobile-ux.js"></script>
 </head>
 <body>
     {{ template "header" . }}
@@ -88,5 +102,6 @@
     </div>
 
     <script src="/static/js/logs.js"></script>
+    <script src="/static/js/mobile-menu.js"></script>
 </body>
 </html>
