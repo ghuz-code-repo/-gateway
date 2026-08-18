@@ -46,6 +46,9 @@
         height: auto !important;
         min-height: 100%;
         max-height: none !important;
+        /* html — скроллер страницы (document.scrollingElement). Его overflow
+           передаётся вьюпорту, поэтому overscroll-behavior здесь тоже не
+           ставим: он бы запретил обычную прокрутку документа. */
         overflow-x: hidden;
         overflow-y: visible;
     }
@@ -58,12 +61,26 @@
         max-height: none !important;
         min-height: 100vh;
         min-height: 100dvh;
-        overflow-x: hidden;
-        /* overflow-y НЕ трогаем и НЕ ставим !important: блокировка скролла
-           при открытом меню работает через .gh-scroll-lock (см. §4). */
-        /* Инерционный скролл и обрезание «оттяжки» за границами документа. */
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior-y: contain;
+
+        /* ═══ НЕ СТАВИТЬ ЗДЕСЬ overflow: hidden И overscroll-behavior ═══
+           Это ровно та пара, что полностью убивала скролл пальцем.
+
+           styles.css задаёт body{overflow-x: hidden}. По спецификации, если
+           одна ось hidden, а вторая visible, вторая вычисляется в auto —
+           то есть body становится СКРОЛЛ-КОНТЕЙНЕРОМ. Скроллить ему нечего
+           (его высота равна высоте контента), а страницу прокручивает
+           элемент выше — html. В норме браузер передаёт жест наверх по
+           цепочке, но overscroll-behavior: contain эту цепочку запрещает.
+           Итог: свайп в любой точке страницы не делал ничего.
+
+           overflow-x: clip обрезает по горизонтали так же, как hidden, но
+           скролл-контейнер НЕ создаёт, поэтому жест сразу уходит на html.
+           Для браузеров без clip (iOS < 16) правило отбрасывается, остаётся
+           hidden из styles.css — и там спасает то, что overscroll-behavior
+           мы не трогаем: цепочка работает. */
+        overflow-x: clip;
+        overflow-y: visible;
+
         -webkit-tap-highlight-color: rgba(var(--gh-brand-gold-rgb), 0.18);
     }
 
