@@ -883,16 +883,32 @@
            размер задаёт basis, а не height — без flex: none высота ниже
            игнорируется и остаётся только min-height. */
         flex: none !important;
+        /* Точную высоту считает mobile-ux.js и кладёт в --gh-logs-h: фрейм
+           должен доходить ровно до нижнего края экрана, а сколько занято
+           сверху (шапка, заголовок, флеш-сообщения, лента вкладок) зависит
+           от контента и в CSS не выражается. 70dvh — запасное значение,
+           если скрипт не отработал. */
         height: 70vh !important;
-        height: 70dvh !important;
-        min-height: 360px !important;
+        height: var(--gh-logs-h, 70dvh) !important;
+        min-height: 260px !important;
         max-height: none !important;
         padding: 0 !important;
         overflow: auto !important;
         -webkit-overflow-scrolling: touch;
         border: 1px solid var(--border-color);
-        border-radius: 8px;
+        /* Низ упирается в край экрана — скруглять и обводить там нечего. */
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
         background: var(--card-background-color);
+    }
+
+    /* Нижний отступ страницы под открытыми логами не нужен: он оставлял
+       полосу фона под фреймом и добавлял странице лишнюю прокрутку. */
+    .admin-content:has(#logs.tab-content.active),
+    .container:has(#logs.tab-content.active),
+    .tabs:has(#logs.tab-content.active) {
+        padding-bottom: 0 !important;
+        margin-bottom: 0 !important;
     }
 
     .logs-iframe {
@@ -909,8 +925,8 @@
 @media (max-width: 768px) and (max-height: 700px) {
     #logs.tab-content {
         height: 78vh !important;
-        height: 78dvh !important;
-        min-height: 260px !important;
+        height: var(--gh-logs-h, 78dvh) !important;
+        min-height: 200px !important;
     }
 }
 

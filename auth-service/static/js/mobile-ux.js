@@ -8,6 +8,8 @@
    3. На мобильном режется плотность фона из частиц: line_linked считается
       за O(n²) на каждый кадр и роняет скролл на средних телефонах.
    4. Утилита блокировки скролла страницы под оверлеями (window.ghScrollLock).
+   5. Вкладке «Логи» считается высота, чтобы iframe со сторонним просмотрщиком
+      доходил ровно до нижнего края экрана.
 
    Подключается в <head> без defer, но вся работа — по DOMContentLoaded.
    Ничего не ломает, если элемента нет: каждый шаг проверяет наличие.
@@ -119,6 +121,72 @@
         }
     }
 
+    /* ── 3a. Высота вкладки «Логи» ────────────────────────────────────────
+       Во вкладке логов лежит iframe со сторонним просмотрщиком. Он должен
+       доходить ровно до нижнего края экрана, а сколько занято сверху
+       (шапка, заголовок, флеш-сообщения, лента вкладок) в CSS не выразить:
+       высота зависит от контента. Поэтому меряем и отдаём в CSS-переменную
+       --gh-logs-h, а правило в mobile.css её использует. */
+    var LOGS_MIN_HEIGHT = 260;
+
+    function sizeLogsFrame() {
+        var tab = document.getElementById('logs');
+        if (!tab) {
+            return;
+        }
+
+        var root = document.documentElement;
+        if (!isMobile()) {
+            // На десктопе работает штатная одноэкранная раскладка.
+            root.style.removeProperty('--gh-logs-h');
+            return;
+        }
+
+        // Неактивная вкладка скрыта и размеров не имеет — тогда отсчитываем
+        // от низа ленты вкладок, сразу под которой она и появится.
+        var anchorEl = tab.classList.contains('active') ? tab : document.querySelector('.tabs-nav');
+        if (!anchorEl) {
+            return;
+        }
+
+        var box = anchorEl.getBoundingClientRect();
+        // Координата верха блока в документе — не зависит от текущей прокрутки.
+        var topInDoc = (anchorEl === tab ? box.top : box.bottom) + window.pageYOffset;
+        var height = Math.round(window.innerHeight - topInDoc);
+
+        if (!isFinite(height) || height < LOGS_MIN_HEIGHT) {
+            height = LOGS_MIN_HEIGHT;
+        }
+        root.style.setProperty('--gh-logs-h', height + 'px');
+    }
+
+    var logsResizeTimer = null;
+
+    function scheduleLogsResize() {
+        if (logsResizeTimer) {
+            window.clearTimeout(logsResizeTimer);
+        }
+        logsResizeTimer = window.setTimeout(function () {
+            logsResizeTimer = null;
+            sizeLogsFrame();
+        }, 120);
+    }
+
+    function initLogsFrame() {
+        if (!document.getElementById('logs')) {
+            return;
+        }
+        sizeLogsFrame();
+        // Переключение вкладок меняет высоту контента над фреймом.
+        document.addEventListener('click', function (event) {
+            if (event.target && event.target.closest && event.target.closest('.tabs-nav')) {
+                window.setTimeout(sizeLogsFrame, 0);
+            }
+        });
+        window.addEventListener('resize', scheduleLogsResize);
+        window.addEventListener('orientationchange', scheduleLogsResize);
+    }
+
     /* ── 4. Разгрузка фона из частиц ──────────────────────────────────────
        particles.js пересчитывает связи между частицами попарно каждый кадр.
        120 частиц с line_linked на телефоне — это дёргающийся скролл поверх
@@ -194,6 +262,7 @@
         initTabStrips();
         tameParticles();
         watchThemeColor();
+        initLogsFrame();
     }
 
     if (document.readyState === 'loading') {
@@ -207,6 +276,9 @@
     window.addEventListener('load', function () {
         wrapTables(document);
         tameParticles();
+        // К моменту load шрифты и иконки уже разложены — высота над фреймом
+        // окончательная.
+        sizeLogsFrame();
     });
 
     var rescanTimer = null;
