@@ -180,21 +180,28 @@
         tab.classList.toggle('gh-logs-flush', height <= window.innerHeight);
     }
 
-    /* Просмотрщик логов на телефоне рисует классическую полосу прокрутки
-       внутри своего документа: в некоторых состояниях (например «страница не
-       доступна») он на несколько десятков пикселей выше окна фрейма. Растянуть
-       фрейм под него нельзя — его высота считается как «окно + константа»,
-       поэтому фрейм и содержимое росли бы бесконечно, удлиняя страницу.
+    /* Просмотрщик логов (Dozzle) на телефоне даёт прокрутку там, где крутить
+       нечего. Причина не в нашей вёрстке, а в его собственной:
 
-       Убираем только саму полосу, прокрутка остаётся: на тач-устройствах
-       полосы и так накладные, а в мобильной вёрстке эта серая колонка у
-       правого края выглядит как чужеродный элемент. Просмотрщик лежит на том
-       же origin, поэтому стиль можно положить прямо в его документ. */
-    var LOGS_SCROLLBAR_CSS =
-        'html{scrollbar-width:none;-ms-overflow-style:none}' +
-        'html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0}';
+           div.router-view.min-h-screen      ← оболочка, min-height: 100vh
+             ├─ шапка просмотрщика            ← ~75px
+             └─ div.hero.min-h-screen         ← сообщение, ТОЖЕ min-height: 100vh
 
-    function hideLogsScrollbar(frame) {
+       Блок сообщения занимает всю высоту окна, но стоит под шапкой, поэтому
+       документ выходит ровно на высоту шапки длиннее окна (586 + 75 = 661).
+       Скроллить при этом нечего — уезжает пустота.
+
+       Снимаем привязку к высоте окна у вложенных полноэкранных блоков,
+       оставляя её самой оболочке: она должна заполнять фрейм. Реальные
+       списки контейнеров и логов это не затрагивает — у них min-height не
+       задан, и своя законная прокрутка сохраняется.
+
+       Просмотрщик лежит на том же origin, поэтому стиль кладётся прямо в его
+       документ. Если origin вдруг окажется чужим, всё останется как было. */
+    var LOGS_FIT_CSS =
+        '.min-h-screen:not(.router-view){min-height:0 !important}';
+
+    function fitLogsViewerLayout(frame) {
         if (!isMobile()) {
             return;
         }
@@ -202,19 +209,18 @@
         try {
             doc = frame.contentDocument;
         } catch (e) {
-            // Другой origin — вмешаться нельзя, оставляем как есть.
             return;
         }
-        if (!doc || !doc.head || doc.getElementById('gh-mobile-scrollbar')) {
+        if (!doc || !doc.head || doc.getElementById('gh-mobile-fit')) {
             return;
         }
         try {
             var style = doc.createElement('style');
-            style.id = 'gh-mobile-scrollbar';
-            style.textContent = LOGS_SCROLLBAR_CSS;
+            style.id = 'gh-mobile-fit';
+            style.textContent = LOGS_FIT_CSS;
             doc.head.appendChild(style);
         } catch (e) {
-            // Не получилось — не критично.
+            // Не получилось — не критично, останется прокрутка как была.
         }
     }
 
@@ -239,12 +245,12 @@
 
         var frame = tab.querySelector('.logs-iframe');
         if (frame) {
-            hideLogsScrollbar(frame);
+            fitLogsViewerLayout(frame);
             // Фрейм помечен loading="lazy" и грузится уже после открытия
             // вкладки — стиль кладём и по событию load.
             frame.addEventListener('load', function () {
                 sizeLogsFrame();
-                hideLogsScrollbar(frame);
+                fitLogsViewerLayout(frame);
             });
         }
 
@@ -265,7 +271,7 @@
             window.setTimeout(function () {
                 sizeLogsFrame();
                 if (frame) {
-                    hideLogsScrollbar(frame);
+                    fitLogsViewerLayout(frame);
                 }
             }, delay);
         });
