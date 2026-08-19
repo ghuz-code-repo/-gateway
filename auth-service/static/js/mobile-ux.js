@@ -180,6 +180,44 @@
         tab.classList.toggle('gh-logs-flush', height <= window.innerHeight);
     }
 
+    /* Просмотрщик логов на телефоне рисует классическую полосу прокрутки
+       внутри своего документа: в некоторых состояниях (например «страница не
+       доступна») он на несколько десятков пикселей выше окна фрейма. Растянуть
+       фрейм под него нельзя — его высота считается как «окно + константа»,
+       поэтому фрейм и содержимое росли бы бесконечно, удлиняя страницу.
+
+       Убираем только саму полосу, прокрутка остаётся: на тач-устройствах
+       полосы и так накладные, а в мобильной вёрстке эта серая колонка у
+       правого края выглядит как чужеродный элемент. Просмотрщик лежит на том
+       же origin, поэтому стиль можно положить прямо в его документ. */
+    var LOGS_SCROLLBAR_CSS =
+        'html{scrollbar-width:none;-ms-overflow-style:none}' +
+        'html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0}';
+
+    function hideLogsScrollbar(frame) {
+        if (!isMobile()) {
+            return;
+        }
+        var doc;
+        try {
+            doc = frame.contentDocument;
+        } catch (e) {
+            // Другой origin — вмешаться нельзя, оставляем как есть.
+            return;
+        }
+        if (!doc || !doc.head || doc.getElementById('gh-mobile-scrollbar')) {
+            return;
+        }
+        try {
+            var style = doc.createElement('style');
+            style.id = 'gh-mobile-scrollbar';
+            style.textContent = LOGS_SCROLLBAR_CSS;
+            doc.head.appendChild(style);
+        } catch (e) {
+            // Не получилось — не критично.
+        }
+    }
+
     var logsResizeTimer = null;
 
     function scheduleLogsResize() {
@@ -193,10 +231,22 @@
     }
 
     function initLogsFrame() {
-        if (!document.getElementById('logs')) {
+        var tab = document.getElementById('logs');
+        if (!tab) {
             return;
         }
         sizeLogsFrame();
+
+        var frame = tab.querySelector('.logs-iframe');
+        if (frame) {
+            hideLogsScrollbar(frame);
+            // Фрейм помечен loading="lazy" и грузится уже после открытия
+            // вкладки — стиль кладём и по событию load.
+            frame.addEventListener('load', function () {
+                sizeLogsFrame();
+                hideLogsScrollbar(frame);
+            });
+        }
 
         // Переключение вкладок меняет высоту контента над фреймом.
         document.addEventListener('click', function (event) {
@@ -209,9 +259,15 @@
 
         // Шрифты и флеш-сообщения над фреймом раскладываются не сразу —
         // пара отложенных пересчётов. На содержимое фрейма они не смотрят,
-        // поэтому расти от логов страница не может.
+        // поэтому расти от логов страница не может. Заодно добираем документ
+        // просмотрщика, если он поднялся позже события load.
         [400, 1500].forEach(function (delay) {
-            window.setTimeout(sizeLogsFrame, delay);
+            window.setTimeout(function () {
+                sizeLogsFrame();
+                if (frame) {
+                    hideLogsScrollbar(frame);
+                }
+            }, delay);
         });
     }
 
