@@ -8,8 +8,9 @@
    3. На мобильном режется плотность фона из частиц: line_linked считается
       за O(n²) на каждый кадр и роняет скролл на средних телефонах.
    4. Утилита блокировки скролла страницы под оверлеями (window.ghScrollLock).
-   5. Вкладке «Логи» считается высота, чтобы iframe со сторонним просмотрщиком
-      доходил ровно до нижнего края экрана.
+   5. Вкладке «Логи» считается высота: iframe со сторонним просмотрщиком
+      подгоняется под своё содержимое, чтобы у страницы остался один скролл
+      и внутри фрейма не появлялась вторая прокрутка.
 
    Подключается в <head> без defer, но вся работа — по DOMContentLoaded.
    Ничего не ломает, если элемента нет: каждый шаг проверяет наличие.
@@ -172,6 +173,87 @@
         return isFinite(height) ? Math.max(height, LOGS_MIN_AVAIL) : null;
     }
 
+    /* Флаг от повторного входа: подгонка сама меняет раскладку внутри фрейма
+       и тем самым будит наблюдателя — без него получится бесконечный цикл. */
+    var logsFitting = false;
+    /* Запас на субпиксели и на мелочи, которые просмотрщик дорисовывает уже
+       после замера. */
+    var LOGS_SLACK = 8;
+
+    function releaseLogsFitting() {
+        window.setTimeout(function () {
+            logsFitting = false;
+        }, 120);
+    }
+
+    function currentLogsHeight(tab) {
+        return Math.round(tab.getBoundingClientRect().height);
+    }
+
+    function setLogsHeight(px) {
+        document.documentElement.style.setProperty('--gh-logs-h', Math.round(px) + 'px');
+    }
+
+    /* Догоняем высоту фрейма до высоты его содержимого.
+    
+       Меряем не «сколько там контента», а фактическое ПЕРЕПОЛНЕНИЕ окна
+       фрейма (scrollHeight - clientHeight) и на столько же увеличиваем фрейм.
+       Так надёжнее двух более очевидных способов:
+         • body.scrollHeight врёт вниз — внешние отступы последнего элемента
+           схлопываются наружу и в него не попадают (192px контента → 177);
+         • documentElement.scrollHeight врёт вверх — у короткой страницы он
+           равен высоте окна фрейма, то есть подтверждает любую высоту.
+       Рост монотонный и сходится: как только переполнения нет, работа
+       закончена. Схлопнуться при этом невозможно в принципе. */
+    function settleLogsFrame(frame, tab, avail, pass) {
+        var doc;
+        try {
+            doc = frame.contentDocument;
+        } catch (e) {
+            releaseLogsFitting();
+            return;
+        }
+        if (!doc || !doc.documentElement) {
+            releaseLogsFitting();
+            return;
+        }
+
+        var current = currentLogsHeight(tab);
+        var overflow = doc.documentElement.scrollHeight - doc.documentElement.clientHeight;
+        var ceiling = window.innerHeight * 6;
+
+        if (overflow > 2 && current < ceiling) {
+            setLogsHeight(Math.min(current + overflow + LOGS_SLACK, ceiling));
+            tab.classList.remove('gh-logs-flush');
+            if (pass < 6) {
+                window.setTimeout(function () {
+                    settleLogsFrame(frame, tab, avail, pass + 1);
+                }, 200);
+                return;
+            }
+            releaseLogsFitting();
+            return;
+        }
+
+        // Переполнения нет. На полной высоте проверяем обратный случай:
+        // содержимого мало (пустой список, страница ошибки) — тогда фрейм
+        // сжимаем, чтобы не оставлять чёрную пустоту на пол-экрана.
+        if (pass === 0 && current >= avail - 2 && doc.body) {
+            var flow = doc.body.scrollHeight;
+            if (flow > 0 && flow <= avail - LOGS_SLACK) {
+                setLogsHeight(Math.max(LOGS_MIN_FIT, flow));
+                tab.classList.remove('gh-logs-flush');
+                // Следующий проход добьёт недомер из-за схлопнутых отступов.
+                window.setTimeout(function () {
+                    settleLogsFrame(frame, tab, avail, pass + 1);
+                }, 200);
+                return;
+            }
+        }
+
+        releaseLogsFitting();
+    }
+
     function sizeLogsFrame() {
         var tab = document.getElementById('logs');
         if (!tab) {
@@ -185,36 +267,67 @@
             tab.classList.remove('gh-logs-flush');
             return;
         }
+        if (logsFitting) {
+            return;
+        }
 
         var avail = logsAvailableHeight(tab);
         if (avail === null) {
             return;
         }
 
-        // Сначала разворачиваем на всю доступную высоту и только потом меряем
-        // содержимое. Порядок важен: просмотрщик обычно тянется на 100% своего
-        // окна, и если мерить его в уже сжатом фрейме, он «подтвердит» любую
-        // высоту — получится схлопывание с каждым проходом.
-        root.style.setProperty('--gh-logs-h', avail + 'px');
-        tab.classList.add('gh-logs-flush');
+        logsFitting = true;
+
+        // База — вся доступная высота до нижнего края экрана. Мерить надо
+        // именно от неё: просмотрщик тянется на 100% своего окна, и в уже
+        // сжатом фрейме он «подтвердит» любую высоту.
+        //
+        // Но если фрейм уже выше базы, трогать его не надо: повторный проход
+        // сжимал бы его обратно и снова растил — на экране это заметный
+        // прыжок. Сжатие под короткое содержимое ниже всё равно работает,
+        // оно смотрит на поток документа, а не на текущую высоту.
+        if (currentLogsHeight(tab) < avail) {
+            setLogsHeight(avail);
+            tab.classList.add('gh-logs-flush');
+        }
 
         var frame = tab.querySelector('.logs-iframe');
         if (!frame) {
+            releaseLogsFitting();
             return;
         }
 
-        // Чтение scrollHeight ниже само вызывает пересчёт раскладки, поэтому
-        // значение уже учитывает выставленную высоту.
-        var inner = logsContentHeight(frame);
-        if (inner === null || inner <= 0) {
+        // Замер откладываем: просмотрщик логов — SPA, после смены размера окна
+        // он перерисовывается асинхронно, и мгновенный замер вернёт прошлую
+        // раскладку.
+        window.setTimeout(function () {
+            settleLogsFrame(frame, tab, avail, 0);
+        }, 250);
+    }
+
+    /* Просмотрщик логов — SPA: на момент события load внутри почти пусто,
+       интерфейс дорисовывается позже, а логи ещё и досыпаются в реальном
+       времени. Поэтому следим за высотой его <body> и пересчитываем. */
+    function watchLogsContent(frame) {
+        if (!window.ResizeObserver) {
             return;
         }
-
-        // Пустой список или короткая страница ошибки не должны разворачиваться
-        // в чёрный прямоугольник на пол-экрана: подгоняем фрейм по содержимому.
-        var fit = Math.min(avail, Math.max(LOGS_MIN_FIT, inner + 2));
-        root.style.setProperty('--gh-logs-h', fit + 'px');
-        tab.classList.toggle('gh-logs-flush', fit >= avail - 2);
+        var doc;
+        try {
+            doc = frame.contentDocument;
+        } catch (e) {
+            return;
+        }
+        if (!doc || !doc.body) {
+            return;
+        }
+        try {
+            new ResizeObserver(function () {
+                scheduleLogsResize();
+            }).observe(doc.body);
+        } catch (e) {
+            // Наблюдать не вышло — остаются отложенные проходы ниже.
+        }
     }
 
     var logsResizeTimer = null;
@@ -240,7 +353,11 @@
         // до этого мерить внутри нечего.
         var frame = tab.querySelector('.logs-iframe');
         if (frame) {
-            frame.addEventListener('load', sizeLogsFrame);
+            frame.addEventListener('load', function () {
+                sizeLogsFrame();
+                watchLogsContent(frame);
+            });
+            watchLogsContent(frame);
         }
 
         // Переключение вкладок меняет высоту контента над фреймом.
@@ -252,9 +369,10 @@
         window.addEventListener('resize', scheduleLogsResize);
         window.addEventListener('orientationchange', scheduleLogsResize);
 
-        // Просмотрщик дорисовывает интерфейс асинхронно — добираем несколько
-        // отложенных проходов, дальше высота уже не меняется.
-        [500, 2000, 5000].forEach(function (delay) {
+        // Запасные проходы для браузеров без ResizeObserver: там некому
+        // заметить, что просмотрщик дорисовался. Где наблюдатель есть, эти
+        // проходы просто ничего не меняют.
+        [600, 2500].forEach(function (delay) {
             window.setTimeout(sizeLogsFrame, delay);
         });
     }
