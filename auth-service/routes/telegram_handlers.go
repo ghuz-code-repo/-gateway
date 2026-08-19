@@ -66,11 +66,10 @@ func telegramLoginRateLimit() gin.HandlerFunc {
 func telegramLinkRequestHandler(c *gin.Context) {
 	user := c.MustGet("user").(*models.User)
 
+	// Username необязателен: привязку подтверждает сам бот по deep-link, а
+	// фактический username берётся из данных Telegram в ConfirmTelegramLink.
+	// Если поле всё же передали — используем его в тексте письма.
 	tgUsername := models.NormalizeTelegramUsername(c.PostForm("tg_username"))
-	if tgUsername == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Укажите ваш Telegram username"})
-		return
-	}
 
 	if user.Email == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "У вашей учетной записи не настроен email. Привязка Telegram подтверждается по почте — обратитесь к администратору."})
@@ -93,11 +92,19 @@ func telegramLinkRequestHandler(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Telegram link email sent to %s (tg: @%s)", user.Email, tgUsername)
+	log.Printf("Telegram link email sent to %s (tg: %s)", user.Email, formatTelegramUsernameForLog(tgUsername))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Ссылка для подтверждения отправлена на ваш email. Перейдите по ней — она откроет бота и подтвердит привязку.",
 	})
+}
+
+// formatTelegramUsernameForLog renders an optional username for log lines
+func formatTelegramUsernameForLog(tgUsername string) string {
+	if tgUsername == "" {
+		return "не указан"
+	}
+	return "@" + tgUsername
 }
 
 // telegramUnlinkHandler (POST /profile/telegram/unlink) removes the Telegram link

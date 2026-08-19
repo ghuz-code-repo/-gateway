@@ -689,13 +689,11 @@
 
         if (linkBtn) {
             linkBtn.addEventListener('click', async function() {
+                // Поле username из формы убрано: аккаунт определяет сам бот при
+                // переходе по ссылке из письма. Если поле вернут — значение
+                // просто уедет вместе с запросом.
                 const usernameInput = document.getElementById('telegramUsername');
-                const tgUsername = usernameInput.value.trim();
-                if (!tgUsername) {
-                    showNotification('Укажите ваш Telegram username', 'error');
-                    usernameInput.focus();
-                    return;
-                }
+                const tgUsername = usernameInput ? usernameInput.value.trim() : '';
 
                 linkBtn.disabled = true;
                 try {

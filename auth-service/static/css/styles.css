@@ -2334,10 +2334,30 @@ button.manage-btn:hover {
 
 .multiselect-option input[type="checkbox"] {
     margin-right: 10px;
-    margin-top: 2px;
+    margin-top: 0;
     cursor: pointer;
     accent-color: var(--primary-color);
-    width: auto !important;
+    /* 13px по умолчанию сливались с фоном в тёмной теме — отмеченный сервис
+       было не отличить от неотмеченного. */
+    width: 18px !important;
+    min-width: 18px;
+    height: 18px;
+    flex: none;
+}
+
+/* Отмеченный сервис подсвечивается строкой целиком: одной галочки мало,
+   когда список длинный, а сама галочка — 18 пикселей. */
+.multiselect-option:has(input[type="checkbox"]:checked) {
+    background-color: rgba(var(--primary-color-rgb), 0.14);
+}
+
+.multiselect-option:has(input[type="checkbox"]:checked):hover {
+    background-color: rgba(var(--primary-color-rgb), 0.22);
+}
+
+.multiselect-option:has(input[type="checkbox"]:checked) .multiselect-option-label {
+    color: var(--primary-color);
+    font-weight: 600;
 }
 
 .multiselect-option-label {

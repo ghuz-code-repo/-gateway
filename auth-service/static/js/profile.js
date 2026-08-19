@@ -9,6 +9,19 @@ document.addEventListener('DOMContentLoaded', function() {
 // Global flag to prevent modal closing during file operations
 let isFileOperationInProgress = false;
 
+// Ключи и названия сервисов приходят с сервера и попадают в разметку списка,
+// поэтому экранируем их перед вставкой.
+function escapeAttr(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
 // Custom Multiselect Component
 class CustomMultiselect {
     constructor(container, options = {}) {
@@ -119,12 +132,10 @@ class CustomMultiselect {
         
         html += `
             <div class="multiselect-option multiselect-select-all">
-                <input type="checkbox" 
-                       id="select-all-${this.container.id}" 
-                       ${allSelected ? 'checked' : ''}>
-                <label for="select-all-${this.container.id}" class="multiselect-option-label">
+                <input type="checkbox" ${allSelected ? 'checked' : ''}>
+                <span class="multiselect-option-label">
                     ${this.options.selectAllText}
-                </label>
+                </span>
             </div>
         `;
         
@@ -132,13 +143,11 @@ class CustomMultiselect {
         this.availableOptions.forEach(option => {
             const isSelected = this.selectedValues.has(option.value);
             html += `
-                <div class="multiselect-option" data-value="${option.value}">
-                    <input type="checkbox" 
-                           id="option-${option.value}-${this.container.id}" 
-                           ${isSelected ? 'checked' : ''}>
-                    <label for="option-${option.value}-${this.container.id}" class="multiselect-option-label">
-                        ${option.label}
-                    </label>
+                <div class="multiselect-option" data-value="${escapeAttr(option.value)}">
+                    <input type="checkbox" ${isSelected ? 'checked' : ''}>
+                    <span class="multiselect-option-label">
+                        ${escapeHtml(option.label)}
+                    </span>
                 </div>
             `;
         });
@@ -148,9 +157,26 @@ class CustomMultiselect {
     }
     
     bindOptionEvents() {
-        const selectAllCheckbox = this.dropdown.querySelector('.multiselect-select-all input');
+        const selectAllRow = this.dropdown.querySelector('.multiselect-select-all');
+        const selectAllCheckbox = selectAllRow ? selectAllRow.querySelector('input') : null;
         const optionElements = this.dropdown.querySelectorAll('.multiselect-option:not(.multiselect-select-all)');
-        
+
+        // Единственный источник истины по состоянию пункта — событие change
+        // чекбокса. Клик по любому месту строки (кроме самого чекбокса, который
+        // переключается браузером) переводится в один change. Раньше строка
+        // инвертировала checked вручную поверх штатной активации <label for>,
+        // из-за чего клик по подписи срабатывал дважды и галочка снималась.
+        const forwardRowClick = (row, checkbox) => {
+            row.addEventListener('click', (e) => {
+                if (e.target === checkbox) {
+                    return;
+                }
+                e.preventDefault();
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        };
+
         // Select all functionality
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', (e) => {
@@ -161,26 +187,14 @@ class CustomMultiselect {
                     this.deselectAll();
                 }
             });
+            forwardRowClick(selectAllRow, selectAllCheckbox);
         }
         
         // Individual option functionality
         optionElements.forEach(element => {
             const checkbox = element.querySelector('input');
             const value = element.dataset.value;
-            
-            element.addEventListener('click', (e) => {
-                if (e.target.type !== 'checkbox') {
-                    e.preventDefault();
-                    checkbox.checked = !checkbox.checked;
-                }
-                
-                if (checkbox.checked) {
-                    this.selectValue(value);
-                } else {
-                    this.deselectValue(value);
-                }
-            });
-            
+
             checkbox.addEventListener('change', (e) => {
                 if (e.target.checked) {
                     this.selectValue(value);
@@ -188,6 +202,8 @@ class CustomMultiselect {
                     this.deselectValue(value);
                 }
             });
+
+            forwardRowClick(element, checkbox);
         });
     }
     
@@ -1855,6 +1871,11 @@ async function loadAvailableServices() {
         
         multiselect.setLoading(false);
         multiselect.setOptions(options);
+
+        // Экземпляр мультиселекта живёт между открытиями модалки, поэтому набор
+        // с прошлого документа надо сбросить — иначе новый документ открывается
+        // с чужими галочками.
+        multiselect.setSelectedValues([]);
         
         // For new documents, select all services by default (first time adding this document type)
         // This will be handled in document type change handler
@@ -1916,10 +1937,9 @@ async function loadAvailableServicesForEdit(multiselectContainer, selectedServic
         multiselect.setLoading(false);
         multiselect.setOptions(options);
         
-        // Set selected services
-        if (selectedServices && selectedServices.length > 0) {
-            multiselect.setSelectedValues(selectedServices);
-        }
+        // Set selected services (пустой список тоже применяем: иначе в форме
+        // остаются галочки от предыдущего открытого документа)
+        multiselect.setSelectedValues(selectedServices || []);
         
         console.log('Services loaded successfully for edit modal');
         
