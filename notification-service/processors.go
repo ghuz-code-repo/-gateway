@@ -202,10 +202,15 @@ func (ns *NotificationService) processNotification(notification *Notification) {
 	}
 
 	// All attempts failed
+	failureCode := failureSendFailed
+	if notification.FailureCode != "" {
+		failureCode = notification.FailureCode
+	}
 	ns.db.Model(notification).Updates(Notification{
-		Status:    StatusFailed,
-		LastError: err.Error(),
-		Attempts:  maxAttempts,
+		Status:      StatusFailed,
+		LastError:   err.Error(),
+		FailureCode: failureCode,
+		Attempts:    maxAttempts,
 	})
 	log.Printf("Notification %d failed after %d attempts: %v", notification.ID, maxAttempts, err)
 }
@@ -397,7 +402,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		return fmt.Errorf("SMTP data close error: %v", err)
 	}
 
-	log.Printf("✅ Email sent to %s (notification #%d)", notification.Recipient, notification.ID)
+	log.Printf("✅ Email sent to %s (notification #%d)", maskRecipient(notification.Recipient), notification.ID)
 	return nil
 }
 
@@ -488,7 +493,7 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		return fmt.Errorf("notification-bot error: %s", string(body))
 	}
 
-	log.Printf("✅ Telegram message sent to %s via notification-bot (notification #%d)", chatIDStr, notification.ID)
+	log.Printf("✅ Telegram message sent to %s via notification-bot (notification #%d)", maskRecipient(chatIDStr), notification.ID)
 	return nil
 }
 

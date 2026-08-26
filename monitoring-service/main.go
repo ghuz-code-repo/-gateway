@@ -40,11 +40,15 @@ type ServiceStatus struct {
 	LastAlertAt time.Time `json:"last_alert_at,omitempty"` // время последнего алерта (для кулдауна)
 }
 
+// NotificationRequest — запрос к notification-service.
+// Получателя задаёт ровно одно поле: Login (пользователь портала, адрес доставки
+// определит auth-service) либо ExternalRecipient (адрес вне портала).
 type NotificationRequest struct {
-	Type      string `json:"type"`
-	Recipient string `json:"recipient"`
-	Subject   string `json:"subject"`
-	Content   string `json:"content"`
+	Type              string `json:"type"`
+	Login             string `json:"login,omitempty"`
+	ExternalRecipient string `json:"external_recipient,omitempty"`
+	Subject           string `json:"subject"`
+	Content           string `json:"content"`
 }
 
 type NotificationConfig struct {
@@ -321,24 +325,38 @@ func (ms *MonitoringService) sendAlert(serviceName string, service *ServiceStatu
 			service.ErrorCount, service.LastError, alertType)
 	}
 
+	// Логин дежурного администратора: если задан, алерты адресуются им, и адрес
+	// доставки держит auth-service. Иначе работают адреса из конфига сервиса.
+	alertLogin := os.Getenv("SYSTEM_ALERT_LOGIN")
+
 	// Send email notification
-	if sendEmailAlerts && systemEmailRecipient != "" {
+	if sendEmailAlerts && (alertLogin != "" || systemEmailRecipient != "") {
 		emailNotification := NotificationRequest{
-			Type:      "email",
-			Recipient: systemEmailRecipient,
-			Subject:   subject,
-			Content:   strings.ReplaceAll(content, "*", ""), // Remove markdown for email
+			Type:    "email",
+			Subject: subject,
+			Content: strings.ReplaceAll(content, "*", ""), // Remove markdown for email
+		}
+		if alertLogin != "" {
+			emailNotification.Login = alertLogin
+		} else {
+			emailNotification.ExternalRecipient = systemEmailRecipient
 		}
 		ms.sendNotification(notificationServiceURL, emailNotification, "email")
 	}
 
 	// Send Telegram notification
-	if sendTelegramAlerts && systemTelegramUsername != "" {
+	if sendTelegramAlerts && (alertLogin != "" || systemTelegramUsername != "") {
 		telegramNotification := NotificationRequest{
-			Type:      "telegram_system",
-			Recipient: systemTelegramUsername,
-			Subject:   subject,
-			Content:   content,
+			Type:    "telegram_system",
+			Subject: subject,
+			Content: content,
+		}
+		if alertLogin != "" {
+			telegramNotification.Login = alertLogin
+		} else {
+			// Прежнее поведение: notification-service подменит получателя на
+			// system_telegram_chat_id из своего конфига, а без него резолвит ник
+			telegramNotification.ExternalRecipient = systemTelegramUsername
 		}
 		ms.sendNotification(notificationServiceURL, telegramNotification, "telegram")
 	}

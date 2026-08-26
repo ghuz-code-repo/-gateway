@@ -152,12 +152,14 @@ func testNotificationSettings(c *gin.Context) {
 		return
 	}
 
-	// Create test notification
+	// Create test notification.
+	// Адрес вводится руками в форме проверки настроек — это внешний получатель,
+	// а не логин портала
 	testNotification := map[string]interface{}{
-		"type":      "email",
-		"recipient": testEmail,
-		"subject":   "Тест настроек уведомлений",
-		"content":   "Это тестовое сообщение для проверки настроек сервиса уведомлений. Если вы получили это письмо, настройки работают корректно!",
+		"type":               "email",
+		"external_recipient": testEmail,
+		"subject":            "Тест настроек уведомлений",
+		"content":            "Это тестовое сообщение для проверки настроек сервиса уведомлений. Если вы получили это письмо, настройки работают корректно!",
 	}
 
 	// Send to notification service

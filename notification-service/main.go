@@ -38,6 +38,12 @@ type NotificationService struct {
 	// на каждую отправку и не тормозить доставку telegram-уведомлений)
 	chatIDCache map[string]chatIDEntry
 	chatIDMu    sync.RWMutex
+
+	// Кэш резолва «логин портала -> адрес доставки» (recipients.go).
+	// Ключ учитывает сервис и канал: доступ к пользователю проверяется
+	// для конкретного сервиса-отправителя, адрес зависит от канала.
+	recipientCache map[string]recipientCacheEntry
+	recipientMu    sync.RWMutex
 }
 
 type chatIDEntry struct {
@@ -73,9 +79,19 @@ const (
 
 // Notification represents a single notification
 type Notification struct {
-	ID                 uint               `json:"id" gorm:"primaryKey"`
-	Type               NotificationType   `json:"type" gorm:"not null"`
-	Recipient          string             `json:"recipient" gorm:"not null"`
+	ID   uint             `json:"id" gorm:"primaryKey"`
+	Type NotificationType `json:"type" gorm:"not null"`
+
+	// Recipient — фактический адрес доставки, куда уведомление ушло (chat_id, email,
+	// телефон). Для адресации по логину он не приходит извне, а резолвится
+	// auth-service на приёме запроса; хранится для аудита и разбора инцидентов.
+	Recipient string `json:"recipient" gorm:"not null"`
+
+	// RecipientLogin — логин портала, если уведомление адресовано пользователю системы.
+	// ExternalRecipient — адрес получателя вне портала. Заполнено ровно одно из двух
+	// (либо ни одного — легаси-вызов через поле recipient или системный алерт).
+	RecipientLogin     string             `json:"recipient_login,omitempty" gorm:"index"`
+	ExternalRecipient  string             `json:"external_recipient,omitempty"`
 	Subject            string             `json:"subject,omitempty"`
 	Content            string             `json:"content" gorm:"not null"`
 	ContentType        string             `json:"content_type,omitempty" gorm:"default:'text/plain'"`
@@ -85,6 +101,7 @@ type Notification struct {
 	Attempts           int                `json:"attempts" gorm:"default:0"`
 	MaxAttempts        int                `json:"max_attempts" gorm:"default:3"`
 	LastError          string             `json:"last_error,omitempty"`
+	FailureCode        string             `json:"failure_code,omitempty"` // машинный код отказа для вызывающего сервиса
 	BatchID            string             `json:"batch_id,omitempty" gorm:"index"`
 	CreatedAt          int64              `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt          int64              `json:"updated_at" gorm:"autoUpdateTime"`
@@ -111,13 +128,20 @@ type BatchNotificationRequest struct {
 
 // SingleNotificationRequest represents a single notification request
 type SingleNotificationRequest struct {
-	Type               NotificationType `json:"type" binding:"required,oneof=email sms push telegram telegram_system"`
-	Recipient          string           `json:"recipient" binding:"required"`
-	Subject            string           `json:"subject,omitempty"`
-	Content            string           `json:"content" binding:"required"`
-	ContentType        string           `json:"content_type,omitempty" binding:"omitempty,oneof=text/plain text/html"`
-	AttachmentFilename string           `json:"attachment_filename,omitempty"`
-	AttachmentContent  string           `json:"attachment_content,omitempty"` // base64 encoded
+	Type NotificationType `json:"type" binding:"required,oneof=email sms push telegram telegram_system"`
+
+	// Login — логин пользователя портала; адрес доставки определяет auth-service.
+	// ExternalRecipient — получатель, которого нет в системе (внешний email/телефон/chat_id).
+	// Recipient — устаревшее поле с сырым адресом, оставлено на переходный период.
+	// Заполнять нужно ровно одно из трёх.
+	Login              string `json:"login,omitempty"`
+	ExternalRecipient  string `json:"external_recipient,omitempty"`
+	Recipient          string `json:"recipient,omitempty"`
+	Subject            string `json:"subject,omitempty"`
+	Content            string `json:"content" binding:"required"`
+	ContentType        string `json:"content_type,omitempty" binding:"omitempty,oneof=text/plain text/html"`
+	AttachmentFilename string `json:"attachment_filename,omitempty"`
+	AttachmentContent  string `json:"attachment_content,omitempty"` // base64 encoded
 }
 
 // NotificationConfig represents stored notification service configuration
@@ -209,8 +233,9 @@ func main() {
 	// Create service instance
 	maxConcurrent := getEnvAsInt("MAX_CONCURRENT_SENDS", 10)
 	service := &NotificationService{
-		db:          db,
-		chatIDCache: make(map[string]chatIDEntry),
+		db:             db,
+		chatIDCache:    make(map[string]chatIDEntry),
+		recipientCache: make(map[string]recipientCacheEntry),
 		sendGates: map[string]*channelGate{
 			"email":    {},
 			"telegram": {},
@@ -495,7 +520,45 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 		req.BatchID = generateBatchID()
 	}
 
-	log.Printf("📦 Received batch notification request: batch_id=%s, count=%d, from_service=%s", req.BatchID, len(req.Notifications), c.GetString("service_name"))
+	serviceName := c.GetString("service_name")
+	log.Printf("📦 Received batch notification request: batch_id=%s, count=%d, from_service=%s", req.BatchID, len(req.Notifications), serviceName)
+
+	// Адресацию разбираем до создания записей: битый запрос отвергаем целиком,
+	// а не наполовину созданной пачкой
+	modes := make([]string, len(req.Notifications))
+	values := make([]string, len(req.Notifications))
+	loginsByChannel := make(map[string][]string)
+	for i := range req.Notifications {
+		mode, value, err := resolveRecipientMode(&req.Notifications[i])
+		if err != nil {
+			log.Printf("❌ Bad recipient in batch %s (#%d, from_service=%s): %v", req.BatchID, i+1, serviceName, err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("уведомление #%d: %v", i+1, err)})
+			return
+		}
+		modes[i], values[i] = mode, value
+		switch mode {
+		case recipientModeLogin:
+			channel := channelForType(req.Notifications[i].Type)
+			loginsByChannel[channel] = append(loginsByChannel[channel], value)
+		case recipientModeLegacy:
+			logLegacyRecipient(serviceName, req.Notifications[i].Type)
+		}
+	}
+
+	// Один резолв на канал вместо запроса к auth-service на каждое уведомление пачки
+	resolvedByChannel := make(map[string]map[string]recipientResolution, len(loginsByChannel))
+	for channel, logins := range loginsByChannel {
+		resolved, rerr := ns.resolveRecipients(serviceName, channel, logins)
+		if rerr != nil {
+			log.Printf("❌ Batch recipient resolve failed (batch_id=%s, channel=%s, count=%d): %v", req.BatchID, channel, len(logins), rerr)
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":        "не удалось определить получателей: auth-service недоступен",
+				"failure_code": failureAuthUnavailable,
+			})
+			return
+		}
+		resolvedByChannel[channel] = resolved
+	}
 
 	// Create batch record
 	batch := NotificationBatch{
@@ -511,16 +574,48 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 	}
 
 	// Create notifications
+	unresolved := make([]gin.H, 0)
 	notifications := make([]Notification, len(req.Notifications))
 	for i, notifReq := range req.Notifications {
-		notifications[i] = Notification{
+		notification := Notification{
 			Type:        notifReq.Type,
-			Recipient:   notifReq.Recipient,
 			Subject:     notifReq.Subject,
 			Content:     notifReq.Content,
 			ContentType: notifReq.ContentType,
 			BatchID:     req.BatchID,
 		}
+
+		switch modes[i] {
+		case recipientModeLogin:
+			channel := channelForType(notifReq.Type)
+			res := resolvedByChannel[channel][values[i]]
+			notification.RecipientLogin = values[i]
+			if res.Found {
+				notification.Recipient = res.Address
+			} else {
+				// Нерезолвнутого получателя пачки создаём сразу failed: processBatch
+				// берёт только pending, так что отправки не будет, а причина и
+				// статистика пачки остаются видны вызывающему сервису
+				notification.Recipient = values[i]
+				notification.Status = StatusFailed
+				notification.FailureCode = res.Reason
+				notification.LastError = fmt.Sprintf("получатель «%s» недоступен по каналу %s: %s", values[i], channel, res.Reason)
+				unresolved = append(unresolved, gin.H{"login": values[i], "failure_code": res.Reason})
+			}
+		case recipientModeExternal:
+			notification.ExternalRecipient = values[i]
+			notification.Recipient = values[i]
+		case recipientModeSystem:
+			notification.Recipient = systemRecipientPlaceholder
+		default:
+			notification.Recipient = values[i]
+		}
+
+		notifications[i] = notification
+	}
+
+	if len(unresolved) > 0 {
+		log.Printf("⚠️ Batch %s: %d из %d получателей не разрешены", req.BatchID, len(unresolved), len(notifications))
 	}
 
 	if err := ns.db.Create(&notifications).Error; err != nil {
@@ -541,8 +636,9 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusAccepted, gin.H{
-		"batch_id": req.BatchID,
-		"message":  "Пакет создан, обработка начата",
+		"batch_id":   req.BatchID,
+		"message":    "Пакет создан, обработка начата",
+		"unresolved": unresolved,
 	})
 }
 
@@ -554,15 +650,66 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 		return
 	}
 
-	log.Printf("📧 Received notification: type=%s, recipient=%s, subject=%s, from_service=%s", req.Type, req.Recipient, req.Subject, c.GetString("service_name"))
+	serviceName := c.GetString("service_name")
+
+	mode, value, err := resolveRecipientMode(&req)
+	if err != nil {
+		log.Printf("❌ Bad recipient (from_service=%s, type=%s): %v", serviceName, req.Type, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Логин в логах оставляем как есть — это идентификатор, а не контакт;
+	// маскируем только сырые адреса доставки
+	logged := value
+	if mode != recipientModeLogin {
+		logged = maskRecipient(value)
+	}
+	log.Printf("📧 Received notification: type=%s, mode=%s, recipient=%s, subject=%s, from_service=%s",
+		req.Type, mode, logged, req.Subject, serviceName)
 
 	// Create notification
 	notification := Notification{
 		Type:        req.Type,
-		Recipient:   req.Recipient,
 		Subject:     req.Subject,
 		Content:     req.Content,
 		ContentType: req.ContentType,
+	}
+
+	switch mode {
+	case recipientModeLogin:
+		channel := channelForType(req.Type)
+		resolved, rerr := ns.resolveRecipients(serviceName, channel, []string{value})
+		if rerr != nil {
+			// auth-service недоступен — это временный сбой, а не плохой запрос:
+			// отдаём 503, чтобы вызывающий повторил, а не хоронил уведомление в failed
+			log.Printf("❌ Recipient resolve failed (login=%s, channel=%s): %v", value, channel, rerr)
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":        "не удалось определить получателя: auth-service недоступен",
+				"failure_code": failureAuthUnavailable,
+			})
+			return
+		}
+		res := resolved[value]
+		if !res.Found {
+			log.Printf("⚠️ Recipient unresolved (login=%s, channel=%s): %s", value, channel, res.Reason)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":        fmt.Sprintf("получатель «%s» недоступен по каналу %s", value, channel),
+				"failure_code": res.Reason,
+			})
+			return
+		}
+		notification.RecipientLogin = value
+		notification.Recipient = res.Address
+	case recipientModeExternal:
+		notification.ExternalRecipient = value
+		notification.Recipient = value
+	case recipientModeSystem:
+		// Адрес подставит sendTelegram из system_telegram_chat_id
+		notification.Recipient = systemRecipientPlaceholder
+	default:
+		logLegacyRecipient(serviceName, req.Type)
+		notification.Recipient = value
 	}
 
 	// Handle attachment if present

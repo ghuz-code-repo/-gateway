@@ -1071,7 +1071,7 @@ func UpdateUser(id primitive.ObjectID, username, email, password, fullName strin
 		// Get Russian email template
 		subject, body := GetAccountUpdatedEmail(fullName, username, email, password, roles)
 
-		go SendEmailNotificationNew(email, subject, body)
+		go SendEmailNotificationToLogin(username, subject, body)
 	}
 
 	return nil
@@ -1149,6 +1149,7 @@ func DeleteUser(id primitive.ObjectID) error {
 		// Get Russian email template
 		subject, body := GetAccountDeletedEmail(fullName, username)
 
+		// Логин уже удалён из базы — резолвить его нечем, шлём на сохранённый адрес
 		go SendEmailNotificationNew(email, subject, body)
 	}
 
@@ -1586,7 +1587,7 @@ func CreateUserWithNames(username, email, password, lastName, firstName, middleN
 		// Get Russian email template - use GetFullName() method
 		subject, body := GetAccountCreatedEmail(user.GetFullName(), username, password, roleNames)
 
-		SendEmailNotificationNew(email, subject, body)
+		SendEmailNotificationToLogin(username, subject, body)
 	}
 
 	return result.InsertedID.(primitive.ObjectID), nil
@@ -1622,7 +1623,7 @@ func CreateUser(username, email, password string, fullName string, roleNames []s
 		// Get Russian email template
 		subject, body := GetAccountCreatedEmail(fullName, username, password, roleNames)
 
-		SendEmailNotificationNew(email, subject, body)
+		SendEmailNotificationToLogin(username, subject, body)
 	}
 
 	return result.InsertedID.(primitive.ObjectID), nil

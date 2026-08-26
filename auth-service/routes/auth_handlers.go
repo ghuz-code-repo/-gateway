@@ -430,8 +430,8 @@ func forgotPasswordHandler(c *gin.Context) {
 	debugLog("DEBUG: Email template prepared, subject: %s", emailSubject)
 
 	// Try to send email
-	debugLog("DEBUG: Calling SendEmailNotificationNew for: %s", user.Email)
-	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
+	debugLog("DEBUG: Calling SendEmailNotificationToLogin for: %s", user.Username)
+	err = models.SendEmailNotificationToLogin(user.Username, emailSubject, emailBody)
 	if err != nil {
 		log.Printf("Failed to send password reset email to %s: %v", user.Email, err)
 		c.HTML(http.StatusInternalServerError, "forgot-password-result.html", gin.H{

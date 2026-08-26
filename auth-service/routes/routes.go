@@ -47,6 +47,10 @@ func SetupAllRoutes(router *gin.Engine) {
 		api.POST("/telegram/login/decision", telegramLoginDecisionAPIHandler)
 		api.GET("/telegram/chat-id", telegramChatIDLookupAPIHandler)
 
+		// Резолв получателей уведомлений: логин портала -> адрес доставки
+		// (вызывается notification-service; отдаёт контакты, наружу не публикуется)
+		api.POST("/recipients/resolve", recipientsResolveAPIHandler)
+
 		// Service Registry API (Service Discovery)
 		registry := api.Group("/registry")
 		{

@@ -305,9 +305,9 @@ func createUserHandler(c *gin.Context) {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Printf("Email attempt %d/%d to %s", attempt, maxRetries, email)
 
-		err := models.SendEmailNotificationNew(email, emailSubject, emailBody)
+		err := models.SendEmailNotificationToLogin(username, emailSubject, emailBody)
 		if err == nil {
-			log.Printf("Email successfully sent to %s on attempt %d", email, attempt)
+			log.Printf("Email successfully sent to %s on attempt %d", username, attempt)
 			emailSent = true
 			break
 		}
@@ -343,6 +343,7 @@ func createUserHandler(c *gin.Context) {
 
 ТРЕБУЕТСЯ РУЧНАЯ ОТПРАВКА ДАННЫХ ПОЛЬЗОВАТЕЛЮ!`, email, username, password, lastError)
 
+		// Адрес админа берётся из ADMIN_EMAIL, логина у него тут нет — внешний получатель
 		adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
 		if adminErr != nil {
 			log.Printf("CRITICAL: Failed to send admin notification: %v", adminErr)
@@ -640,9 +641,9 @@ Email: %s`, updatedUser.Email)
 		for attempt := 1; attempt <= maxRetries; attempt++ {
 			log.Printf("Email attempt %d/%d to %s for update", attempt, maxRetries, updatedUser.Email)
 
-			err := models.SendEmailNotificationNew(updatedUser.Email, emailSubject, emailBody)
+			err := models.SendEmailNotificationToLogin(updatedUser.Username, emailSubject, emailBody)
 			if err == nil {
-				log.Printf("Update email successfully sent to %s on attempt %d", updatedUser.Email, attempt)
+				log.Printf("Update email successfully sent to %s on attempt %d", updatedUser.Username, attempt)
 				emailSent = true
 				break
 			}
@@ -918,7 +919,7 @@ func sendPasswordResetHandler(c *gin.Context) {
 
 	// Send email using existing template system
 	emailSubject, emailBody := models.GetPasswordResetEmail(user.GetFullName(), resetLink)
-	err = models.SendEmailNotificationNew(user.Email, emailSubject, emailBody)
+	err = models.SendEmailNotificationToLogin(user.Username, emailSubject, emailBody)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Ошибка при отправке email: " + err.Error()})
 		return

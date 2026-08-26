@@ -223,7 +223,31 @@ func SendEmailNotification(to, subject, body string) error {
 // This function is defined in notification_client.go but needs to be accessible from models package
 var SendEmailNotificationViaService func(to, subject, body string) error
 
-// SendEmailNotificationNew sends an email notification ONLY via notification service (no fallback)
+// SendEmailToLoginViaService sends an email to a portal user addressed by login.
+// Реализация живёт в notification_client.go пакета main.
+var SendEmailToLoginViaService func(login, subject, body string) error
+
+// SendEmailNotificationToLogin отправляет письмо пользователю портала по его логину.
+//
+// Адрес доставки определяет notification-service, спрашивая его у auth-service, — так
+// письмо уходит на актуальный email, даже если пользователь сменил его после того, как
+// вызывающий код прочитал документ. Для получателя вне портала (или для пользователя,
+// которого уже удалили) используйте SendEmailNotificationNew.
+func SendEmailNotificationToLogin(login, subject, body string) error {
+	if SendEmailToLoginViaService == nil {
+		log.Printf("ERROR: Notification service client not initialized")
+		return fmt.Errorf("notification service client not initialized")
+	}
+
+	if err := SendEmailToLoginViaService(login, subject, body); err != nil {
+		log.Printf("Notification service failed for login %s: %v", login, err)
+		return fmt.Errorf("failed to send notification via notification service: %v", err)
+	}
+	return nil
+}
+
+// SendEmailNotificationNew sends an email notification ONLY via notification service (no fallback).
+// Получатель здесь — сырой адрес: внешний ящик или пользователь, которого уже нет в системе.
 func SendEmailNotificationNew(to, subject, body string) error {
 	// Use only notification service - no fallback to direct SMTP
 	if SendEmailNotificationViaService != nil {

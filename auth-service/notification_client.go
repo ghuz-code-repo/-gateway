@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -30,12 +31,17 @@ func NewNotificationClient() *NotificationClient {
 	}
 }
 
-// NotificationRequest represents a single notification request for the service
+// NotificationRequest represents a single notification request for the service.
+//
+// Получателя задаёт ровно одно поле: Login — пользователь портала (адрес доставки
+// определяет сам auth-service по запросу notification-service), ExternalRecipient —
+// адрес получателя вне портала.
 type NotificationRequest struct {
-	Type      string `json:"type"`
-	Recipient string `json:"recipient"`
-	Subject   string `json:"subject,omitempty"`
-	Content   string `json:"content"`
+	Type              string `json:"type"`
+	Login             string `json:"login,omitempty"`
+	ExternalRecipient string `json:"external_recipient,omitempty"`
+	Subject           string `json:"subject,omitempty"`
+	Content           string `json:"content"`
 }
 
 // BatchNotificationRequest represents a batch notification request
@@ -57,21 +63,42 @@ func (nc *NotificationClient) newRequest(method, url string, body *bytes.Buffer)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if apiKey := os.Getenv("INTERNAL_API_KEY"); apiKey != "" {
+	// Персональный ключ сервиса предпочтительнее общего: по нему notification-service
+	// считает rate-limit и понимает, кто именно шлёт
+	apiKey := os.Getenv("NOTIFICATION_API_KEY")
+	if apiKey == "" {
+		apiKey = os.Getenv("INTERNAL_API_KEY")
+	}
+	if apiKey != "" {
 		req.Header.Set("X-API-Key", apiKey)
 	}
 	return req, nil
 }
 
-// SendEmailNotification sends a single email notification through the notification service
+// SendEmailNotification sends a single email notification to an address outside the
+// portal (or to a user who no longer exists — например, письмо об удалении аккаунта).
+// Для существующего пользователя портала используйте SendEmailNotificationToLogin.
 func (nc *NotificationClient) SendEmailNotification(to, subject, body string) error {
-	notification := NotificationRequest{
-		Type:      "email",
-		Recipient: to,
-		Subject:   subject,
-		Content:   body,
-	}
+	return nc.sendEmail(NotificationRequest{
+		Type:              "email",
+		ExternalRecipient: to,
+		Subject:           subject,
+		Content:           body,
+	}, to)
+}
 
+// SendEmailNotificationToLogin sends a single email to a portal user addressed by login.
+// Адрес доставки подставит notification-service, спросив его у auth-service.
+func (nc *NotificationClient) SendEmailNotificationToLogin(login, subject, body string) error {
+	return nc.sendEmail(NotificationRequest{
+		Type:    "email",
+		Login:   login,
+		Subject: subject,
+		Content: body,
+	}, login)
+}
+
+func (nc *NotificationClient) sendEmail(notification NotificationRequest, target string) error {
 	jsonData, err := json.Marshal(notification)
 	if err != nil {
 		return fmt.Errorf("failed to marshal notification: %v", err)
@@ -89,10 +116,13 @@ func (nc *NotificationClient) SendEmailNotification(to, subject, body string) er
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("notification service returned status: %d", resp.StatusCode)
+		// 400 — получателя не удалось разрешить, 503 — auth-service недоступен;
+		// тело ответа несёт failure_code, поэтому логируем его целиком
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("notification service returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	log.Printf("Email notification sent successfully to %s", to)
+	log.Printf("Email notification sent successfully to %s", target)
 	return nil
 }
 
@@ -134,8 +164,9 @@ var notificationClient *NotificationClient
 func InitNotificationClient() {
 	log.Println("🔧 Initializing notification service client...")
 	notificationClient = NewNotificationClient()
-	// Set the function pointer in models package
+	// Set the function pointers in models package
 	models.SendEmailNotificationViaService = SendEmailNotificationViaServiceImpl
+	models.SendEmailToLoginViaService = SendEmailToLoginViaServiceImpl
 	log.Printf("✅ Notification service client initialized: %s\n", notificationClient.BaseURL)
 }
 
@@ -148,4 +179,14 @@ func SendEmailNotificationViaServiceImpl(to, subject, body string) error {
 	}
 
 	return notificationClient.SendEmailNotification(to, subject, body)
+}
+
+// SendEmailToLoginViaServiceImpl sends an email to a portal user addressed by login
+func SendEmailToLoginViaServiceImpl(login, subject, body string) error {
+	if notificationClient == nil {
+		log.Printf("ERROR: Notification service client not initialized")
+		return fmt.Errorf("notification service client not initialized")
+	}
+
+	return notificationClient.SendEmailNotificationToLogin(login, subject, body)
 }

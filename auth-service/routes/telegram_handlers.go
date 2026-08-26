@@ -86,7 +86,7 @@ func telegramLinkRequestHandler(c *gin.Context) {
 	deepLink := fmt.Sprintf("https://t.me/%s?start=%s", getTelegramBotUsername(), linkToken.Token)
 	subject, body := models.GetTelegramLinkEmail(user.GetFullName(), tgUsername, deepLink)
 
-	if err := models.SendEmailNotificationNew(user.Email, subject, body); err != nil {
+	if err := models.SendEmailNotificationToLogin(user.Username, subject, body); err != nil {
 		log.Printf("Failed to send telegram link email to %s: %v", user.Email, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось отправить письмо. Попробуйте позже."})
 		return

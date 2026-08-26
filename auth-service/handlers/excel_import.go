@@ -410,7 +410,7 @@ func createNewUser(importUser models.UserImportExport, adminUserID primitive.Obj
 
 	// Send email notification (non-blocking - errors are logged but don't stop import)
 	// Use the original password variable, not importUser.Password which might be modified
-	emailResult := sendUserNotification(importUser.Email, "created", password)
+	emailResult := sendUserNotification(importUser.Username, importUser.Email, "created", password)
 	result.EmailNotifications = append(result.EmailNotifications, emailResult)
 
 	// Log email failure but DON'T stop the import process
@@ -513,7 +513,7 @@ func updateExistingUser(existingUser *models.User, importUser models.UserImportE
 			passwordChanged
 
 		if profileChanged {
-			emailResult := sendUserNotification(importUser.Email, "updated", passwordForEmail)
+			emailResult := sendUserNotification(importUser.Username, importUser.Email, "updated", passwordForEmail)
 			result.EmailNotifications = append(result.EmailNotifications, emailResult)
 
 			// Log email failure but DON'T stop the import process
@@ -623,8 +623,10 @@ func updateUserServiceRoles(userID primitive.ObjectID, serviceRoles map[string]s
 	return hasChanges, nil
 }
 
-// sendUserNotification sends email notification to user
-func sendUserNotification(email, notificationType, password string) models.EmailNotification {
+// sendUserNotification sends email notification to a portal user.
+// Адресуем логином — адрес доставки подставит notification-service; email нужен
+// только для записи в журнал импорта.
+func sendUserNotification(login, email, notificationType, password string) models.EmailNotification {
 	notification := models.EmailNotification{
 		RecipientEmail: email,
 		Type:           notificationType,
@@ -677,9 +679,9 @@ Email: %s`, email)
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Printf("Email attempt %d/%d to %s", attempt, maxRetries, email)
 
-		err := models.SendEmailNotificationNew(email, subject, body)
+		err := models.SendEmailNotificationToLogin(login, subject, body)
 		if err == nil {
-			log.Printf("Email successfully sent to %s on attempt %d", email, attempt)
+			log.Printf("Email successfully sent to %s on attempt %d", login, attempt)
 			notification.Success = true
 			return notification
 		}
@@ -722,6 +724,7 @@ Email сохранён в notification service и будет повторно о
 %s`, email, notificationType, lastError, subject, body)
 
 	// Try to send admin notification (single attempt - non-blocking)
+	// Адрес админа берётся из ADMIN_EMAIL, логина у него тут нет — внешний получатель
 	adminErr := models.SendEmailNotificationNew(adminEmail, fallbackSubject, fallbackBody)
 	if adminErr != nil {
 		log.Printf("⚠️ WARNING: Failed to send admin fallback notification: %v", adminErr)
