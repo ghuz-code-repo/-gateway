@@ -536,11 +536,11 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 			return
 		}
 		modes[i], values[i] = mode, value
-		switch mode {
-		case recipientModeLogin:
+		if mode == recipientModeLogin {
 			channel := channelForType(req.Notifications[i].Type)
 			loginsByChannel[channel] = append(loginsByChannel[channel], value)
-		case recipientModeLegacy:
+		}
+		if isDeprecatedMode(mode) {
 			logLegacyRecipient(serviceName, req.Notifications[i].Type)
 		}
 	}
@@ -585,32 +585,23 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 			BatchID:     req.BatchID,
 		}
 
-		switch modes[i] {
-		case recipientModeLogin:
+		var resolved recipientResolution
+		if modes[i] == recipientModeLogin {
 			channel := channelForType(notifReq.Type)
-			res := resolvedByChannel[channel][values[i]]
-			notification.RecipientLogin = values[i]
-			if res.Found {
-				notification.Recipient = res.Address
-			} else {
+			resolved = resolvedByChannel[channel][values[i]]
+
+			if !resolved.Found {
 				// Нерезолвнутого получателя пачки создаём сразу failed: processBatch
 				// берёт только pending, так что отправки не будет, а причина и
 				// статистика пачки остаются видны вызывающему сервису
-				notification.Recipient = values[i]
 				notification.Status = StatusFailed
-				notification.FailureCode = res.Reason
-				notification.LastError = fmt.Sprintf("получатель «%s» недоступен по каналу %s: %s", values[i], channel, res.Reason)
-				unresolved = append(unresolved, gin.H{"login": values[i], "failure_code": res.Reason})
+				notification.FailureCode = resolved.Reason
+				notification.LastError = fmt.Sprintf("получатель «%s» недоступен по каналу %s: %s", values[i], channel, resolved.Reason)
+				unresolved = append(unresolved, gin.H{"login": values[i], "failure_code": resolved.Reason})
 			}
-		case recipientModeExternal:
-			notification.ExternalRecipient = values[i]
-			notification.Recipient = values[i]
-		case recipientModeSystem:
-			notification.Recipient = systemRecipientPlaceholder
-		default:
-			notification.Recipient = values[i]
 		}
 
+		applyRecipient(&notification, modes[i], values[i], resolved)
 		notifications[i] = notification
 	}
 
@@ -676,10 +667,10 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 		ContentType: req.ContentType,
 	}
 
-	switch mode {
-	case recipientModeLogin:
+	var resolved recipientResolution
+	if mode == recipientModeLogin {
 		channel := channelForType(req.Type)
-		resolved, rerr := ns.resolveRecipients(serviceName, channel, []string{value})
+		results, rerr := ns.resolveRecipients(serviceName, channel, []string{value})
 		if rerr != nil {
 			// auth-service недоступен — это временный сбой, а не плохой запрос:
 			// отдаём 503, чтобы вызывающий повторил, а не хоронил уведомление в failed
@@ -690,27 +681,22 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 			})
 			return
 		}
-		res := resolved[value]
-		if !res.Found {
-			log.Printf("⚠️ Recipient unresolved (login=%s, channel=%s): %s", value, channel, res.Reason)
+
+		resolved = results[value]
+		if !resolved.Found {
+			log.Printf("⚠️ Recipient unresolved (login=%s, channel=%s): %s", value, channel, resolved.Reason)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":        fmt.Sprintf("получатель «%s» недоступен по каналу %s", value, channel),
-				"failure_code": res.Reason,
+				"failure_code": resolved.Reason,
 			})
 			return
 		}
-		notification.RecipientLogin = value
-		notification.Recipient = res.Address
-	case recipientModeExternal:
-		notification.ExternalRecipient = value
-		notification.Recipient = value
-	case recipientModeSystem:
-		// Адрес подставит sendTelegram из system_telegram_chat_id
-		notification.Recipient = systemRecipientPlaceholder
-	default:
-		logLegacyRecipient(serviceName, req.Type)
-		notification.Recipient = value
 	}
+
+	if isDeprecatedMode(mode) {
+		logLegacyRecipient(serviceName, req.Type)
+	}
+	applyRecipient(&notification, mode, value, resolved)
 
 	// Handle attachment if present
 	if req.AttachmentFilename != "" && req.AttachmentContent != "" {

@@ -108,10 +108,18 @@ func serviceAuthKey(serviceName string) string {
 
 // maskRecipient прячет адрес доставки в логах: сервис пишет их в общий журнал,
 // а chat_id и email — персональные данные.
+//
+// LOG_FULL_RECIPIENTS=true отключает маскировку. Нужен для разбора инцидентов
+// «письмо ушло не туда»: по маске d.***@gh.uz невозможно отличить двух сотрудников
+// с похожими адресами.
 func maskRecipient(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return "(пусто)"
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_FULL_RECIPIENTS"))) {
+	case "1", "true", "yes", "on":
+		return value
 	}
 	if at := strings.Index(value, "@"); at > 0 {
 		local := value[:at]
@@ -124,6 +132,15 @@ func maskRecipient(value string) string {
 		return "***"
 	}
 	return value[:2] + "***" + value[len(value)-2:]
+}
+
+// notificationTarget описывает получателя для лога: логин — идентификатор, его
+// прячем незачем; адрес доставки маскируется.
+func notificationTarget(n *Notification) string {
+	if n.RecipientLogin != "" {
+		return fmt.Sprintf("login=%s (%s)", n.RecipientLogin, maskRecipient(n.Recipient))
+	}
+	return maskRecipient(n.Recipient)
 }
 
 func recipientCacheKey(service, channel, login string) string {
@@ -245,26 +262,83 @@ func (ns *NotificationService) resolveRecipients(serviceName, channel string, lo
 	return results, nil
 }
 
+// addressingField описывает один способ адресации уведомления.
+//
+// Новый способ (по роли, по праву, по chat_id канала) добавляется одной записью в
+// addressingFields и полем в SingleNotificationRequest — трогать разбор запроса
+// и обработчики не нужно.
+type addressingField struct {
+	// name — имя поля в JSON, попадает в текст ошибки
+	name string
+	// mode — режим адресации, с которым дальше работают обработчики
+	mode string
+	// value достаёт значение поля из запроса
+	value func(req *SingleNotificationRequest) string
+	// validate проверяет пару «значение + тип уведомления»; nil = проверок нет
+	validate func(req *SingleNotificationRequest, value string) error
+	// deprecated — поле оставлено на переходный период, вызов пишется в лог
+	deprecated bool
+}
+
+// addressingFields перечислены в порядке предпочтения: при (недопустимом) заполнении
+// нескольких полей запрос всё равно отвергается, порядок влияет только на текст ошибки.
+var addressingFields = []addressingField{
+	{
+		name:  "login",
+		mode:  recipientModeLogin,
+		value: func(req *SingleNotificationRequest) string { return req.Login },
+		validate: func(req *SingleNotificationRequest, value string) error {
+			// Адрес в поле логина — самая вероятная ошибка вызывающего сервиса,
+			// и молча отправить такое некуда: ловим на приёме
+			if strings.Contains(value, "@") {
+				return fmt.Errorf("поле login ожидает логин портала, а не адрес «%s»: для получателя вне портала используйте external_recipient", maskRecipient(value))
+			}
+			if channelForType(req.Type) == "" {
+				return fmt.Errorf("адресация по login не поддержана для типа %s", req.Type)
+			}
+			return nil
+		},
+	},
+	{
+		name:  "external_recipient",
+		mode:  recipientModeExternal,
+		value: func(req *SingleNotificationRequest) string { return req.ExternalRecipient },
+	},
+	{
+		name:       "recipient",
+		mode:       recipientModeLegacy,
+		value:      func(req *SingleNotificationRequest) string { return req.Recipient },
+		deprecated: true,
+	},
+}
+
 // resolveRecipientMode определяет, каким полем адресовано уведомление, и валидирует
-// запрос. Ровно одно из login / external_recipient / recipient — угадывать по виду
-// строки («похоже на email») нельзя: ошибка адресации молча уводит уведомление не туда.
+// запрос. Заполнено должно быть ровно одно поле адресации: угадывать по виду строки
+// («похоже на email») нельзя — ошибка адресации молча уводит уведомление не туда.
 func resolveRecipientMode(req *SingleNotificationRequest) (string, string, error) {
-	login := strings.TrimSpace(req.Login)
-	external := strings.TrimSpace(req.ExternalRecipient)
-	legacy := strings.TrimSpace(req.Recipient)
+	var (
+		filled []addressingField
+		values []string
+	)
 
-	filled := 0
-	for _, v := range []string{login, external, legacy} {
-		if v != "" {
-			filled++
+	for _, field := range addressingFields {
+		value := strings.TrimSpace(field.value(req))
+		if value == "" {
+			continue
 		}
+		filled = append(filled, field)
+		values = append(values, value)
 	}
 
-	if filled > 1 {
-		return "", "", fmt.Errorf("укажите ровно одно поле получателя: login (пользователь портала) или external_recipient (адрес вне портала)")
+	if len(filled) > 1 {
+		names := make([]string, 0, len(filled))
+		for _, field := range filled {
+			names = append(names, field.name)
+		}
+		return "", "", fmt.Errorf("заполнено несколько полей получателя (%s): укажите ровно одно", strings.Join(names, ", "))
 	}
 
-	if filled == 0 {
+	if len(filled) == 0 {
 		// У системных телеграм-алертов получатель берётся из конфига сервиса
 		if req.Type == NotificationTypeTelegramSystem {
 			return recipientModeSystem, "", nil
@@ -272,19 +346,44 @@ func resolveRecipientMode(req *SingleNotificationRequest) (string, string, error
 		return "", "", fmt.Errorf("не указан получатель: заполните login или external_recipient")
 	}
 
-	if login != "" {
-		if strings.Contains(login, "@") {
-			return "", "", fmt.Errorf("поле login ожидает логин портала, а не адрес «%s»: для получателя вне портала используйте external_recipient", maskRecipient(login))
+	field, value := filled[0], values[0]
+	if field.validate != nil {
+		if err := field.validate(req, value); err != nil {
+			return "", "", err
 		}
-		if channelForType(req.Type) == "" {
-			return "", "", fmt.Errorf("адресация по login не поддержана для типа %s", req.Type)
-		}
-		return recipientModeLogin, login, nil
 	}
 
-	if external != "" {
-		return recipientModeExternal, external, nil
-	}
+	return field.mode, value, nil
+}
 
-	return recipientModeLegacy, legacy, nil
+// isDeprecatedMode сообщает, что уведомление адресовано устаревшим полем
+func isDeprecatedMode(mode string) bool {
+	for _, field := range addressingFields {
+		if field.mode == mode {
+			return field.deprecated
+		}
+	}
+	return false
+}
+
+// applyRecipient проставляет в уведомление поля адресации по разобранному режиму.
+// Для recipientModeLogin вызывающий обязан передать результат резолва.
+func applyRecipient(notification *Notification, mode, value string, resolved recipientResolution) {
+	switch mode {
+	case recipientModeLogin:
+		notification.RecipientLogin = value
+		if resolved.Found {
+			notification.Recipient = resolved.Address
+		} else {
+			// Адрес неизвестен, но получателя надо чем-то опознать в журнале
+			notification.Recipient = value
+		}
+	case recipientModeExternal:
+		notification.ExternalRecipient = value
+		notification.Recipient = value
+	case recipientModeSystem:
+		notification.Recipient = systemRecipientPlaceholder
+	default:
+		notification.Recipient = value
+	}
 }

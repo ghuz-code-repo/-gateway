@@ -266,6 +266,8 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 	if config.DebugMode && config.DebugEmail != "" {
 		actualRecipient = config.DebugEmail
 		subject = "[DEBUG] " + subject
+		log.Printf("🐞 DEBUG MODE: письмо #%d для %s перенаправлено на %s",
+			notification.ID, notificationTarget(notification), maskRecipient(actualRecipient))
 		if isHTML {
 			content = fmt.Sprintf("<p><b>Конечным получателем является:</b> %s</p><hr>%s", originalRecipient, content)
 		} else {
@@ -402,7 +404,7 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		return fmt.Errorf("SMTP data close error: %v", err)
 	}
 
-	log.Printf("✅ Email sent to %s (notification #%d)", maskRecipient(notification.Recipient), notification.ID)
+	log.Printf("✅ Email sent to %s (notification #%d)", maskRecipient(actualRecipient), notification.ID)
 	return nil
 }
 
@@ -493,7 +495,8 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		return fmt.Errorf("notification-bot error: %s", string(body))
 	}
 
-	log.Printf("✅ Telegram message sent to %s via notification-bot (notification #%d)", maskRecipient(chatIDStr), notification.ID)
+	log.Printf("✅ Telegram message sent to %s via notification-bot (notification #%d)",
+		maskRecipient(strconv.FormatInt(chatID, 10)), notification.ID)
 	return nil
 }
 
