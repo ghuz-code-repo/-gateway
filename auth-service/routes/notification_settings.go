@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -342,4 +343,58 @@ func updateAuthServiceEnvVars(settings NotificationSettings) {
 	os.Setenv("SMTP_AUTH_METHOD", settings.SMTPAuthMethod)
 
 	log.Printf("Updated auth-service environment variables for SMTP")
+}
+
+// --- Пер-канальные настройки уведомлений ---
+//
+// notification-service наружу не опубликован (в его compose нет проброса портов),
+// поэтому его собственная страница настроек недоступна из портала. Управление
+// каналами идёт через этот проброс: браузер администратора обращается к
+// auth-service, тот — во внутреннюю сеть с сервисным ключом.
+
+// channelNamePattern ограничивает имя канала: оно подставляется в путь запроса
+// к notification-service, и произвольная строка из URL там оказаться не должна.
+var channelNamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
+
+// proxyNotificationJSON выполняет запрос к notification-service и отдаёт ответ
+// как есть: коды и тела ошибок формирует он, дублировать их разбор незачем.
+func proxyNotificationJSON(c *gin.Context, method, path string, body []byte) {
+	resp, err := notificationServiceRequest(method, path, body)
+	if err != nil {
+		log.Printf("Notification service request failed (%s %s): %v", method, path, err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Сервис уведомлений недоступен"})
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read notification service response (%s %s): %v", method, path, err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Не удалось прочитать ответ сервиса уведомлений"})
+		return
+	}
+
+	c.Data(resp.StatusCode, "application/json; charset=utf-8", respBody)
+}
+
+// getNotificationChannels отдаёт конфиги каналов доставки вместе с состоянием очередей.
+func getNotificationChannels(c *gin.Context) {
+	proxyNotificationJSON(c, "GET", "/api/v1/channels", nil)
+}
+
+// updateNotificationChannel сохраняет настройки одного канала (частичное обновление).
+func updateNotificationChannel(c *gin.Context) {
+	channel := c.Param("channel")
+	if !channelNamePattern.MatchString(channel) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректное имя канала"})
+		return
+	}
+
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Не удалось прочитать тело запроса"})
+		return
+	}
+
+	proxyNotificationJSON(c, "POST", "/api/v1/channels/"+channel, body)
 }

@@ -166,6 +166,11 @@ func SetupAdminRoutes(router *gin.Engine) {
 	router.POST("/notification-settings", adminAuthRequired(), updateNotificationSettings)
 	router.POST("/notification-settings/test", adminAuthRequired(), testNotificationSettings)
 
+	// Пер-канальные лимиты, таймауты и приоритеты. notification-service наружу
+	// не опубликован, поэтому страница ходит к нему через этот проброс.
+	router.GET("/notification-settings/channels", adminAuthRequired(), getNotificationChannels)
+	router.POST("/notification-settings/channels/:channel", adminAuthRequired(), updateNotificationChannel)
+
 	// Role Management UI - REMOVED: External roles are now managed via /services/:serviceKey (External Roles tab)
 	// The /settings/roles section was redundant with the External Roles tab on service details page
 
