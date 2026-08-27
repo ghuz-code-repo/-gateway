@@ -24,12 +24,7 @@ func TestResolveRecipientMode(t *testing.T) {
 			wantMode: recipientModeExternal,
 			wantVal:  "client@mail.ru",
 		},
-		{
-			name:     "легаси-поле recipient",
-			req:      SingleNotificationRequest{Type: NotificationTypeEmail, Recipient: "old@mail.ru"},
-			wantMode: recipientModeLegacy,
-			wantVal:  "old@mail.ru",
-		},
+
 		{
 			name:     "системный алерт без получателя",
 			req:      SingleNotificationRequest{Type: NotificationTypeTelegramSystem},

@@ -1,14 +1,10 @@
 # 📱 Telegram Bot Integration Guide
 
-> ## ⚠️ Адресация получателя изменилась (август 2026)
->
-> Получатель задаётся **логином портала** в поле `login` — адрес доставки (chat_id, email,
-> телефон) резолвит auth-service. Получатель вне системы указывается полем
-> `external_recipient`. Поле `recipient` с сырым адресом — **устаревшее**: работает на
-> переходный период и пишет в лог `LEGACY RECIPIENT`.
->
-> Примеры ниже, где стоит `recipient`, показывают легаси-вызов. Актуальный контракт и коды
-> отказов: `GATEWAY_SERVICE_INTEGRATION_API.md`, раздел 6.
+**Адресация получателя.** Пользователя портала указывают полем `login` — адрес доставки
+(chat_id) определяет auth-service по привязке из личного кабинета. `external_recipient`
+нужен для получателей вне портала: chat_id канала (у канала он отрицательный) или
+telegram-ник. Заполняется ровно одно из двух.
+
 
 > ## ⚠️ ВАЖНО: архитектура изменена (июль 2026)
 >
@@ -100,7 +96,7 @@ curl -X POST http://notification-service:8082/api/v1/notifications \
   -H "Content-Type: application/json" \
   -d '{
     "type": "telegram",
-    "recipient": "123456789",
+    "external_recipient": "123456789",
     "subject": "Новое сообщение",
     "content": "Текст уведомления с поддержкой *Markdown*"
   }'
@@ -113,7 +109,7 @@ curl -X POST http://notification-service:8082/api/v1/notifications \
   -H "Content-Type: application/json" \
   -d '{
     "type": "telegram_system",
-    "recipient": "123456789",
+    "external_recipient": "123456789",
     "subject": "⚠️ Системный алерт",
     "content": "Сервис *auth-service* недоступен!\n\nВремя: 2025-10-14 19:45:00"
   }'
@@ -164,7 +160,7 @@ _курсив_
 ```json
 {
   "type": "telegram" | "telegram_system",
-  "recipient": "123456789",
+  "external_recipient": "123456789",
   "subject": "Заголовок (опционально)",
   "content": "Текст сообщения"
 }
@@ -189,13 +185,13 @@ _курсив_
   "notifications": [
     {
       "type": "telegram",
-      "recipient": "123456789",
+      "external_recipient": "123456789",
       "subject": "Уведомление 1",
       "content": "Текст 1"
     },
     {
       "type": "telegram_system",
-      "recipient": "987654321",
+      "external_recipient": "987654321",
       "subject": "Уведомление 2",
       "content": "Текст 2"
     }
@@ -212,7 +208,7 @@ _курсив_
 {
   "id": 42,
   "type": "telegram",
-  "recipient": "123456789",
+  "external_recipient": "123456789",
   "status": "sent",
   "attempts": 1,
   "sent_at": 1697312400
@@ -270,7 +266,7 @@ API защищён IP whitelist. Отправляйте запросы толь�
 ```json
 {
   "type": "telegram",
-  "recipient": "123456789",
+  "external_recipient": "123456789",
   "subject": "🎉 Добро пожаловать!",
   "content": "Спасибо за регистрацию!\n\nВаш аккаунт успешно создан."
 }
@@ -281,7 +277,7 @@ API защищён IP whitelist. Отправляйте запросы толь�
 ```json
 {
   "type": "telegram_system",
-  "recipient": "987654321",
+  "external_recipient": "987654321",
   "subject": "🚨 КРИТИЧЕСКАЯ ОШИБКА",
   "content": "*Сервис:* auth-service\n*Статус:* offline\n*Время:* 2025-10-14 19:45:00\n\n_Требуется немедленное вмешательство!_"
 }
@@ -294,17 +290,17 @@ API защищён IP whitelist. Отправляйте запросы толь�
   "notifications": [
     {
       "type": "telegram",
-      "recipient": "111111111",
+      "external_recipient": "111111111",
       "content": "Напоминание о встрече в 15:00"
     },
     {
       "type": "telegram",
-      "recipient": "222222222",
+      "external_recipient": "222222222",
       "content": "Напоминание о встрече в 15:00"
     },
     {
       "type": "telegram",
-      "recipient": "333333333",
+      "external_recipient": "333333333",
       "content": "Напоминание о встрече в 15:00"
     }
   ]

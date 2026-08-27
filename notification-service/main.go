@@ -132,11 +132,9 @@ type SingleNotificationRequest struct {
 
 	// Login — логин пользователя портала; адрес доставки определяет auth-service.
 	// ExternalRecipient — получатель, которого нет в системе (внешний email/телефон/chat_id).
-	// Recipient — устаревшее поле с сырым адресом, оставлено на переходный период.
-	// Заполнять нужно ровно одно из трёх.
+	// Заполнять нужно ровно одно из двух.
 	Login              string `json:"login,omitempty"`
 	ExternalRecipient  string `json:"external_recipient,omitempty"`
-	Recipient          string `json:"recipient,omitempty"`
 	Subject            string `json:"subject,omitempty"`
 	Content            string `json:"content" binding:"required"`
 	ContentType        string `json:"content_type,omitempty" binding:"omitempty,oneof=text/plain text/html"`
@@ -540,9 +538,6 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 			channel := channelForType(req.Notifications[i].Type)
 			loginsByChannel[channel] = append(loginsByChannel[channel], value)
 		}
-		if isDeprecatedMode(mode) {
-			logLegacyRecipient(serviceName, req.Notifications[i].Type)
-		}
 	}
 
 	// Один резолв на канал вместо запроса к auth-service на каждое уведомление пачки
@@ -693,9 +688,6 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 		}
 	}
 
-	if isDeprecatedMode(mode) {
-		logLegacyRecipient(serviceName, req.Type)
-	}
 	applyRecipient(&notification, mode, value, resolved)
 
 	// Handle attachment if present

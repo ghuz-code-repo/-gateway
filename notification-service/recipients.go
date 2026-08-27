@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -16,7 +15,6 @@ import (
 const (
 	recipientModeLogin    = "login"    // login: логин портала, адрес резолвит auth-service
 	recipientModeExternal = "external" // external_recipient: получатель вне портала
-	recipientModeLegacy   = "legacy"   // recipient: устаревшее поле, прежнее поведение
 	recipientModeSystem   = "system"   // telegram_system: получатель берётся из конфига
 )
 
@@ -39,12 +37,6 @@ const (
 // systemRecipientPlaceholder попадает в колонку recipient системных телеграм-алертов:
 // фактический chat_id берётся из конфига сервиса в момент отправки, а колонка NOT NULL
 const systemRecipientPlaceholder = "system"
-
-// logLegacyRecipient помечает вызовы через устаревшее поле recipient.
-// По этим строкам видно, какие сервисы ещё не переведены на login / external_recipient.
-func logLegacyRecipient(serviceName string, t NotificationType) {
-	log.Printf("⚠️ LEGACY RECIPIENT: сервис «%s» шлёт %s через устаревшее поле recipient — переведите на login / external_recipient", serviceName, t)
-}
 
 // recipientResolution — ответ auth-service по одному логину
 type recipientResolution struct {
@@ -276,8 +268,6 @@ type addressingField struct {
 	value func(req *SingleNotificationRequest) string
 	// validate проверяет пару «значение + тип уведомления»; nil = проверок нет
 	validate func(req *SingleNotificationRequest, value string) error
-	// deprecated — поле оставлено на переходный период, вызов пишется в лог
-	deprecated bool
 }
 
 // addressingFields перечислены в порядке предпочтения: при (недопустимом) заполнении
@@ -303,12 +293,6 @@ var addressingFields = []addressingField{
 		name:  "external_recipient",
 		mode:  recipientModeExternal,
 		value: func(req *SingleNotificationRequest) string { return req.ExternalRecipient },
-	},
-	{
-		name:       "recipient",
-		mode:       recipientModeLegacy,
-		value:      func(req *SingleNotificationRequest) string { return req.Recipient },
-		deprecated: true,
 	},
 }
 
@@ -356,16 +340,6 @@ func resolveRecipientMode(req *SingleNotificationRequest) (string, string, error
 	return field.mode, value, nil
 }
 
-// isDeprecatedMode сообщает, что уведомление адресовано устаревшим полем
-func isDeprecatedMode(mode string) bool {
-	for _, field := range addressingFields {
-		if field.mode == mode {
-			return field.deprecated
-		}
-	}
-	return false
-}
-
 // applyRecipient проставляет в уведомление поля адресации по разобранному режиму.
 // Для recipientModeLogin вызывающий обязан передать результат резолва.
 func applyRecipient(notification *Notification, mode, value string, resolved recipientResolution) {
@@ -381,9 +355,7 @@ func applyRecipient(notification *Notification, mode, value string, resolved rec
 	case recipientModeExternal:
 		notification.ExternalRecipient = value
 		notification.Recipient = value
-	case recipientModeSystem:
+	default: // recipientModeSystem
 		notification.Recipient = systemRecipientPlaceholder
-	default:
-		notification.Recipient = value
 	}
 }

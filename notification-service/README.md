@@ -2,16 +2,6 @@
 
 Микросервис для отправки уведомлений, поддерживающий email, SMS и push-уведомления.
 
-> ## ⚠️ Адресация получателя изменилась (август 2026)
->
-> Получатель задаётся **логином портала** в поле `login` — адрес доставки (chat_id, email,
-> телефон) резолвит auth-service. Получатель вне системы указывается полем
-> `external_recipient`. Поле `recipient` с сырым адресом — **устаревшее**: работает на
-> переходный период и пишет в лог `LEGACY RECIPIENT`.
->
-> Примеры ниже, где стоит `recipient`, показывают легаси-вызов. Актуальный контракт и коды
-> отказов: `GATEWAY_SERVICE_INTEGRATION_API.md`, раздел 6.
-
 ## Модель адресации
 
 Получателя описывает **одно именованное поле** запроса. Какое именно — определяет
@@ -21,7 +11,6 @@
 |---|---|---|
 | `login` | `login` | спрашивает адрес у auth-service (`POST /api/recipients/resolve`), кэширует на 10 мин |
 | `external_recipient` | `external` | берёт значение как есть |
-| `recipient` | `legacy` | то же, но пишет `LEGACY RECIPIENT` в лог; поле удаляется после перевода всех сервисов |
 | — (только `telegram_system`) | `system` | подставляет `system_telegram_chat_id` из конфига |
 
 Заполнено должно быть ровно одно поле. Два сразу или ни одного — `400`; угадывать по виду
@@ -70,7 +59,7 @@ Content-Type: application/json
   "notifications": [
     {
       "type": "email",
-      "recipient": "user@example.com",
+      "login": "ivanov",
       "subject": "Test Subject",
       "content": "Test content"
     }
@@ -85,7 +74,7 @@ Content-Type: application/json
 
 {
   "type": "email",
-  "recipient": "user@example.com",
+  "login": "ivanov",
   "subject": "Test Subject",
   "content": "Test content"
 }

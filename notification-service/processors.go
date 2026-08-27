@@ -438,8 +438,10 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 	chatIDStr = strings.TrimSpace(chatIDStr)
 	chatID, err := strconv.ParseInt(chatIDStr, 10, 64)
 	if err != nil {
-		// Получатель задан username'ом — резолвим в chat_id через auth-service.
-		// Работает для аккаунтов, привязавших Telegram в личном кабинете портала.
+		// Не число — значит telegram-ник. Такое приходит из external_recipient и из
+		// system_telegram_username в конфиге системных алертов; для пользователей
+		// портала правильный путь — поле login, оно резолвится на приёме запроса.
+		// Резолв ника работает только для привязавших Telegram в личном кабинете.
 		resolved, rerr := ns.resolveTelegramChatID(chatIDStr)
 		if rerr != nil {
 			return fmt.Errorf("получатель «%s»: %v", chatIDStr, rerr)

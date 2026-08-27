@@ -204,12 +204,6 @@ func TestApplyRecipient(t *testing.T) {
 			mode:        recipientModeSystem,
 			wantAddress: systemRecipientPlaceholder,
 		},
-		{
-			name:        "легаси-поле",
-			mode:        recipientModeLegacy,
-			value:       "old@gh.uz",
-			wantAddress: "old@gh.uz",
-		},
 	}
 
 	for _, tc := range cases {
@@ -227,16 +221,5 @@ func TestApplyRecipient(t *testing.T) {
 				t.Errorf("ExternalRecipient = %q, ожидался %q", n.ExternalRecipient, tc.wantExternal)
 			}
 		})
-	}
-}
-
-func TestIsDeprecatedMode(t *testing.T) {
-	if !isDeprecatedMode(recipientModeLegacy) {
-		t.Error("recipient — устаревшее поле, должно помечаться")
-	}
-	for _, mode := range []string{recipientModeLogin, recipientModeExternal, recipientModeSystem} {
-		if isDeprecatedMode(mode) {
-			t.Errorf("режим %s помечен устаревшим, хотя не должен", mode)
-		}
 	}
 }

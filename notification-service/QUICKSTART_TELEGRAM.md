@@ -1,14 +1,10 @@
 # 🚀 Быстрый старт: Telegram Integration
 
-> ## ⚠️ Адресация получателя изменилась (август 2026)
->
-> Получатель задаётся **логином портала** в поле `login` — адрес доставки (chat_id, email,
-> телефон) резолвит auth-service. Получатель вне системы указывается полем
-> `external_recipient`. Поле `recipient` с сырым адресом — **устаревшее**: работает на
-> переходный период и пишет в лог `LEGACY RECIPIENT`.
->
-> Примеры ниже, где стоит `recipient`, показывают легаси-вызов. Актуальный контракт и коды
-> отказов: `GATEWAY_SERVICE_INTEGRATION_API.md`, раздел 6.
+**Адресация получателя.** Пользователя портала указывают полем `login` — адрес доставки
+(chat_id) определяет auth-service по привязке из личного кабинета. `external_recipient`
+нужен для получателей вне портала: chat_id канала (у канала он отрицательный) или
+telegram-ник. Заполняется ровно одно из двух.
+
 
 ## 📱 Два бота в одном сервисе!
 
@@ -81,7 +77,7 @@ curl -X POST http://notification-service:8082/api/v1/notifications \
   -H "Content-Type: application/json" \
   -d '{
     "type": "telegram",
-    "recipient": "123456789",
+    "external_recipient": "123456789",
     "subject": "Привет!",
     "content": "Тестовое сообщение"
   }'
@@ -94,7 +90,7 @@ curl -X POST http://notification-service:8082/api/v1/notifications \
   -H "Content-Type: application/json" \
   -d '{
     "type": "telegram_system",
-    "recipient": "123456789",
+    "external_recipient": "123456789",
     "subject": "⚠️ Алерт!",
     "content": "Сервис упал!"
   }'
