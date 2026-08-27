@@ -1,9 +1,12 @@
 package main
 
 import (
+	"errors"
 	"log"
+	"math"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +28,11 @@ func main() {
 		authServiceURL = "http://auth-service:80"
 	}
 
-	bot := NewTelegramBot(botToken)
+	// Лимиты Telegram соблюдаются здесь: через этого бота шлют и
+	// notification-service, и auth-service, и сам цикл входящих обновлений —
+	// ни один из них не видит трафик остальных
+	limiter := NewSendLimiter()
+	bot := NewTelegramBot(botToken, limiter)
 	authClient := NewAuthClient(authServiceURL, apiKey)
 
 	// Verify bot token on startup
@@ -96,6 +103,24 @@ func sendMessageHandler(bot *TelegramBot) gin.HandlerFunc {
 
 		messageID, err := bot.SendMessage(req.ChatID, req.Text, req.ParseMode, req.Buttons)
 		if err != nil {
+			// Отказ по темпу отдаём как 429 с точным сроком ожидания: вызывающий
+			// сервис должен вернуть сообщение в очередь, а не считать его
+			// проваленным и не подбирать паузу наугад
+			var rl *RateLimitedError
+			if errors.As(err, &rl) {
+				retryAfter := int(math.Ceil(rl.RetryAfter.Seconds()))
+				if retryAfter < 1 {
+					retryAfter = 1
+				}
+				log.Printf("WARNING: rate limited for chat %d: %v", req.ChatID, err)
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+				c.JSON(http.StatusTooManyRequests, gin.H{
+					"error":       err.Error(),
+					"retry_after": retryAfter,
+				})
+				return
+			}
+
 			log.Printf("ERROR: failed to send message to chat %d: %v", req.ChatID, err)
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return

@@ -234,6 +234,9 @@ func (ns *NotificationService) sendSecurityAlert(subject, content string) {
 			Recipient: emailRecipient,
 			Subject:   subject,
 			Content:   body,
+			// Алерт о компрометации бесполезен, если приходит после массовой
+			// рассылки: он идёт приоритетной полосой
+			Priority: priorityHigh,
 		})
 	}
 
@@ -247,6 +250,7 @@ func (ns *NotificationService) sendSecurityAlert(subject, content string) {
 			Recipient: telegramRecipient,
 			Subject:   subject,
 			Content:   body,
+			Priority:  priorityHigh,
 		})
 	}
 
@@ -261,13 +265,9 @@ func (ns *NotificationService) sendSecurityAlert(subject, content string) {
 			log.Printf("❌ Failed to persist security alert notification: %v", err)
 			continue
 		}
-		ns.wg.Add(1)
-		go func(n *Notification) {
-			defer ns.wg.Done()
-			ns.workerSem <- struct{}{}
-			defer func() { <-ns.workerSem }()
-			ns.processNotification(n)
-		}(n)
+		// Алерт уходит в очередь своего канала на общих основаниях: лимит темпа
+		// установлен провайдером, и системное сообщение его не отменяет.
+		ns.wakeForType(n.Type)
 	}
 	log.Printf("🛡️ Security alert queued (%d notification(s)): %s", len(notifications), subject)
 }

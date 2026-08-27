@@ -1,10 +1,19 @@
 package main
 
+// processors.go — собственно отправка по каналам.
+//
+// Темп, повторы и очередь живут в limiter.go / dispatcher.go; здесь остаётся
+// только «как положить сообщение в провайдера» и как получить от него внятную
+// ошибку. Каждая отправка ограничена по времени: и установка соединения, и весь
+// обмен целиком — таймауты берутся из конфига своего канала.
+
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -20,199 +29,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// channelGroup maps a notification type to its throttle group.
-// telegram и telegram_system делят один лимит (общий Telegram Bot API).
-func channelGroup(t NotificationType) string {
-	switch t {
-	case NotificationTypeTelegram, NotificationTypeTelegramSystem:
-		return "telegram"
-	case NotificationTypeSMS:
-		return "sms"
-	case NotificationTypePush:
-		return "push"
-	default:
-		return "email"
-	}
+// rateLimitError — отказ провайдера по темпу с названным им сроком ожидания.
+// Отдельный тип нужен, чтобы не выуживать число из текста ошибки.
+type rateLimitError struct {
+	msg        string
+	retryAfter time.Duration
 }
 
-// channelDelay returns the configured min interval for a channel group.
-// 0 => throttling disabled for that channel (send immediately).
-func (ns *NotificationService) channelDelay(group string, config NotificationConfig) time.Duration {
-	ms := config.DelayBetweenMessagesMS
-	if group == "telegram" {
-		ms = config.TelegramDelayBetweenMessagesMS
+func (e *rateLimitError) Error() string { return e.msg }
+
+// parseTelegramRetryAfter достаёт срок ожидания, если провайдер его назвал.
+func parseTelegramRetryAfter(err error) (time.Duration, bool) {
+	var rl *rateLimitError
+	if errors.As(err, &rl) && rl.retryAfter > 0 {
+		return rl.retryAfter, true
 	}
-	return time.Duration(ms) * time.Millisecond
-}
-
-// waitForSendSlot enforces a per-channel minimum interval between sends.
-// Channels are independent: a slow email send never delays a telegram send.
-// delay <= 0 => no throttle (instant).
-func (ns *NotificationService) waitForSendSlot(t NotificationType) {
-	group := channelGroup(t)
-	delay := ns.channelDelay(group, ns.getConfigFromDB())
-	if delay <= 0 {
-		return
-	}
-
-	gate := ns.sendGates[group]
-	if gate == nil {
-		return
-	}
-
-	gate.mu.Lock()
-	defer gate.mu.Unlock()
-
-	if !gate.last.IsZero() {
-		if since := time.Since(gate.last); since < delay {
-			time.Sleep(delay - since)
-		}
-	}
-	gate.last = time.Now()
-}
-
-// processBatch processes all notifications in a batch
-func (ns *NotificationService) processBatch(batchID string) {
-	log.Printf("Processing batch: %s", batchID)
-
-	// Get batch
-	var batch NotificationBatch
-	if err := ns.db.First(&batch, "id = ?", batchID).Error; err != nil {
-		log.Printf("Failed to get batch %s: %v", batchID, err)
-		return
-	}
-
-	// Get notifications for this batch
-	var notifications []Notification
-	if err := ns.db.Where("batch_id = ? AND status = ?", batchID, StatusPending).Find(&notifications).Error; err != nil {
-		log.Printf("Failed to get notifications for batch %s: %v", batchID, err)
-		return
-	}
-
-	// Get current config from database
-	config := ns.getConfigFromDB()
-
-	// Process notifications with rate limiting
-	batchSize := config.BatchSize
-	delayBetweenBatches := time.Duration(config.DelayBetweenBatchesMS) * time.Millisecond
-
-	for i := 0; i < len(notifications); i += batchSize {
-		end := i + batchSize
-		if end > len(notifications) {
-			end = len(notifications)
-		}
-
-		// Process batch of notifications
-		// Глобальная задержка применяется автоматически через waitForSendSlot()
-		for j := i; j < end; j++ {
-			ns.processNotification(&notifications[j])
-		}
-
-		// Update batch statistics
-		ns.updateBatchStats(batchID)
-
-		// Wait before next batch (except for the last one)
-		if end < len(notifications) {
-			time.Sleep(delayBetweenBatches)
-		}
-	}
-
-	// Final update of batch status
-	ns.updateBatchStats(batchID)
-
-	// Mark batch as completed
-	ns.db.Model(&batch).Where("id = ?", batchID).Update("status", "completed")
-
-	log.Printf("Batch %s processing completed", batchID)
-}
-
-// processNotification processes a single notification
-func (ns *NotificationService) processNotification(notification *Notification) {
-	// Update status to sending
-	ns.db.Model(notification).Updates(Notification{
-		Status: StatusSending,
-	})
-
-	var err error
-	config := ns.getConfigFromDB()
-	maxAttempts := config.MaxRetryAttempts
-	const maxRateLimitRetries = 10
-	rateLimitRetries := 0
-
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		notification.Attempts = attempt
-
-		// Применяем глобальную задержку перед отправкой
-		ns.waitForSendSlot(notification.Type)
-
-		switch notification.Type {
-		case NotificationTypeEmail:
-			err = ns.sendEmail(notification)
-		case NotificationTypeTelegram:
-			err = ns.sendTelegram(notification, false) // Обычный бот
-		case NotificationTypeTelegramSystem:
-			err = ns.sendTelegram(notification, true) // Системный бот
-		case NotificationTypeSMS:
-			err = ns.sendSMS(notification)
-		case NotificationTypePush:
-			err = ns.sendPush(notification)
-		default:
-			err = fmt.Errorf("неподдерживаемый тип уведомления: %s", notification.Type)
-		}
-
-		if err == nil {
-			// Success
-			now := time.Now().Unix()
-			ns.db.Model(notification).Updates(Notification{
-				Status:   StatusSent,
-				SentAt:   &now,
-				Attempts: attempt,
-			})
-			log.Printf("Notification %d sent successfully on attempt %d", notification.ID, attempt)
-			return
-		}
-
-		// Check if error is rate-limit (Telegram 429 Too Many Requests)
-		if isRateLimitError(err) {
-			rateLimitRetries++
-			if rateLimitRetries > maxRateLimitRetries {
-				log.Printf("❌ Rate limit retry limit (%d) exceeded for notification %d", maxRateLimitRetries, notification.ID)
-				break
-			}
-			log.Printf("⏳ Rate limit exceeded for notification %d (retry %d/%d), waiting 30 seconds...", notification.ID, rateLimitRetries, maxRateLimitRetries)
-			time.Sleep(30 * time.Second)
-			// Не считаем попытку проваленной, пробуем снова
-			attempt--
-			continue
-		}
-
-		// Check if error is permanent
-		if isPermanentError(err) {
-			log.Printf("Permanent error for notification %d: %v", notification.ID, err)
-			break
-		}
-
-		log.Printf("Attempt %d failed for notification %d: %v", attempt, notification.ID, err)
-
-		// Wait before retry (exponential backoff)
-		if attempt < maxAttempts {
-			waitTime := time.Duration(attempt*attempt) * time.Second
-			time.Sleep(waitTime)
-		}
-	}
-
-	// All attempts failed
-	failureCode := failureSendFailed
-	if notification.FailureCode != "" {
-		failureCode = notification.FailureCode
-	}
-	ns.db.Model(notification).Updates(Notification{
-		Status:      StatusFailed,
-		LastError:   err.Error(),
-		FailureCode: failureCode,
-		Attempts:    maxAttempts,
-	})
-	log.Printf("Notification %d failed after %d attempts: %v", notification.ID, maxAttempts, err)
+	return 0, false
 }
 
 // encodeRFC2047 кодирует строку в формат RFC 2047 для email заголовков (UTF-8)
@@ -231,27 +63,125 @@ func encodeQuotedPrintable(s string) string {
 	return buf.String()
 }
 
-// sendEmail sends an email notification
-func (ns *NotificationService) sendEmail(notification *Notification) error {
+// buildEmailMessage собирает тело письма (с вложением или без).
+func buildEmailMessage(from, recipient, subject, content, contentTypeHeader string, n *Notification) string {
+	if n.AttachmentFilename != "" && len(n.AttachmentContent) > 0 {
+		boundary := "----=_Part_" + fmt.Sprintf("%d", time.Now().UnixNano())
+		headers := []string{
+			"From: " + from,
+			"To: " + recipient,
+			"Subject: " + subject,
+			"MIME-Version: 1.0",
+			"Content-Type: multipart/mixed; boundary=\"" + boundary + "\"",
+			"",
+		}
+		textPart := []string{
+			"--" + boundary,
+			"Content-Type: " + contentTypeHeader,
+			"Content-Transfer-Encoding: 8bit",
+			"",
+			content,
+			"",
+		}
+		attachmentPart := []string{
+			"--" + boundary,
+			"Content-Type: application/octet-stream; name=\"" + n.AttachmentFilename + "\"",
+			"Content-Transfer-Encoding: base64",
+			"Content-Disposition: attachment; filename=\"" + n.AttachmentFilename + "\"",
+			"",
+			base64.StdEncoding.EncodeToString(n.AttachmentContent),
+			"",
+			"--" + boundary + "--",
+		}
+		return strings.Join(headers, "\r\n") + "\r\n" +
+			strings.Join(textPart, "\r\n") + "\r\n" +
+			strings.Join(attachmentPart, "\r\n")
+	}
+
+	message := []string{
+		"From: " + from,
+		"To: " + recipient,
+		"Subject: " + subject,
+		"MIME-Version: 1.0",
+		"Content-Type: " + contentTypeHeader,
+		"",
+		content,
+	}
+	return strings.Join(message, "\r\n")
+}
+
+// dialSMTP открывает соединение с почтовым сервером в рамках таймаутов канала.
+//
+// Раньше здесь был smtp.Dial без дедлайна: недоступный почтовый сервер держал
+// отправку до таймаута TCP в ОС (минуты), занимая воркер канала. Теперь ограничены
+// и установка соединения, и каждая команда протокола.
+func dialSMTP(ctx context.Context, cfg EmailConfig, chCfg ChannelConfig) (*smtp.Client, error) {
+	addr := net.JoinHostPort(cfg.Host, cfg.Port)
+
+	deadline := time.Now().Add(chCfg.sendTimeout())
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+
+	dialer := &net.Dialer{Timeout: chCfg.connectTimeout()}
+
+	var conn net.Conn
+	var err error
+	if cfg.UseTLS {
+		tlsDialer := &tls.Dialer{NetDialer: dialer, Config: getTLSConfig(cfg.Host)}
+		conn, err = tlsDialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return nil, fmt.Errorf("TLS dial error: %v", err)
+		}
+	} else {
+		conn, err = dialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return nil, fmt.Errorf("SMTP dial error: %v", err)
+		}
+	}
+
+	// Дедлайн на сокете покрывает все последующие команды: сервер, замолчавший
+	// на середине диалога, не подвесит отправку.
+	if err := conn.SetDeadline(deadline); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("SMTP deadline error: %v", err)
+	}
+
+	client, err := smtp.NewClient(conn, cfg.Host)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("SMTP client error: %v", err)
+	}
+
+	if !cfg.UseTLS {
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			if err := client.StartTLS(getTLSConfig(cfg.Host)); err != nil {
+				client.Close()
+				return nil, fmt.Errorf("start TLS error: %v", err)
+			}
+		}
+	}
+
+	return client, nil
+}
+
+// sendEmail отправляет письмо в рамках таймаутов канала email.
+func (ns *NotificationService) sendEmail(ctx context.Context, notification *Notification, chCfg ChannelConfig) error {
 	config := ns.getEmailConfig()
 
-	// Validate configuration
 	if config.Host == "" || config.Port == "" {
 		log.Printf("❌ SMTP configuration incomplete: host=%s, port=%s", config.Host, config.Port)
 		return fmt.Errorf("SMTP configuration not complete")
 	}
-
 	if config.UseAuth && (config.Username == "" || config.Password == "") {
 		return fmt.Errorf("SMTP authentication required but credentials not provided")
 	}
 
-	// Prepare recipient and content
 	originalRecipient := notification.Recipient
 	actualRecipient := notification.Recipient
 	subject := notification.Subject
 	content := notification.Content
 
-	// Resolve content type (default text/plain, html opt-in)
 	contentType := strings.ToLower(strings.TrimSpace(notification.ContentType))
 	if contentType == "" {
 		contentType = "text/plain"
@@ -262,7 +192,6 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		contentTypeHeader = "text/html; charset=UTF-8"
 	}
 
-	// Apply debug mode if enabled
 	if config.DebugMode && config.DebugEmail != "" {
 		actualRecipient = config.DebugEmail
 		subject = "[DEBUG] " + subject
@@ -275,97 +204,17 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		}
 	}
 
-	// Build email message
-	var messageBody string
+	messageBody := buildEmailMessage(config.From, actualRecipient, subject, content, contentTypeHeader, notification)
 
-	if notification.AttachmentFilename != "" && len(notification.AttachmentContent) > 0 {
-		// Email with attachment - use MIME multipart
-		boundary := "----=_Part_" + fmt.Sprintf("%d", time.Now().Unix())
-		headers := []string{
-			"From: " + config.From,
-			"To: " + actualRecipient,
-			"Subject: " + subject,
-			"MIME-Version: 1.0",
-			"Content-Type: multipart/mixed; boundary=\"" + boundary + "\"",
-			"",
-		}
-
-		// Text part
-		textPart := []string{
-			"--" + boundary,
-			"Content-Type: " + contentTypeHeader,
-			"Content-Transfer-Encoding: 8bit",
-			"",
-			content,
-			"",
-		}
-
-		// Attachment part
-		attachmentEncoded := base64.StdEncoding.EncodeToString(notification.AttachmentContent)
-		attachmentPart := []string{
-			"--" + boundary,
-			"Content-Type: application/octet-stream; name=\"" + notification.AttachmentFilename + "\"",
-			"Content-Transfer-Encoding: base64",
-			"Content-Disposition: attachment; filename=\"" + notification.AttachmentFilename + "\"",
-			"",
-			attachmentEncoded,
-			"",
-			"--" + boundary + "--",
-		}
-
-		messageBody = strings.Join(headers, "\r\n") + "\r\n" + strings.Join(textPart, "\r\n") + "\r\n" + strings.Join(attachmentPart, "\r\n")
-	} else {
-		// Simple email without attachment
-		message := []string{
-			"From: " + config.From,
-			"To: " + actualRecipient,
-			"Subject: " + subject,
-			"MIME-Version: 1.0",
-			"Content-Type: " + contentTypeHeader,
-			"",
-			content,
-		}
-		messageBody = strings.Join(message, "\r\n")
+	client, err := dialSMTP(ctx, config, chCfg)
+	if err != nil {
+		return err
 	}
-	addr := fmt.Sprintf("%s:%s", config.Host, config.Port)
+	defer client.Close()
 
-	// Create SMTP client
-	var client *smtp.Client
-	var err error
-
-	if config.UseTLS {
-		tlsConfig := getTLSConfig(config.Host)
-		conn, err := tls.Dial("tcp", addr, tlsConfig)
-		if err != nil {
-			return fmt.Errorf("TLS dial error: %v", err)
-		}
-
-		client, err = smtp.NewClient(conn, config.Host)
-		if err != nil {
-			return fmt.Errorf("SMTP client error: %v", err)
-		}
-	} else {
-		client, err = smtp.Dial(addr)
-		if err != nil {
-			return fmt.Errorf("SMTP dial error: %v", err)
-		}
-
-		// Start TLS if available
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			tlsConfig := getTLSConfig(config.Host)
-			if err = client.StartTLS(tlsConfig); err != nil {
-				return fmt.Errorf("start TLS error: %v", err)
-			}
-		}
-	}
-	defer client.Quit()
-
-	// Authenticate if needed
 	if config.UseAuth {
 		var auth smtp.Auth
 		switch strings.ToLower(config.AuthMethod) {
-		case "plain":
-			auth = smtp.PlainAuth("", config.Username, config.Password, config.Host)
 		case "login":
 			auth = LoginAuth(config.Username, config.Password)
 		case "crammd5":
@@ -379,29 +228,29 @@ func (ns *NotificationService) sendEmail(notification *Notification) error {
 		}
 	}
 
-	// Set sender and recipient
 	if err = client.Mail(config.From); err != nil {
 		return fmt.Errorf("SMTP MAIL command error: %v", err)
 	}
-
 	if err = client.Rcpt(actualRecipient); err != nil {
 		return fmt.Errorf("SMTP RCPT command error: %v", err)
 	}
 
-	// Send email body
 	wc, err := client.Data()
 	if err != nil {
 		return fmt.Errorf("SMTP DATA command error: %v", err)
 	}
-
-	_, err = fmt.Fprint(wc, messageBody)
-	if err != nil {
+	if _, err = fmt.Fprint(wc, messageBody); err != nil {
+		wc.Close()
 		return fmt.Errorf("SMTP body write error: %v", err)
 	}
-
-	err = wc.Close()
-	if err != nil {
+	if err = wc.Close(); err != nil {
 		return fmt.Errorf("SMTP data close error: %v", err)
+	}
+
+	// Ошибку QUIT не поднимаем: письмо уже принято сервером,
+	// повтор из-за неудачного прощания привёл бы к дублю.
+	if err := client.Quit(); err != nil {
+		log.Printf("⚠️ SMTP QUIT после успешной отправки #%d: %v", notification.ID, err)
 	}
 
 	log.Printf("✅ Email sent to %s (notification #%d)", maskRecipient(actualRecipient), notification.ID)
@@ -417,10 +266,16 @@ func getNotificationBotURL() string {
 	return url
 }
 
-// sendTelegram sends a Telegram notification through the notification-bot service.
-// All telegram/telegram_system messages go through the single portal bot
-// (@notification_analytics_gh_uz_bot); own bot tokens are no longer used.
-func (ns *NotificationService) sendTelegram(notification *Notification, isSystemBot bool) error {
+// botErrorResponse — ответ notification-bot об ошибке. retry_after проброшен
+// из ответа Telegram, чтобы ждать ровно столько, сколько требует Telegram.
+type botErrorResponse struct {
+	Error      string `json:"error"`
+	RetryAfter int    `json:"retry_after"`
+}
+
+// sendTelegram отправляет сообщение через сервис notification-bot.
+// Все telegram/telegram_system идут через единого бота портала.
+func (ns *NotificationService) sendTelegram(ctx context.Context, notification *Notification, isSystemBot bool, chCfg ChannelConfig) error {
 	config := ns.getConfigFromDB()
 
 	// NOTE: флаги telegram_enabled / telegram_system_enabled больше НЕ гейтят
@@ -452,25 +307,22 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		}
 	}
 
-	// Prepare message text
 	messageText := notification.Content
 	if notification.Subject != "" {
 		messageText = fmt.Sprintf("*%s*\n\n%s", notification.Subject, notification.Content)
 	}
 
-	// Send through notification-bot internal API
 	payload := map[string]interface{}{
 		"chat_id":    chatID,
 		"text":       messageText,
 		"parse_mode": "Markdown",
 	}
-
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", getNotificationBotURL()+"/api/v1/send", bytes.NewBuffer(payloadBytes))
+	req, err := http.NewRequestWithContext(ctx, "POST", getNotificationBotURL()+"/api/v1/send", bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create notification-bot request: %v", err)
 	}
@@ -479,7 +331,7 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		req.Header.Set("X-API-Key", apiKey)
 	}
 
-	resp, err := ns.httpClient.Do(req)
+	resp, err := ns.channelHTTPClient(chCfg).Do(req)
 	if err != nil {
 		return fmt.Errorf("notification-bot request failed: %v", err)
 	}
@@ -490,11 +342,19 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 		return fmt.Errorf("failed to read notification-bot response: %v", err)
 	}
 
-	// notification-bot returns 200 on success and forwards the Telegram API
-	// error text otherwise (rate-limit detection relies on that text)
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("❌ notification-bot error (status %d): %s", resp.StatusCode, string(body))
-		sendErr := fmt.Errorf("notification-bot error: %s", string(body))
+
+		var botErr botErrorResponse
+		_ = json.Unmarshal(body, &botErr)
+
+		sendErr := error(fmt.Errorf("notification-bot error: %s", string(body)))
+		if resp.StatusCode == http.StatusTooManyRequests || botErr.RetryAfter > 0 {
+			sendErr = &rateLimitError{
+				msg:        fmt.Sprintf("notification-bot rate limit: %s", string(body)),
+				retryAfter: time.Duration(botErr.RetryAfter) * time.Second,
+			}
+		}
 
 		// Пользователь заблокировал бота (или чат исчез) — привязка мертва.
 		// Пока chat_id остаётся в профиле, каждое следующее уведомление снова
@@ -513,51 +373,44 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 	return nil
 }
 
-// sendSMS sends an SMS notification (placeholder)
-func (ns *NotificationService) sendSMS(notification *Notification) error {
-	// TODO: Implement SMS sending
-	log.Printf("SMS sending not implemented yet for notification %d", notification.ID)
-	return fmt.Errorf("отправка SMS не реализована")
-}
-
-// sendPush sends a push notification (placeholder)
-func (ns *NotificationService) sendPush(notification *Notification) error {
-	// TODO: Implement push notification sending
-	log.Printf("Push notification sending not implemented yet for notification %d", notification.ID)
-	return fmt.Errorf("отправка push-уведомлений не реализована")
-}
-
-// updateBatchStats updates batch statistics
+// updateBatchStats пересчитывает статистику пачки и закрывает её, когда все
+// уведомления дошли до конечного статуса. Уведомления пачки расходятся по
+// каналам с разным темпом, поэтому «пачка завершена» определяется по счётчикам,
+// а не по окончанию цикла обработки.
 func (ns *NotificationService) updateBatchStats(batchID string) {
 	var stats struct {
-		ProcessedCount int64 `json:"processed_count"`
-		SuccessCount   int64 `json:"success_count"`
-		FailedCount    int64 `json:"failed_count"`
+		ProcessedCount int64
+		SuccessCount   int64
+		FailedCount    int64
 	}
 
-	// Count processed notifications
 	ns.db.Model(&Notification{}).
 		Where("batch_id = ? AND status IN (?)", batchID, []string{string(StatusSent), string(StatusFailed)}).
 		Count(&stats.ProcessedCount)
 
-	// Count successful notifications
 	ns.db.Model(&Notification{}).
 		Where("batch_id = ? AND status = ?", batchID, StatusSent).
 		Count(&stats.SuccessCount)
 
-	// Count failed notifications
 	ns.db.Model(&Notification{}).
 		Where("batch_id = ? AND status = ?", batchID, StatusFailed).
 		Count(&stats.FailedCount)
 
-	// Update batch
-	ns.db.Model(&NotificationBatch{}).
-		Where("id = ?", batchID).
-		Updates(NotificationBatch{
-			ProcessedCount: int(stats.ProcessedCount),
-			SuccessCount:   int(stats.SuccessCount),
-			FailedCount:    int(stats.FailedCount),
-		})
+	updates := map[string]interface{}{
+		"processed_count": int(stats.ProcessedCount),
+		"success_count":   int(stats.SuccessCount),
+		"failed_count":    int(stats.FailedCount),
+		"updated_at":      time.Now().Unix(),
+	}
+
+	var batch NotificationBatch
+	if err := ns.db.First(&batch, "id = ?", batchID).Error; err == nil {
+		if batch.TotalCount > 0 && int(stats.ProcessedCount) >= batch.TotalCount {
+			updates["status"] = "completed"
+		}
+	}
+
+	ns.db.Model(&NotificationBatch{}).Where("id = ?", batchID).Updates(updates)
 }
 
 // EmailConfig holds SMTP configuration
@@ -654,65 +507,6 @@ func getTLSConfig(host string) *tls.Config {
 			ServerName: host,
 		}
 	}
-}
-
-// isPermanentError determines if an error is permanent and shouldn't be retried
-func isPermanentError(err error) bool {
-	errStr := strings.ToLower(err.Error())
-
-	// Common permanent SMTP errors (НЕ временные/rate-limit ошибки!)
-	permanentErrors := []string{
-		"no such user",               // Пользователь не существует
-		"user unknown",               // Неизвестный пользователь
-		"recipient address rejected", // Адрес получателя отклонён
-		"invalid recipient",          // Недействительный получатель
-		"некорректный chat_id",       // Telegram: получатель не числовой chat ID
-		"не найден или не привязал",  // Telegram: username не привязан на портале (ответ auth-service)
-		"chat not found",             // Telegram: чат не существует / бот не запущен
-		"bot was blocked",            // Telegram: пользователь заблокировал бота
-		"550",                        // SMTP 550 Requested action not taken: mailbox unavailable (permanent)
-		"551",                        // SMTP 551 User not local
-		"553",                        // SMTP 553 Requested action not taken: mailbox name not allowed
-		"554",                        // SMTP 554 Transaction failed (permanent)
-	}
-
-	for _, permErr := range permanentErrors {
-		if strings.Contains(errStr, permErr) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// isRateLimitError checks if error is a rate limit error (Telegram 429 or SMTP rate limiting)
-func isRateLimitError(err error) bool {
-	errStr := strings.ToLower(err.Error())
-
-	// Check for rate limit indicators (Telegram and SMTP)
-	rateLimitErrors := []string{
-		"429",                     // HTTP 429 Too Many Requests (Telegram)
-		"too many requests",       // Generic rate limit message
-		"rate limit",              // Generic rate limit
-		"retry after",             // Retry-After header indicator
-		"451",                     // SMTP 451 Requested action aborted: local error in processing
-		"452",                     // SMTP 452 Requested action not taken: insufficient system storage
-		"421",                     // SMTP 421 Service not available, closing transmission channel
-		"throttling",              // Outlook/Exchange throttling
-		"exceeded sending limits", // Outlook sending limit
-		"mailbox full",            // Temporary mailbox full (может быть временной)
-		"try again later",         // Generic retry suggestion
-		"temporarily deferred",    // SMTP temporary deferral
-		"recipient rate limit",    // Recipient-specific rate limit
-	}
-
-	for _, rateLimitErr := range rateLimitErrors {
-		if strings.Contains(errStr, rateLimitErr) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // LoginAuth implements the LOGIN authentication mechanism

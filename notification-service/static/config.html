@@ -46,6 +46,85 @@
         .form-group {
             margin-bottom: 15px;
         }
+
+        .channel-card {
+            border: 1px solid #d5dbe0;
+            border-radius: 6px;
+            background: #fff;
+            margin-bottom: 18px;
+            overflow: hidden;
+        }
+
+        .channel-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 14px 18px;
+            background: #eef2f5;
+            border-bottom: 1px solid #d5dbe0;
+        }
+
+        .channel-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+
+        .channel-types {
+            color: #7f8c8d;
+            font-size: 13px;
+        }
+
+        .channel-queue {
+            margin-left: auto;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .channel-queue b { color: #2c3e50; }
+
+        .channel-body { padding: 18px; }
+
+        .channel-group-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: #7f8c8d;
+            margin: 18px 0 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 6px;
+        }
+
+        .channel-group-title:first-child { margin-top: 0; }
+
+        .channel-fields {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 14px;
+        }
+
+        .channel-fields label { font-size: 13px; }
+
+        .field-hint {
+            display: block;
+            font-weight: 400;
+            color: #95a5a6;
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .channel-actions {
+            margin-top: 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .channel-status { font-size: 13px; }
+        .channel-status.ok { color: #27ae60; }
+        .channel-status.err { color: #c0392b; }
+
         
         label {
             display: block;
@@ -240,10 +319,15 @@
                 </div>
             </div>
             
-            <!-- Параметры обработки -->
+            <!-- Параметры обработки (легаси) -->
             <div class="section">
-                <h2>⚙️ Параметры обработки</h2>
-                
+                <h2>⚙️ Параметры обработки (устарели)</h2>
+                <p style="color:#c0392b;font-size:13px;margin-top:0;">
+                    На отправку эти поля больше не влияют — попытками, темпом и размером
+                    порции очереди управляют настройки каналов ниже. Оставлены для старых
+                    клиентов API.
+                </p>
+
                 <div class="form-group">
                     <label for="max_retry_attempts">Максимальное количество попыток:</label>
                     <input type="number" id="max_retry_attempts" name="max_retry_attempts" min="1" max="10" value="3">
@@ -266,6 +350,18 @@
                 <button type="submit">Сохранить настройки</button>
             </div>
         </form>
+
+        <!-- Каналы доставки: секции строятся из ответа /api/v1/channels,
+             поэтому новый канал появляется здесь без правки этой страницы -->
+        <div class="section">
+            <h2>📡 Каналы доставки</h2>
+            <p style="color:#7f8c8d;font-size:13px;margin-top:0;">
+                Лимиты темпа задаются провайдером канала: почтовым администратором для email,
+                документацией Telegram Bot API для telegram. Повышать их без согласования нельзя —
+                превышение приводит к отказам в отправке.
+            </p>
+            <div id="channels-container">Загрузка каналов…</div>
+        </div>
     </div>
 
     <script>
@@ -379,8 +475,205 @@
             }, 8000);
         }
         
+        // --- Каналы доставки ---
+        //
+        // Форма канала строится по ответу API, а не по фиксированной разметке:
+        // новый канал и новые параметры появляются на странице сами. Подписи
+        // известных полей заданы ниже, незнакомые показываются под своим именем.
+
+        const CHANNEL_FIELD_LABELS = {
+            min_interval_ms: ['Минимальный интервал, мс', 'Жёсткая пауза между сообщениями канала'],
+            rate_per_minute: ['Сообщений в минуту', '0 — ограничения по скорости нет'],
+            burst: ['Всплеск, сообщений', 'Сколько можно отправить подряд без паузы'],
+            quota_per_hour: ['Квота за час', '0 — без квоты'],
+            quota_per_day: ['Квота за сутки', '0 — без квоты'],
+            priority_window_share_percent: ['Доля окна для приоритета, %', 'Остаток окна зарезервирован за обычной очередью; 0 или 100 — резерв выключен'],
+            service_priorities: ['Потолки приоритета отправителей', 'JSON для этого канала, например {"auth-service":100}. Пусто — действуют общие из SERVICE_PRIORITIES'],
+            per_recipient_per_minute: ['Сообщений в минуту одному получателю', '0 — лимита на получателя нет'],
+            per_recipient_burst: ['Всплеск на получателя', ''],
+            recipient_class_limits: ['Лимиты по классам получателей', 'JSON, например {"group":{"per_minute":20,"burst":1}}'],
+            connect_timeout_ms: ['Таймаут соединения, мс', ''],
+            send_timeout_ms: ['Таймаут отправки, мс', 'Потолок на всю отправку одного сообщения'],
+            max_attempts: ['Попыток доставки', ''],
+            backoff_base_ms: ['Базовая пауза перед повтором, мс', ''],
+            backoff_max_ms: ['Потолок паузы перед повтором, мс', ''],
+            max_rate_limit_retries: ['Повторов при отказе по темпу', 'Считается отдельно от попыток доставки'],
+            respect_retry_after: ['Учитывать retry_after провайдера', ''],
+            max_concurrent: ['Одновременных отправок', ''],
+            drain_batch_size: ['Уведомлений за проход очереди', ''],
+            max_inline_wait_ms: ['Ожидание лимита канала, мс', 'Дольше — уведомление возвращается в очередь'],
+            max_inline_recipient_wait_ms: ['Ожидание лимита получателя, мс', 'Держать коротким: занятый получатель не должен задерживать остальных'],
+            extra: ['Параметры канала', 'JSON, читает только транспорт канала'],
+        };
+
+        const CHANNEL_FIELD_GROUPS = [
+            ['Темп отправки', ['min_interval_ms', 'rate_per_minute', 'burst', 'quota_per_hour', 'quota_per_day']],
+            ['Приоритетная полоса', ['priority_window_share_percent', 'service_priorities']],
+            ['Лимит на получателя', ['per_recipient_per_minute', 'per_recipient_burst', 'recipient_class_limits']],
+            ['Таймауты', ['connect_timeout_ms', 'send_timeout_ms']],
+            ['Повторные попытки', ['max_attempts', 'backoff_base_ms', 'backoff_max_ms', 'max_rate_limit_retries', 'respect_retry_after']],
+            ['Очередь канала', ['max_concurrent', 'drain_batch_size', 'max_inline_wait_ms', 'max_inline_recipient_wait_ms']],
+            ['Параметры канала', ['extra']],
+        ];
+
+        // Поля, которыми страница не управляет через общий список: имя канала,
+        // метки времени и признак включения (у него отдельный переключатель)
+        const CHANNEL_READONLY_KEYS = ['channel', 'created_at', 'updated_at', 'enabled'];
+
+        function escapeHTML(value) {
+            return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, function (ch) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+            });
+        }
+
+        function channelFieldHTML(channel, key, value) {
+            const spec = CHANNEL_FIELD_LABELS[key] || [key, ''];
+            const label = spec[0];
+            const hint = spec[1];
+            const id = 'ch-' + channel + '-' + key;
+            const hintHTML = hint ? '<span class="field-hint">' + escapeHTML(hint) + '</span>' : '';
+
+            if (typeof value === 'boolean') {
+                return '<div class="checkbox-group">'
+                    + '<input type="checkbox" id="' + id + '" data-channel="' + escapeHTML(channel) + '"'
+                    + ' data-key="' + escapeHTML(key) + '" data-kind="bool"' + (value ? ' checked' : '') + '>'
+                    + '<label for="' + id + '">' + escapeHTML(label) + hintHTML + '</label>'
+                    + '</div>';
+            }
+
+            const kind = typeof value === 'number' ? 'int' : 'string';
+            const inputType = kind === 'int' ? 'number' : 'text';
+            return '<div class="form-group">'
+                + '<label for="' + id + '">' + escapeHTML(label) + hintHTML + '</label>'
+                + '<input type="' + inputType + '" id="' + id + '"' + (kind === 'int' ? ' min="0"' : '')
+                + ' data-channel="' + escapeHTML(channel) + '" data-key="' + escapeHTML(key) + '" data-kind="' + kind + '"'
+                + ' value="' + escapeHTML(value) + '">'
+                + '</div>';
+        }
+
+        function channelCardHTML(entry) {
+            const cfg = entry.config;
+            const name = cfg.channel;
+            const queue = entry.queue || {};
+            const types = (entry.types || []).join(', ');
+
+            const grouped = {};
+            let body = '';
+
+            CHANNEL_FIELD_GROUPS.forEach(function (group) {
+                const title = group[0];
+                const present = group[1].filter(function (key) { return key in cfg; });
+                if (present.length === 0) return;
+                present.forEach(function (key) { grouped[key] = true; });
+                body += '<div class="channel-group-title">' + escapeHTML(title) + '</div>'
+                    + '<div class="channel-fields">'
+                    + present.map(function (key) { return channelFieldHTML(name, key, cfg[key]); }).join('')
+                    + '</div>';
+            });
+
+            // Параметры, добавленные позже и не попавшие ни в одну группу,
+            // всё равно должны быть доступны для правки
+            const rest = Object.keys(cfg).filter(function (key) {
+                return !grouped[key] && CHANNEL_READONLY_KEYS.indexOf(key) === -1;
+            });
+            if (rest.length > 0) {
+                body += '<div class="channel-group-title">Прочее</div>'
+                    + '<div class="channel-fields">'
+                    + rest.map(function (key) { return channelFieldHTML(name, key, cfg[key]); }).join('')
+                    + '</div>';
+            }
+
+            const safeName = escapeHTML(name);
+            return '<div class="channel-card">'
+                + '<div class="channel-head">'
+                + '<span class="channel-name">' + safeName + '</span>'
+                + '<span class="channel-types">' + escapeHTML(types) + '</span>'
+                + '<span class="channel-queue">в очереди <b>' + (queue.pending || 0) + '</b>'
+                + ' · отложено <b>' + (queue.deferred || 0) + '</b>'
+                + ' · отправляется <b>' + (queue.sending || 0) + '</b></span>'
+                + '</div>'
+                + '<div class="channel-body">'
+                + '<div class="checkbox-group">'
+                + '<input type="checkbox" id="ch-' + safeName + '-enabled" data-channel="' + safeName + '"'
+                + ' data-key="enabled" data-kind="bool"' + (cfg.enabled ? ' checked' : '') + '>'
+                + '<label for="ch-' + safeName + '-enabled">Канал включён</label>'
+                + '</div>'
+                + body
+                + '<div class="channel-actions">'
+                + '<button type="button" onclick="saveChannel(\'' + safeName + '\')">Сохранить канал</button>'
+                + '<span class="channel-status" id="ch-' + safeName + '-status"></span>'
+                + '</div>'
+                + '</div>'
+                + '</div>';
+        }
+
+        async function loadChannels() {
+            const container = document.getElementById('channels-container');
+            try {
+                const response = await fetch('/api/v1/channels');
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                const data = await response.json();
+                const channels = data.channels || [];
+                container.innerHTML = channels.length
+                    ? channels.map(channelCardHTML).join('')
+                    : 'Каналы не настроены.';
+            } catch (error) {
+                container.textContent = 'Ошибка загрузки каналов: ' + error.message;
+            }
+        }
+
+        async function saveChannel(channel) {
+            const status = document.getElementById('ch-' + channel + '-status');
+            const inputs = document.querySelectorAll('[data-channel="' + channel + '"]');
+
+            const patch = {};
+            for (const input of inputs) {
+                const key = input.dataset.key;
+                if (input.dataset.kind === 'bool') {
+                    patch[key] = input.checked;
+                } else if (input.dataset.kind === 'int') {
+                    const parsed = parseInt(input.value, 10);
+                    if (Number.isNaN(parsed) || parsed < 0) {
+                        status.className = 'channel-status err';
+                        status.textContent = 'Поле «' + key + '»: ожидается неотрицательное число';
+                        return;
+                    }
+                    patch[key] = parsed;
+                } else {
+                    patch[key] = input.value;
+                }
+            }
+
+            status.className = 'channel-status';
+            status.textContent = 'Сохранение…';
+
+            try {
+                const response = await fetch('/api/v1/channels/' + encodeURIComponent(channel), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(patch)
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || ('HTTP error! status: ' + response.status));
+                }
+                status.className = 'channel-status ok';
+                status.textContent = 'Сохранено';
+                showSuccess('Канал ' + channel + ': настройки сохранены');
+            } catch (error) {
+                status.className = 'channel-status err';
+                status.textContent = error.message;
+                showError('Канал ' + channel + ': ' + error.message);
+            }
+        }
+
         // Автоматическая загрузка настроек при открытии страницы
-        window.addEventListener('load', loadConfig);
+        window.addEventListener('load', function () {
+            loadConfig();
+            loadChannels();
+        });
     </script>
 </body>
 </html>

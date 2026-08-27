@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,17 +12,33 @@ import (
 
 // TelegramBot is a minimal Telegram Bot API client (raw HTTP, no external deps)
 type TelegramBot struct {
-	token  string
-	client *http.Client
+	token   string
+	client  *http.Client
+	limiter *SendLimiter
 }
 
-// NewTelegramBot creates a Telegram Bot API client
-func NewTelegramBot(token string) *TelegramBot {
+// NewTelegramBot creates a Telegram Bot API client.
+// The limiter is applied to message-sending methods so that every sender that
+// goes through this bot shares one view of the Telegram rate limits.
+func NewTelegramBot(token string, limiter *SendLimiter) *TelegramBot {
 	return &TelegramBot{
-		token: token,
+		token:   token,
+		limiter: limiter,
 		// Timeout must exceed long-polling timeout (30s) used in GetUpdates
 		client: &http.Client{Timeout: 40 * time.Second},
 	}
+}
+
+// RateLimitedError означает, что сообщение не отправлено из-за ограничения темпа:
+// либо его попросил Telegram (429 + retry_after), либо очередь бота уже длиннее
+// допустимого ожидания. RetryAfter — сколько ждать до повтора.
+type RateLimitedError struct {
+	RetryAfter time.Duration
+	Reason     string
+}
+
+func (e *RateLimitedError) Error() string {
+	return fmt.Sprintf("rate limited: %s (retry after %s)", e.Reason, e.RetryAfter.Round(time.Second))
 }
 
 // InlineButton is a single inline keyboard button
@@ -67,11 +84,17 @@ type Update struct {
 	} `json:"callback_query"`
 }
 
-// apiResponse is the generic Telegram API response envelope
+// apiResponse is the generic Telegram API response envelope.
+// parameters.retry_after appears on 429 and states exactly how long Telegram
+// wants us to wait — it is forwarded to callers instead of being discarded.
 type apiResponse struct {
 	OK          bool            `json:"ok"`
 	Result      json.RawMessage `json:"result"`
 	Description string          `json:"description"`
+	ErrorCode   int             `json:"error_code"`
+	Parameters  *struct {
+		RetryAfter int `json:"retry_after"`
+	} `json:"parameters"`
 }
 
 // call performs a Telegram Bot API method call with a JSON payload
@@ -109,6 +132,16 @@ func (b *TelegramBot) call(method string, payload interface{}, result interface{
 		return fmt.Errorf("failed to parse %s response: %v", method, err)
 	}
 	if !apiResp.OK {
+		if apiResp.ErrorCode == 429 || (apiResp.Parameters != nil && apiResp.Parameters.RetryAfter > 0) {
+			retryAfter := 1 * time.Second
+			if apiResp.Parameters != nil && apiResp.Parameters.RetryAfter > 0 {
+				retryAfter = time.Duration(apiResp.Parameters.RetryAfter) * time.Second
+			}
+			return &RateLimitedError{
+				RetryAfter: retryAfter,
+				Reason:     fmt.Sprintf("telegram API %s: %s", method, apiResp.Description),
+			}
+		}
 		return fmt.Errorf("telegram API %s error: %s", method, apiResp.Description)
 	}
 
@@ -159,10 +192,27 @@ func (b *TelegramBot) SendMessage(chatID int64, text, parseMode string, buttons 
 		}
 	}
 
+	// Соблюдаем лимиты Telegram до вызова: отправить и получить 429 дороже,
+	// чем выждать — 429 бьёт по всему боту, а не только по этому сообщению.
+	if b.limiter != nil {
+		if retryAfter, ok := b.limiter.Wait(chatID); !ok {
+			return 0, &RateLimitedError{
+				RetryAfter: retryAfter,
+				Reason:     "очередь бота превышает допустимое ожидание",
+			}
+		}
+	}
+
 	var result struct {
 		MessageID int64 `json:"message_id"`
 	}
 	if err := b.call("sendMessage", payload, &result); err != nil {
+		// Telegram посчитал темп превышенным раньше нас — сдвигаем окно,
+		// иначе следующая отправка уйдёт по прежнему расчёту и получит то же
+		var rl *RateLimitedError
+		if errors.As(err, &rl) && b.limiter != nil {
+			b.limiter.Penalize(chatID, rl.RetryAfter)
+		}
 		return 0, err
 	}
 	return result.MessageID, nil

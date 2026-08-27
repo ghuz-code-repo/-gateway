@@ -25,14 +25,32 @@ import (
 
 type NotificationService struct {
 	db              *gorm.DB
-	sendGates       map[string]*channelGate // Пер-канальный throttle (email/telegram/sms/push независимы)
 	configCache     *NotificationConfig
 	configCacheMu   sync.RWMutex
 	lastConfigFetch time.Time
-	httpClient      *http.Client   // Shared HTTP client for external API calls
-	workerSem       chan struct{}  // Semaphore to limit concurrent send goroutines
-	wg              sync.WaitGroup // Tracks in-flight goroutines for graceful shutdown
-	guard           *ServiceGuard  // Детектор аномалий межсервисных запросов (security.go)
+
+	// httpClient обслуживает резолв получателей в auth-service. Он стоит на пути
+	// входящего запроса, поэтому таймаут у него свой, короткий: вызывающий сервис
+	// ждёт ответа синхронно и не должен висеть столько же, сколько отправка.
+	httpClient *http.Client
+
+	// Клиенты каналов: таймауты берутся из конфига канала и живут отдельно
+	// от резолва и друг от друга.
+	httpClients   map[string]*cachedHTTPClient
+	httpClientsMu sync.Mutex
+
+	// Каналы доставки: транспорт, очередь-диспетчер и лимитер на каждый.
+	transports   []Transport
+	typeChannel  map[NotificationType]string // тип уведомления -> канал
+	dispatchers  map[string]*channelDispatcher
+	limiters     *limiterRegistry
+	channelCache *channelConfigCache
+
+	// priorities — потолок приоритета очереди для каждого сервиса-отправителя
+	priorities map[string]int
+
+	wg    sync.WaitGroup // Tracks in-flight goroutines for graceful shutdown
+	guard *ServiceGuard  // Детектор аномалий межсервисных запросов (security.go)
 
 	// Кэш резолва telegram username -> chat_id (чтобы не ходить в auth-service
 	// на каждую отправку и не тормозить доставку telegram-уведомлений)
@@ -51,10 +69,10 @@ type chatIDEntry struct {
 	at     time.Time
 }
 
-// channelGate throttles sends within one channel independently of others
-type channelGate struct {
-	mu   sync.Mutex
-	last time.Time
+// cachedHTTPClient — HTTP-клиент канала и слепок таймаутов, из которых он собран.
+type cachedHTTPClient struct {
+	client      *http.Client
+	fingerprint string
 }
 
 type NotificationType string
@@ -97,15 +115,32 @@ type Notification struct {
 	ContentType        string             `json:"content_type,omitempty" gorm:"default:'text/plain'"`
 	AttachmentFilename string             `json:"attachment_filename,omitempty"`
 	AttachmentContent  []byte             `json:"attachment_content,omitempty" gorm:"type:bytea"`
-	Status             NotificationStatus `json:"status" gorm:"default:pending;index"`
+	Status             NotificationStatus `json:"status" gorm:"default:pending;index;index:idx_notifications_queue,priority:1"`
 	Attempts           int                `json:"attempts" gorm:"default:0"`
 	MaxAttempts        int                `json:"max_attempts" gorm:"default:3"`
 	LastError          string             `json:"last_error,omitempty"`
 	FailureCode        string             `json:"failure_code,omitempty"` // машинный код отказа для вызывающего сервиса
 	BatchID            string             `json:"batch_id,omitempty" gorm:"index"`
-	CreatedAt          int64              `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt          int64              `json:"updated_at" gorm:"autoUpdateTime"`
-	SentAt             *int64             `json:"sent_at,omitempty"`
+
+	// Priority — приоритет в очереди канала: выбираются сначала более высокие,
+	// внутри одного приоритета — по порядку создания. Назначает сервис по
+	// отправителю (priority.go), запрос может лишь опустить себя ниже потолка.
+	Priority int `json:"priority" gorm:"default:0;index:idx_notifications_queue,priority:3"`
+
+	// NextAttemptAt — момент, начиная с которого уведомление можно отправлять
+	// (unix-секунды). Очередь канала живёт в этой таблице: диспетчер выбирает
+	// pending с наступившим сроком. Ноль = «прямо сейчас».
+	// Индекс совмещён со status: выборка очереди идёт по обоим полям.
+	NextAttemptAt int64 `json:"next_attempt_at" gorm:"default:0;index:idx_notifications_queue,priority:2"`
+
+	// RateLimitHits — сколько раз провайдер отказал по темпу. Считается отдельно
+	// от Attempts: провайдер не отверг сообщение, а попросил подождать, и такой
+	// отказ не должен съедать попытки доставки.
+	RateLimitHits int `json:"rate_limit_hits" gorm:"default:0"`
+
+	CreatedAt int64  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt int64  `json:"updated_at" gorm:"autoUpdateTime"`
+	SentAt    *int64 `json:"sent_at,omitempty"`
 }
 
 // NotificationBatch represents a batch of notifications
@@ -140,6 +175,11 @@ type SingleNotificationRequest struct {
 	ContentType        string `json:"content_type,omitempty" binding:"omitempty,oneof=text/plain text/html"`
 	AttachmentFilename string `json:"attachment_filename,omitempty"`
 	AttachmentContent  string `json:"attachment_content,omitempty"` // base64 encoded
+
+	// Priority — необязательный. Не передан => приоритет отправителя целиком.
+	// Передан => принимается, если не выше потолка отправителя; так сервис с
+	// приоритетной полосой опускает вниз свои массовые рассылки.
+	Priority *int `json:"priority,omitempty"`
 }
 
 // NotificationConfig represents stored notification service configuration
@@ -167,8 +207,8 @@ type NotificationConfig struct {
 	MaxRetryAttempts                int    `json:"max_retry_attempts" gorm:"default:3"`
 	BatchSize                       int    `json:"batch_size" gorm:"default:10"`
 	DelayBetweenBatchesMS           int    `json:"delay_between_batches_ms" gorm:"default:1000"`
-	DelayBetweenMessagesMS          int    `json:"delay_between_messages_ms" gorm:"default:100"`          // Задержка между email-сообщениями (мс)
-	TelegramDelayBetweenMessagesMS  int    `json:"telegram_delay_between_messages_ms" gorm:"default:0"`  // Задержка между telegram-сообщениями (мс); 0 = мгновенно
+	DelayBetweenMessagesMS          int    `json:"delay_between_messages_ms" gorm:"default:100"`        // Задержка между email-сообщениями (мс)
+	TelegramDelayBetweenMessagesMS  int    `json:"telegram_delay_between_messages_ms" gorm:"default:0"` // Задержка между telegram-сообщениями (мс); 0 = мгновенно
 	CreatedAt                       int64  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt                       int64  `json:"updated_at" gorm:"autoUpdateTime"`
 }
@@ -229,24 +269,55 @@ func main() {
 	log.Println("✅ Database connected successfully")
 
 	// Create service instance
-	maxConcurrent := getEnvAsInt("MAX_CONCURRENT_SENDS", 10)
 	service := &NotificationService{
 		db:             db,
 		chatIDCache:    make(map[string]chatIDEntry),
 		recipientCache: make(map[string]recipientCacheEntry),
-		sendGates: map[string]*channelGate{
-			"email":    {},
-			"telegram": {},
-			"sms":      {},
-			"push":     {},
-		},
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: time.Duration(getEnvAsInt("AUTH_SERVICE_TIMEOUT_MS", 5000)) * time.Millisecond,
 		},
-		workerSem: make(chan struct{}, maxConcurrent),
+		httpClients:  make(map[string]*cachedHTTPClient),
+		dispatchers:  make(map[string]*channelDispatcher),
+		typeChannel:  make(map[NotificationType]string),
+		limiters:     newLimiterRegistry(),
+		channelCache: newChannelConfigCache(),
+		priorities:   loadServicePriorities(),
 	}
 	service.guard = NewServiceGuard(service.sendSecurityAlert)
-	log.Printf("✅ Notification service instance created (max concurrent sends: %d)", maxConcurrent)
+
+	// Реестр каналов: транспорты объявляют, какие типы они обслуживают
+	service.transports = buildTransports(service)
+	for _, t := range service.transports {
+		for _, nt := range t.Types() {
+			service.typeChannel[nt] = t.Channel()
+		}
+	}
+
+	// Конфиги каналов: недостающие создаются, существующие не трогаются
+	if err := seedChannelConfigs(db); err != nil {
+		log.Fatalf("❌ Failed to seed channel configs: %v", err)
+	}
+	for _, cfg := range service.channelConfigs() {
+		log.Printf("📡 Канал %s: enabled=%v, min_interval=%dms, rate=%d/мин, burst=%d, per_recipient=%d/мин, concurrent=%d, timeouts=%d/%dms",
+			cfg.Channel, cfg.Enabled, cfg.MinIntervalMS, cfg.RatePerMinute, cfg.Burst,
+			cfg.PerRecipientPerMinute, cfg.MaxConcurrent, cfg.ConnectTimeoutMS, cfg.SendTimeoutMS)
+
+		if capacity := cfg.effectivePerMinute(); capacity > 0 && cfg.PriorityWindowSharePercent > 0 && cfg.PriorityWindowSharePercent < 100 {
+			share := shareOf(capacity, cfg.PriorityWindowSharePercent)
+			log.Printf("   ├─ окно %d/мин: приоритету %d, обычной очереди %d", capacity, share, capacity-share)
+		} else {
+			log.Printf("   ├─ резерв окна под обычную очередь выключен: приоритет может занять окно целиком")
+		}
+	}
+
+	// Печатается после засева каналов: пер-канальные потолки читаются из их строк
+	service.logPriorityConfig()
+
+	// Уведомления, зависшие в sending из-за рестарта, возвращаются в очередь
+	service.requeueStuckSending()
+	service.startDispatchers()
+
+	log.Println("✅ Notification service instance created")
 
 	// Initialize router
 	router := gin.Default()
@@ -310,6 +381,10 @@ func main() {
 	<-quit
 	log.Println("⏳ Shutting down notification service...")
 
+	// Диспетчеры каналов останавливаются первыми: новые отправки не начинаются,
+	// а уже принятые уведомления остаются в очереди и уйдут после рестарта
+	service.stopDispatchers()
+
 	// Wait for in-flight goroutines to finish (with timeout)
 	wgDone := make(chan struct{})
 	go func() {
@@ -372,7 +447,7 @@ func initDB() (*gorm.DB, error) {
 	}
 
 	// Auto-migrate the schema
-	err = db.AutoMigrate(&Notification{}, &NotificationBatch{}, &NotificationConfig{})
+	err = db.AutoMigrate(&Notification{}, &NotificationBatch{}, &NotificationConfig{}, &ChannelConfig{})
 	if err != nil {
 		return nil, err
 	}
@@ -502,6 +577,10 @@ func (ns *NotificationService) setupRoutes(router *gin.Engine) {
 		// Configuration endpoints
 		protected.GET("/config", ns.getConfig)
 		protected.POST("/config", ns.updateConfig)
+
+		// Пер-канальные лимиты, таймауты и повторы
+		protected.GET("/channels", ns.getChannels)
+		protected.POST("/channels/:channel", ns.updateChannel)
 	}
 }
 
@@ -578,6 +657,7 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 			Content:     notifReq.Content,
 			ContentType: notifReq.ContentType,
 			BatchID:     req.BatchID,
+			Priority:    ns.resolvePriority(ns.typeChannel[notifReq.Type], serviceName, notifReq.Priority),
 		}
 
 		var resolved recipientResolution
@@ -610,16 +690,13 @@ func (ns *NotificationService) sendBatchNotifications(c *gin.Context) {
 		return
 	}
 
-	log.Printf("✅ Batch %s created with %d notifications, starting processing...", req.BatchID, len(notifications))
+	log.Printf("✅ Batch %s created with %d notifications, queued", req.BatchID, len(notifications))
 
-	// Start processing in background (tracked by WaitGroup)
-	ns.wg.Add(1)
-	go func() {
-		defer ns.wg.Done()
-		ns.workerSem <- struct{}{} // Acquire semaphore slot
-		defer func() { <-ns.workerSem }()
-		ns.processBatch(req.BatchID)
-	}()
+	// Уведомления пачки разошлись по очередям своих каналов. Будим только те
+	// каналы, которые в пачке есть: остальные не должны просыпаться впустую.
+	for i := range notifications {
+		ns.wakeForType(notifications[i].Type)
+	}
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"batch_id":   req.BatchID,
@@ -660,6 +737,7 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 		Subject:     req.Subject,
 		Content:     req.Content,
 		ContentType: req.ContentType,
+		Priority:    ns.resolvePriority(ns.typeChannel[req.Type], serviceName, req.Priority),
 	}
 
 	var resolved recipientResolution
@@ -710,20 +788,16 @@ func (ns *NotificationService) sendSingleNotification(c *gin.Context) {
 		return
 	}
 
-	log.Printf("✅ Notification #%d created, starting processing...", notification.ID)
+	log.Printf("✅ Notification #%d created, queued to channel %s", notification.ID, ns.typeChannel[notification.Type])
 
-	// Process immediately (tracked by WaitGroup)
-	ns.wg.Add(1)
-	go func() {
-		defer ns.wg.Done()
-		ns.workerSem <- struct{}{} // Acquire semaphore slot
-		defer func() { <-ns.workerSem }()
-		ns.processNotification(&notification)
-	}()
+	// Отправляет диспетчер канала; здесь только будим его, чтобы не ждать тика
+	ns.wakeForType(notification.Type)
 
 	c.JSON(http.StatusAccepted, gin.H{
-		"id":      notification.ID,
-		"message": "Уведомление создано, обработка начата",
+		"id":       notification.ID,
+		"channel":  ns.typeChannel[notification.Type],
+		"priority": notification.Priority,
+		"message":  "Уведомление создано, поставлено в очередь канала",
 	})
 }
 
@@ -827,6 +901,12 @@ func (ns *NotificationService) getConfig(c *gin.Context) {
 		"delay_between_messages_ms":          dbConfig.DelayBetweenMessagesMS,
 		"telegram_delay_between_messages_ms": dbConfig.TelegramDelayBetweenMessagesMS,
 	}
+
+	// Темпом и таймаутами отправки управляют конфиги каналов; поля
+	// delay_between_messages_ms и telegram_delay_between_messages_ms выше
+	// оставлены только для старых клиентов этого API и на отправку не влияют.
+	config["channels"] = ns.channelConfigs()
+
 	c.JSON(http.StatusOK, config)
 }
 
@@ -889,8 +969,8 @@ func (ns *NotificationService) updateConfig(c *gin.Context) {
 
 	// --- Int fields (JSON sends numbers as float64) ---
 	intFields := map[string]*int{
-		"max_retry_attempts":        &dbConfig.MaxRetryAttempts,
-		"batch_size":                &dbConfig.BatchSize,
+		"max_retry_attempts":                 &dbConfig.MaxRetryAttempts,
+		"batch_size":                         &dbConfig.BatchSize,
 		"delay_between_batches_ms":           &dbConfig.DelayBetweenBatchesMS,
 		"delay_between_messages_ms":          &dbConfig.DelayBetweenMessagesMS,
 		"telegram_delay_between_messages_ms": &dbConfig.TelegramDelayBetweenMessagesMS,
@@ -1068,21 +1148,21 @@ func (ns *NotificationService) getConfigFromDB() NotificationConfig {
 	if result.Error != nil {
 		// Return default config if not found in database
 		return NotificationConfig{
-			SMTPHost:               getEnvOrDefault("SMTP_HOST", "smtp.gmail.com"),
-			SMTPPort:               getEnvOrDefault("SMTP_PORT", "587"),
-			SMTPUsername:           getEnvOrDefault("SMTP_USERNAME", ""),
-			SMTPPassword:           getEnvOrDefault("SMTP_PASSWORD", ""),
-			SMTPFrom:               getEnvOrDefault("SMTP_FROM", ""),
-			SMTPUseTLS:             getEnvAsBool("SMTP_USE_TLS", true),
-			SMTPUseAuth:            getEnvAsBool("SMTP_USE_AUTH", true),
-			SMTPAuthMethod:         getEnvOrDefault("SMTP_AUTH_METHOD", "plain"),
-			TelegramBotToken:       getEnvOrDefault("TELEGRAM_BOT_TOKEN", ""),
-			TelegramSystemBotToken: getEnvOrDefault("TELEGRAM_SYSTEM_BOT_TOKEN", ""),
-			TelegramEnabled:        getEnvAsBool("TELEGRAM_ENABLED", false),
-			TelegramSystemEnabled:  getEnvAsBool("TELEGRAM_SYSTEM_ENABLED", false),
-			MaxRetryAttempts:       getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
-			BatchSize:              getEnvAsInt("BATCH_SIZE", 10),
-			DelayBetweenBatchesMS:  getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
+			SMTPHost:                       getEnvOrDefault("SMTP_HOST", "smtp.gmail.com"),
+			SMTPPort:                       getEnvOrDefault("SMTP_PORT", "587"),
+			SMTPUsername:                   getEnvOrDefault("SMTP_USERNAME", ""),
+			SMTPPassword:                   getEnvOrDefault("SMTP_PASSWORD", ""),
+			SMTPFrom:                       getEnvOrDefault("SMTP_FROM", ""),
+			SMTPUseTLS:                     getEnvAsBool("SMTP_USE_TLS", true),
+			SMTPUseAuth:                    getEnvAsBool("SMTP_USE_AUTH", true),
+			SMTPAuthMethod:                 getEnvOrDefault("SMTP_AUTH_METHOD", "plain"),
+			TelegramBotToken:               getEnvOrDefault("TELEGRAM_BOT_TOKEN", ""),
+			TelegramSystemBotToken:         getEnvOrDefault("TELEGRAM_SYSTEM_BOT_TOKEN", ""),
+			TelegramEnabled:                getEnvAsBool("TELEGRAM_ENABLED", false),
+			TelegramSystemEnabled:          getEnvAsBool("TELEGRAM_SYSTEM_ENABLED", false),
+			MaxRetryAttempts:               getEnvAsInt("MAX_RETRY_ATTEMPTS", 3),
+			BatchSize:                      getEnvAsInt("BATCH_SIZE", 10),
+			DelayBetweenBatchesMS:          getEnvAsInt("DELAY_BETWEEN_BATCHES_MS", 1000),
 			DelayBetweenMessagesMS:         getEnvAsInt("DELAY_BETWEEN_MESSAGES_MS", 100),
 			TelegramDelayBetweenMessagesMS: getEnvAsInt("TELEGRAM_DELAY_BETWEEN_MESSAGES_MS", 0),
 		}
