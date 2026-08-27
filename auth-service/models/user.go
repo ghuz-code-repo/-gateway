@@ -153,11 +153,12 @@ type User struct {
 	BirthDate          *time.Time `bson:"birth_date,omitempty" json:"birth_date,omitempty"`
 
 	// Telegram integration (linking, login confirmation, password reset)
-	TelegramUsername     string     `bson:"telegram_username,omitempty" json:"telegram_username,omitempty"`           // без @, в нижнем регистре
-	TelegramChatID       int64      `bson:"telegram_chat_id,omitempty" json:"-"`                                      // chat_id для отправки через notification-bot
-	TelegramLinkedAt     *time.Time `bson:"telegram_linked_at,omitempty" json:"telegram_linked_at,omitempty"`         // когда подтверждена привязка
-	TelegramLoginRejects int        `bson:"telegram_login_rejects,omitempty" json:"-"`                                // счётчик отклонённых входов
-	TelegramLoginFrozen  bool       `bson:"telegram_login_frozen,omitempty" json:"telegram_login_frozen,omitempty"`   // вход через TG заморожен до входа по паролю
+	TelegramUsername     string     `bson:"telegram_username,omitempty" json:"telegram_username,omitempty"`         // без @, в нижнем регистре
+	TelegramChatID       int64      `bson:"telegram_chat_id,omitempty" json:"-"`                                    // chat_id для отправки через notification-bot
+	TelegramLinkedAt     *time.Time `bson:"telegram_linked_at,omitempty" json:"telegram_linked_at,omitempty"`       // когда подтверждена привязка
+	TelegramLoginRejects int        `bson:"telegram_login_rejects,omitempty" json:"-"`                              // счётчик отклонённых входов
+	TelegramLoginFrozen  bool       `bson:"telegram_login_frozen,omitempty" json:"telegram_login_frozen,omitempty"` // вход через TG заморожен до входа по паролю
+	TelegramBlockedAt    *time.Time `bson:"telegram_blocked_at,omitempty" json:"telegram_blocked_at,omitempty"`     // бот заблокирован пользователем: привязка сброшена, нужна повторная
 
 	Documents    []UserDocument          `bson:"documents,omitempty" json:"documents,omitempty"`         // New document system
 	LegacyDocs   []Document              `bson:"legacy_docs,omitempty" json:"legacy_docs,omitempty"`     // Legacy documents

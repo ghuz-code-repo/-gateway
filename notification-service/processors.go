@@ -494,7 +494,18 @@ func (ns *NotificationService) sendTelegram(notification *Notification, isSystem
 	// error text otherwise (rate-limit detection relies on that text)
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("❌ notification-bot error (status %d): %s", resp.StatusCode, string(body))
-		return fmt.Errorf("notification-bot error: %s", string(body))
+		sendErr := fmt.Errorf("notification-bot error: %s", string(body))
+
+		// Пользователь заблокировал бота (или чат исчез) — привязка мертва.
+		// Пока chat_id остаётся в профиле, каждое следующее уведомление снова
+		// пойдёт этим путём и будет держать очередь; убираем адрес из источника
+		// истины и из кэша, чтобы отказ приходил вызывающему сразу на приёме.
+		if isDeadTelegramBinding(sendErr) {
+			ns.reportTelegramLinkBroken(chatID, strings.TrimSpace(string(body)))
+			ns.invalidateRecipientCache("telegram", notification.RecipientLogin)
+		}
+
+		return sendErr
 	}
 
 	log.Printf("✅ Telegram message sent to %s via notification-bot (notification #%d)",

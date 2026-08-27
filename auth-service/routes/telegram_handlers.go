@@ -369,6 +369,43 @@ func telegramChatIDLookupAPIHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "chat_id": chatID})
 }
 
+// telegramLinkBrokenAPIHandler (POST /api/telegram/link/broken) вызывается
+// notification-service, когда Telegram отказал в доставке неустранимо: пользователь
+// заблокировал бота или чат исчез.
+//
+// Привязка сбрасывается, чтобы следующие уведомления отваливались на приёме запроса
+// с channel_not_linked, а не ходили каждый раз до api.telegram.org — именно эти
+// походы забивают очередь отправки.
+func telegramLinkBrokenAPIHandler(c *gin.Context) {
+	var req struct {
+		ChatID int64  `json:"chat_id" binding:"required"`
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Некорректный запрос"})
+		return
+	}
+
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" {
+		reason = "доставка в Telegram невозможна"
+	}
+
+	user, err := models.MarkTelegramLinkBroken(req.ChatID, reason)
+	if err != nil {
+		// Пользователя с таким chat_id может уже не быть — это не ошибка вызывающего
+		log.Printf("Telegram link broken: %v", err)
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"username": user.Username,
+		"message":  "Привязка Telegram сброшена, пользователю нужно подключить бота заново",
+	})
+}
+
 // telegramLoginDecisionAPIHandler (POST /api/telegram/login/decision) is called by
 // notification-bot when the user presses Approve/Reject
 func telegramLoginDecisionAPIHandler(c *gin.Context) {

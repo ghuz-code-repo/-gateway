@@ -45,6 +45,7 @@ func SetupAllRoutes(router *gin.Engine) {
 		// Telegram integration API (called by notification-bot / notification-service)
 		api.POST("/telegram/link/confirm", telegramLinkConfirmAPIHandler)
 		api.POST("/telegram/login/decision", telegramLoginDecisionAPIHandler)
+		api.POST("/telegram/link/broken", telegramLinkBrokenAPIHandler)
 		api.GET("/telegram/chat-id", telegramChatIDLookupAPIHandler)
 
 		// Резолв получателей уведомлений: логин портала -> адрес доставки

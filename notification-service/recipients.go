@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -294,6 +296,89 @@ var addressingFields = []addressingField{
 		mode:  recipientModeExternal,
 		value: func(req *SingleNotificationRequest) string { return req.ExternalRecipient },
 	},
+}
+
+// deadTelegramBindingErrors — ответы Telegram, после которых привязка мертва и
+// повторять отправку по этому chat_id бессмысленно до повторного подключения бота.
+var deadTelegramBindingErrors = []string{
+	"bot was blocked",     // пользователь заблокировал бота
+	"chat not found",      // чат удалён либо бот никогда не запускался
+	"user is deactivated", // аккаунт Telegram удалён
+	"bot can't initiate conversation",
+}
+
+// isDeadTelegramBinding сообщает, что ошибка отправки означает мёртвую привязку,
+// а не временный сбой
+func isDeadTelegramBinding(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, marker := range deadTelegramBindingErrors {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// invalidateRecipientCache выбрасывает из кэша все записи по паре «канал + логин».
+// Ключ включает имя сервиса, поэтому чистим по совпадению хвоста: иначе следующая
+// отправка ещё до десяти минут будет брать протухший адрес.
+func (ns *NotificationService) invalidateRecipientCache(channel, login string) {
+	if login == "" {
+		return
+	}
+
+	suffix := "|" + channel + "|" + login
+	ns.recipientMu.Lock()
+	defer ns.recipientMu.Unlock()
+	for key := range ns.recipientCache {
+		if strings.HasSuffix(key, suffix) {
+			delete(ns.recipientCache, key)
+		}
+	}
+}
+
+// reportTelegramLinkBroken просит auth-service сбросить привязку Telegram.
+//
+// Смысл в том, чтобы убрать мёртвый chat_id из источника истины: после этого резолв
+// вернёт channel_not_linked, вызывающий сервис получит 400 сразу на приёме запроса,
+// и очередь перестанет тратить время на заведомо провальные походы в Telegram.
+func (ns *NotificationService) reportTelegramLinkBroken(chatID int64, reason string) {
+	payload, err := json.Marshal(map[string]interface{}{
+		"chat_id": chatID,
+		"reason":  reason,
+	})
+	if err != nil {
+		log.Printf("⚠️ Не удалось собрать запрос сброса привязки: %v", err)
+		return
+	}
+
+	req, err := http.NewRequest("POST", getAuthServiceURL()+"/api/telegram/link/broken", bytes.NewBuffer(payload))
+	if err != nil {
+		log.Printf("⚠️ Не удалось создать запрос сброса привязки: %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey := os.Getenv("INTERNAL_API_KEY"); apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := ns.httpClient.Do(req)
+	if err != nil {
+		log.Printf("⚠️ auth-service недоступен, привязка не сброшена: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("⚠️ auth-service вернул %d при сбросе привязки", resp.StatusCode)
+		return
+	}
+
+	log.Printf("🔗 Привязка Telegram сброшена (chat_id %s): %s", maskRecipient(strconv.FormatInt(chatID, 10)), reason)
 }
 
 // resolveRecipientMode определяет, каким полем адресовано уведомление, и валидирует

@@ -235,6 +235,52 @@ func GetTelegramChatIDByUsername(username string) (int64, error) {
 	return user.TelegramChatID, nil
 }
 
+// MarkTelegramLinkBroken сбрасывает привязку Telegram после того, как отправка
+// упёрлась в неустранимую ошибку («bot was blocked by the user», «chat not found»).
+//
+// Зачем сбрасывать, а не просто логировать: пока chat_id лежит в профиле, каждый
+// вызывающий сервис продолжит адресовать уведомления по нему, а каждая такая отправка
+// — это круг до api.telegram.org, который держит очередь. С обнулённым chat_id резолв
+// вернёт channel_not_linked, и отправка отвалится на приёме запроса, не дойдя до бота.
+//
+// telegram_username оставляем: по нему в личном кабинете видно, что привязку нужно
+// восстановить, и пользователь не начинает с пустого места.
+func MarkTelegramLinkBroken(chatID int64, reason string) (*User, error) {
+	if chatID == 0 {
+		return nil, fmt.Errorf("chat_id обязателен")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDBTimeout)
+	defer cancel()
+
+	var user User
+	err := usersCol.FindOne(ctx, bson.M{"telegram_chat_id": chatID}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("пользователь с chat_id %d не найден", chatID)
+		}
+		return nil, err
+	}
+
+	now := time.Now()
+	_, err = usersCol.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{
+		"$set": bson.M{
+			"telegram_chat_id":    0,
+			"telegram_blocked_at": now,
+			"updated_at":          now,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Telegram-привязка пользователя %s сброшена: %s", user.Username, reason)
+
+	user.TelegramChatID = 0
+	user.TelegramBlockedAt = &now
+	return &user, nil
+}
+
 // CreateTelegramLoginRequest creates a pending login confirmation request.
 // Previous pending requests of the user are invalidated.
 func CreateTelegramLoginRequest(userID primitive.ObjectID, ip, userAgent string) (*TelegramLoginRequest, error) {

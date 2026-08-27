@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -221,5 +222,67 @@ func TestApplyRecipient(t *testing.T) {
 				t.Errorf("ExternalRecipient = %q, ожидался %q", n.ExternalRecipient, tc.wantExternal)
 			}
 		})
+	}
+}
+
+// Ошибки, после которых привязка Telegram считается мёртвой: повторять по этому
+// chat_id бессмысленно, адрес надо убирать из auth-service
+func TestIsDeadTelegramBinding(t *testing.T) {
+	dead := []string{
+		`notification-bot error: {"error":"telegram API sendMessage error: Forbidden: bot was blocked by the user"}`,
+		`notification-bot error: {"error":"telegram API sendMessage error: Bad Request: chat not found"}`,
+		`notification-bot error: {"error":"telegram API sendMessage error: Forbidden: user is deactivated"}`,
+	}
+	for _, msg := range dead {
+		if !isDeadTelegramBinding(errors.New(msg)) {
+			t.Errorf("должно считаться мёртвой привязкой: %s", msg)
+		}
+	}
+
+	alive := []string{
+		`notification-bot error: {"error":"telegram API sendMessage error: Too Many Requests: retry after 30"}`,
+		"notification-bot request failed: connection refused",
+		"SMTP configuration not complete",
+	}
+	for _, msg := range alive {
+		if isDeadTelegramBinding(errors.New(msg)) {
+			t.Errorf("не должно считаться мёртвой привязкой: %s", msg)
+		}
+	}
+
+	if isDeadTelegramBinding(nil) {
+		t.Error("nil не должен считаться мёртвой привязкой")
+	}
+}
+
+// Сброс кэша по паре «канал + логин» не должен задевать другие каналы и логины:
+// иначе один заблокировавший бота пользователь обнулял бы резолв всему сервису
+func TestInvalidateRecipientCache(t *testing.T) {
+	ns := newTestService()
+
+	ns.recipientCacheSet("finder", "telegram", "ivanov", recipientResolution{Found: true, Address: "111"})
+	ns.recipientCacheSet("referal", "telegram", "ivanov", recipientResolution{Found: true, Address: "111"})
+	ns.recipientCacheSet("finder", "email", "ivanov", recipientResolution{Found: true, Address: "i@gh.uz"})
+	ns.recipientCacheSet("finder", "telegram", "petrov", recipientResolution{Found: true, Address: "222"})
+
+	ns.invalidateRecipientCache("telegram", "ivanov")
+
+	if _, ok := ns.recipientCacheGet("finder", "telegram", "ivanov"); ok {
+		t.Error("запись finder|telegram|ivanov должна быть удалена")
+	}
+	if _, ok := ns.recipientCacheGet("referal", "telegram", "ivanov"); ok {
+		t.Error("запись referal|telegram|ivanov должна быть удалена: адрес мёртв для всех сервисов")
+	}
+	if _, ok := ns.recipientCacheGet("finder", "email", "ivanov"); !ok {
+		t.Error("email того же пользователя трогать нельзя")
+	}
+	if _, ok := ns.recipientCacheGet("finder", "telegram", "petrov"); !ok {
+		t.Error("другой пользователь трогать нельзя")
+	}
+
+	// Пустой логин не должен вычищать весь кэш
+	ns.invalidateRecipientCache("telegram", "")
+	if _, ok := ns.recipientCacheGet("finder", "telegram", "petrov"); !ok {
+		t.Error("пустой логин не должен ничего удалять")
 	}
 }
