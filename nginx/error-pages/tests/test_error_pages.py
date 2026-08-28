@@ -169,9 +169,24 @@ def test_страница_показывает_код_и_заголовок(code
 def test_страница_знает_тему_портала(code):
     """Тема берётся из той же cookie, что и на остальных страницах портала."""
     body = page(code)
+    # Серверная подстановка: класс стоит до первой отрисовки, без мигания.
     assert '$cookie_gh_theme = /^dark$/' in body
     assert '$cookie_gh_theme = /^light$/' in body
+    # Тот же порядок, что в auth-service/static/js/theme-switcher.js.
+    assert "gh_theme=([^;]*)" in body
     assert "localStorage.getItem('theme')" in body
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_запасной_путь_темы_переживает_выключенный_ssi(code):
+    """Без SSI на <html> остаётся заглушка «dark-themelight-theme».
+
+    Проверка обязана быть точной: «класс непустой» приняло бы заглушку за
+    применённую тему, вышло бы из скрипта и оставило страницу в системной.
+    """
+    body = page(code)
+    assert "root.className === 'dark-theme' || root.className === 'light-theme'" in body
+    assert "if (root.className) { return; }" not in body
 
 
 @pytest.mark.parametrize("code", ALL_CODES)
@@ -231,8 +246,22 @@ def test_ссылка_на_поддержку_под_условием(code):
     """Переменная пуста — блока на странице нет вовсе, вёрстка не рвётся."""
     body = page(code)
     assert '<!--# if expr="$gw_support_telegram" -->' in body
-    assert 'href="https://t.me/<!--# echo var="gw_support_telegram" -->"' in body
+    assert '''href='https://t.me/<!--# echo var="gw_support_telegram" -->' ''' .strip() in body
     assert 'rel="noopener noreferrer"' in body
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_ssi_в_атрибутах_только_на_одинарных_кавычках(code):
+    """Директива SSI несёт двойные кавычки внутри себя.
+
+    В атрибуте на двойных кавычках браузер без обработанного SSI обрывает
+    значение на первой из них и вываливает хвост тега видимым текстом поверх
+    страницы. На одинарных худшее, что выйдет, — бессмысленное значение
+    атрибута, которого никто не заметит.
+    """
+    body = page(code)
+    for attr in re.findall(r'\w+="[^"]*<!--#', body):
+        raise AssertionError("SSI в двойных кавычках: %s" % attr)
 
 
 def test_переменная_поддержки_объявлена_и_подключена():

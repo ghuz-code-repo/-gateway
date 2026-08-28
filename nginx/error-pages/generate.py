@@ -149,19 +149,35 @@ THEME_CLASS = (
     "<!--# endif -->'"
 )
 
-# Фолбэк на localStorage: портал дублирует выбор темы туда, и у части
-# пользователей cookie может быть не выставлена (вход по старой сессии).
-# Системную тему при отсутствии обоих источников доигрывает CSS.
-THEME_SCRIPT = """    <script>
+# Запасной путь для темы, если SSI не отработал.
+#
+# Порядок тот же, что у портала (auth-service/static/js/theme-switcher.js):
+# cookie gh_theme -> localStorage -> системная тема. Cookie здесь читается
+# скриптом заново, а не только SSI: страница обязана попадать в тему даже
+# при выключенном SSI, при доступе к файлу напрямую и вообще всегда.
+#
+# Проверка класса точная, а не «класс непустой». При выключенном SSI на
+# <html> остаётся заглушка «dark-themelight-theme»: она непустая, и грубая
+# проверка приняла бы её за уже применённую тему и вышла бы, оставив
+# страницу в системной. Неизвестное значение затираем — тогда сработает
+# @media (prefers-color-scheme) из errors.css.
+THEME_SCRIPT = r"""    <script>
         (function () {
             var root = document.documentElement;
-            if (root.className) { return; }
+            if (root.className === 'dark-theme' || root.className === 'light-theme') {
+                return;
+            }
+            var theme = null;
             try {
-                var stored = localStorage.getItem('theme');
-                if (stored === 'dark' || stored === 'light') {
-                    root.className = stored + '-theme';
+                var found = document.cookie.match(/(?:^|;\s*)gh_theme=([^;]*)/);
+                if (found) { theme = decodeURIComponent(found[1]); }
+                if (theme !== 'dark' && theme !== 'light') {
+                    theme = localStorage.getItem('theme');
                 }
             } catch (e) { /* приватный режим — остаётся системная тема */ }
+            root.className = (theme === 'dark' || theme === 'light')
+                ? theme + '-theme'
+                : '';
         })();
     </script>"""
 
@@ -209,12 +225,16 @@ PARTICLES_SCRIPT = """    <script src="/_shared/js/particles.min.js"></script>
 # SUPPORT_TELEGRAM: docker-entrypoint.sh пишет из неё
 # conf.d/errors-contact.inc с директивой set. Переменная пуста — блок
 # целиком не выводится, вёрстка не разъезжается.
+#
+# href в ОДИНАРНЫХ кавычках — по той же причине, что и class выше. Директива
+# SSI содержит двойные кавычки, и в атрибуте на двойных кавычках браузер без
+# SSI обрывал бы значение на первой из них, вываливая хвост тега («rel=...
+# target=...>») видимым текстом поверх страницы. На одинарных кавычках
+# худшее, что выйдет, — ссылка на бессмысленный адрес.
 SUPPORT = """<!--# if expr="$gw_support_telegram" -->
         <p class="err-support">Ничего не помогло —
-            <a class="err-support-link" href="https://t.me/<!--# echo var="gw_support_telegram" -->"
-               rel="noopener noreferrer" target="_blank">
-                написать в Telegram
-            </a>
+            <a class="err-support-link" rel="noopener noreferrer" target="_blank"
+               href='https://t.me/<!--# echo var="gw_support_telegram" -->'>написать в Telegram</a>
         </p>
 <!--# endif -->
 """

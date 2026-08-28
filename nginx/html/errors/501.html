@@ -11,13 +11,20 @@
     <script>
         (function () {
             var root = document.documentElement;
-            if (root.className) { return; }
+            if (root.className === 'dark-theme' || root.className === 'light-theme') {
+                return;
+            }
+            var theme = null;
             try {
-                var stored = localStorage.getItem('theme');
-                if (stored === 'dark' || stored === 'light') {
-                    root.className = stored + '-theme';
+                var found = document.cookie.match(/(?:^|;\s*)gh_theme=([^;]*)/);
+                if (found) { theme = decodeURIComponent(found[1]); }
+                if (theme !== 'dark' && theme !== 'light') {
+                    theme = localStorage.getItem('theme');
                 }
             } catch (e) { /* приватный режим — остаётся системная тема */ }
+            root.className = (theme === 'dark' || theme === 'light')
+                ? theme + '-theme'
+                : '';
         })();
     </script>
 </head>
@@ -63,10 +70,8 @@
         </div>
         <!--# if expr="$gw_support_telegram" -->
         <p class="err-support">Ничего не помогло —
-            <a class="err-support-link" href="https://t.me/<!--# echo var="gw_support_telegram" -->"
-               rel="noopener noreferrer" target="_blank">
-                написать в Telegram
-            </a>
+            <a class="err-support-link" rel="noopener noreferrer" target="_blank"
+               href='https://t.me/<!--# echo var="gw_support_telegram" -->'>написать в Telegram</a>
         </p>
 <!--# endif -->
 <p class="err-foot">Идентификатор запроса помогает найти эту ошибку в логах —

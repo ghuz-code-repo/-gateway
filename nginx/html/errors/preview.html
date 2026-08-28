@@ -10,13 +10,20 @@
     <script>
         (function () {
             var root = document.documentElement;
-            if (root.className) { return; }
+            if (root.className === 'dark-theme' || root.className === 'light-theme') {
+                return;
+            }
+            var theme = null;
             try {
-                var stored = localStorage.getItem('theme');
-                if (stored === 'dark' || stored === 'light') {
-                    root.className = stored + '-theme';
+                var found = document.cookie.match(/(?:^|;\s*)gh_theme=([^;]*)/);
+                if (found) { theme = decodeURIComponent(found[1]); }
+                if (theme !== 'dark' && theme !== 'light') {
+                    theme = localStorage.getItem('theme');
                 }
             } catch (e) { /* приватный режим — остаётся системная тема */ }
+            root.className = (theme === 'dark' || theme === 'light')
+                ? theme + '-theme'
+                : '';
         })();
     </script>
 </head>
