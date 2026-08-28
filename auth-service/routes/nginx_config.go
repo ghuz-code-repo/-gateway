@@ -44,9 +44,6 @@ location {{.ExternalPrefix}}/static/uploads/ {
 # логина, и они должны кэшироваться.
 location {{.ExternalPrefix}}/static/ {
     proxy_pass {{.InternalURL}}/static/;
-    # Ассеты перехватывать нельзя: вместо отсутствующего css браузер получил бы
-    # HTML-страницу ошибки. Страницы ошибок нужны для навигации, не для файлов.
-    proxy_intercept_errors off;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -83,6 +80,17 @@ location {{.ExternalPrefix}}/ {
     # 5xx или не ответит вовсе. Строка стоит до rewrite намеренно: rewrite
     # с флагом break обрывает фазу rewrite, и set после него не выполнится.
     set $gw_service_key {{.ServiceKey}};
+
+    # Ошибки сервиса заменяются стилизованной страницей шлюза. Включается
+    # ровно здесь, а не на весь server-блок: страницы самого портала отдают
+    # 401 и 403 как контент (форма логина, access-denied), и перехват
+    # превращал бы их в редиректы вплоть до цикла. Подробности —
+    # nginx/conf/errors.inc.
+    #
+    # Блоки {{.ExternalPrefix}}/static/ и {{.ExternalPrefix}}{{.HealthCheckPath}}
+    # намеренно остаются без перехвата: ассетам и health-опросу нужен код
+    # ответа, а не страница для человека.
+    proxy_intercept_errors on;
 
     # Strip the service prefix before proxying
     rewrite ^{{.ExternalPrefix}}/(.*) /$1 break;
@@ -131,9 +139,6 @@ location {{.ExternalPrefix}}/ {
 location = {{.ExternalPrefix}}{{.HealthCheckPath}} {
     set $backend_{{.SafeServiceKey}}_health {{.InternalURL}}{{.HealthCheckPath}};
     proxy_pass $backend_{{.SafeServiceKey}}_health;
-    # Health опрашивают monitoring-service и docker: им нужен код и короткое
-    # тело сервиса, а не страница для человека.
-    proxy_intercept_errors off;
     proxy_set_header Host $host;
     access_log off;
 }

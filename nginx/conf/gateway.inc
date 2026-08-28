@@ -90,9 +90,6 @@ server {
     # Main favicon endpoints - proxy to auth-service
     location = /vite.svg {
         proxy_pass http://auth-service:80/vite.svg;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         add_header Content-Type "image/x-icon" always;
         add_header Cache-Control "public, max-age=3600" always;
         expires 1h;
@@ -228,9 +225,6 @@ server {
         # Use variable so nginx resolves at runtime, not at config load
         set $dozzle_upstream http://gateway-dozzle:8080;
         proxy_pass $dozzle_upstream;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -264,9 +258,6 @@ server {
     location = /verify-logs-auth {
         internal;
         proxy_pass http://auth-service:80/verify-logs-access?service=$logs_referer_service;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -298,9 +289,6 @@ server {
         
         # Dozzle web UI with WebSocket support
         proxy_pass $dozzle_service_url;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -333,9 +321,6 @@ server {
     location = /verify-service-logs-auth {
         internal;
         proxy_pass http://auth-service:80/verify-logs-access?service=$service_key;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -358,8 +343,6 @@ server {
     # User existence check
     location /check-user-exists {
         proxy_pass http://auth-service:80/check-user-exists;
-        # Проверку дёргает форма создания пользователя через fetch — ей нужен JSON.
-        proxy_intercept_errors off;
     }
     
     # Role management
@@ -399,10 +382,6 @@ server {
     # General API endpoints (high priority prefix)
     location ^~ /api/ {
         proxy_pass http://auth-service:80/api/;
-        # JSON-API портала: ответы читает JS админки и auth-connector сервисов.
-        # Подменять тело страницей означало бы отдать HTML вместо {"error":...},
-        # а 401 превратить в редирект на /login, который fetch молча проглотит.
-        proxy_intercept_errors off;
     }
 
     # ================================================================
@@ -412,17 +391,11 @@ server {
     # Data files from auth-service
     location /data/ {
         proxy_pass http://auth-service:80/data/;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
     }
     
     # Avatar endpoint (no caching for fresh images)
     location /avatar/ {
         proxy_pass http://auth-service:80/avatar/;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
         add_header Pragma "no-cache" always;
         add_header Expires "0" always;
@@ -431,9 +404,6 @@ server {
     # Static CSS/JS files with caching
     location /static/ {
         proxy_pass http://auth-service:80/static/;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         proxy_cache_valid 200 1h;
         proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
         add_header Cache-Control "public, max-age=3600" always;
@@ -448,9 +418,6 @@ server {
     location = /verify {
         internal;
         proxy_pass http://auth-service:80/verify;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -463,9 +430,6 @@ server {
     location = /verify-admin {
         internal;
         proxy_pass http://auth-service:80/verify-admin;
-        # Ответы этого блока перехватывать нельзя: HTML-страница ошибки
-        # вместо ассета или ответа auth_request ломает вызывающий код.
-        proxy_intercept_errors off;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -491,7 +455,8 @@ server {
     }
     
     # Остальные коды — стилизованные страницы шлюза. Перехват ответов
-    # конечных сервисов включается там же (proxy_intercept_errors).
+    # конечных сервисов включается не здесь, а в их сгенерированных
+    # конфигах: страницы самого портала свои ошибки рисуют сами.
     include /etc/nginx/conf.d/errors.inc;
 
     # ================================================================

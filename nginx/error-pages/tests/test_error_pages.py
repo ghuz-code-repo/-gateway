@@ -250,9 +250,8 @@ def test_переменная_проброшена_в_контейнер():
 # Обвязка nginx
 # ---------------------------------------------------------------------------
 
-def test_errors_inc_включает_перехват_и_страницы():
+def test_errors_inc_подключает_страницы():
     body = read(ERRORS_INC)
-    assert "proxy_intercept_errors on;" in body
     assert "include /etc/nginx/conf.d/errors-pages.inc;" in body
     assert "include /etc/nginx/conf.d/errors-preview.inc;" in body
     # Раздача только по внутреннему редиректу.
@@ -273,48 +272,36 @@ def test_gateway_inc_подключает_страницы_ошибок():
     assert "/404.html" not in body, "остался старый обработчик 404"
 
 
-# Блоки, где HTML-страница вместо ответа сломает вызывающий код: ассеты,
-# служебные проверки прав и вебсокеты Dozzle. Ключ — начало location.
-NO_INTERCEPT = (
-    "= /vite.svg",
-    "/static/",
-    "/data/",
-    "/avatar/",
-    "/logs ",
-    "~ ^/services/([^/]+)/logs",
-    "= /verify",
-    "= /verify-admin",
-    "= /verify-logs-auth",
-    "= /verify-service-logs-auth",
-    # JSON-эндпоинты портала: их читает JS, а не человек.
-    "^~ /api/",
-    "/check-user-exists",
-)
+def test_шлюз_не_перехватывает_ответы_портала():
+    """Страницы портала отдают 401 и 403 как контент, а не как аварию.
+
+    Форма логина с «неверный пароль» (auth_handlers.go), error.html админки
+    (middleware.go) и access-denied.html (routes.go) возвращаются со своими
+    кодами. Перехват превращал бы их в редиректы, а для /access-denied —
+    в бесконечный цикл: страница отдаёт 403, шлюз шлёт 302 на неё же.
+    """
+    assert "proxy_intercept_errors off;" in read(ERRORS_INC)
+    assert "proxy_intercept_errors on;" not in read(ERRORS_INC)
+    # Точечных включений в gateway.inc быть не должно — иначе решение
+    # расползётся по файлу и следующий такой цикл никто не заметит.
+    assert "proxy_intercept_errors" not in read(GATEWAY_INC)
 
 
-def gateway_blocks():
-    """Разбирает gateway.inc на пары (заголовок location, тело блока)."""
+def test_редирект_на_страницу_ошибки_не_длиннее_одного():
+    """У браузера ровно один переход, дальше цепочка обязана заканчиваться.
+
+    401 -> /login и 403 -> /access-denied. Обе цели проксируются в
+    auth-service без перехвата, поэтому их собственные коды ответа новый
+    редирект уже не порождают.
+    """
     body = read(GATEWAY_INC)
-    for match in re.finditer(r"\n    location ([^\n{]*)\{", body):
-        start = match.end()
-        depth = 1
-        i = start
-        while depth and i < len(body):
-            if body[i] == "{":
-                depth += 1
-            elif body[i] == "}":
-                depth -= 1
-            i += 1
-        yield match.group(1).strip(), body[start:i]
-
-
-@pytest.mark.parametrize("prefix", NO_INTERCEPT)
-def test_ассеты_и_проверки_прав_не_перехватываются(prefix):
-    """HTML-страница вместо ассета или ответа auth_request ломает клиента."""
-    blocks = [b for head, b in gateway_blocks() if head.startswith(prefix.strip())]
-    assert blocks, "нет блока location %s" % prefix
-    for block in blocks:
-        assert "proxy_intercept_errors off;" in block
+    targets = re.findall(r"return 30[12] (/[^?;\s]*)", body)
+    for target in set(targets):
+        # Цель редиректа обслуживается локально и не перехватывается —
+        # значит второго перехода не будет.
+        assert not target.startswith("/_errors/"), target
+    assert "return 302 /login?redirect=$request_uri;" in body
+    assert "return 302 /access-denied?service=$request_uri;" in body
 
 
 def test_заблокированные_ассеты_отдают_пустое_тело():
@@ -332,13 +319,31 @@ def test_nginx_conf_определяет_раздел_по_пути():
     assert "login|logout|menu" in body
 
 
-def test_шаблон_конфига_сервиса_передаёт_ключ():
-    """Имя сервиса на странице ошибки берётся из сгенерированного конфига."""
-    tmpl = (NGINX_DIR.parent / "auth-service" / "routes" / "nginx_config.go").read_text(
+def service_template():
+    return (NGINX_DIR.parent / "auth-service" / "routes" / "nginx_config.go").read_text(
         encoding="utf-8"
     )
+
+
+def test_шаблон_конфига_сервиса_передаёт_ключ():
+    """Имя сервиса на странице ошибки берётся из сгенерированного конфига."""
+    tmpl = service_template()
     assert "set $gw_service_key {{.ServiceKey}};" in tmpl
     set_at = tmpl.index("set $gw_service_key {{.ServiceKey}};")
     rewrite_at = tmpl.index("rewrite ^{{.ExternalPrefix}}/(.*) /$1 break;")
     assert set_at < rewrite_at, "rewrite ... break обрывает фазу rewrite: set не выполнится"
-    assert tmpl.count("proxy_intercept_errors off;") == 2, "статика и health"
+
+
+def test_перехват_включён_только_у_конечных_сервисов():
+    """Единственное место, где ошибки подменяются страницей шлюза.
+
+    Блок должен быть один и именно основной: {prefix}/static/ и health
+    остаются без перехвата, там нужен код ответа, а не страница.
+    """
+    tmpl = service_template()
+    assert tmpl.count("proxy_intercept_errors on;") == 1
+    assert "proxy_intercept_errors off;" not in tmpl
+    intercept_at = tmpl.index("proxy_intercept_errors on;")
+    main_at = tmpl.index("location {{.ExternalPrefix}}/ {")
+    health_at = tmpl.index("location = {{.ExternalPrefix}}{{.HealthCheckPath}} {")
+    assert main_at < intercept_at < health_at
