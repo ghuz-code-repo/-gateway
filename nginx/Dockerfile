@@ -16,7 +16,10 @@ RUN chmod +x /custom-entrypoint.sh
 # Copy static HTML files
 COPY ./html/favicon.ico /usr/share/nginx/html/favicon.ico
 COPY ./html/favicon.svg /usr/share/nginx/html/favicon.svg
-COPY ./html/404.html /usr/share/nginx/html/404.html
+# Стилизованные страницы ошибок (генерируются error-pages/generate.py).
+# В compose этот каталог ещё и монтируется поверх — правка текста
+# применяется перезагрузкой nginx, без пересборки образа.
+COPY ./html/errors /usr/share/nginx/html/errors
 
 # Shared static assets (vendored JS libs served at /_shared/*)
 COPY ./html/_shared /usr/share/nginx/html/_shared

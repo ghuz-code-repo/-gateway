@@ -1,0 +1,334 @@
+/* ===================================================================
+ * СТРАНИЦЫ ОШИБОК ШЛЮЗА
+ * ===================================================================
+ * Файл отдаёт сам nginx из /usr/share/nginx/html/errors/. Это осознанно:
+ * страница ошибки обязана рисоваться, когда auth-service лежит, а вместе
+ * с ним недоступен и /static/css/styles.css. Поэтому палитра портала здесь
+ * скопирована, а не подключена. При смене фирменных цветов в
+ * auth-service/static/css/styles.css правьте и этот файл.
+ *
+ * Внешних загрузок нет ни одной: прод в изолированной сети, CDN недоступен.
+ * =================================================================== */
+
+:root {
+    --err-bg: #f5f5f5;
+    --err-card: #fff;
+    --err-text: #333;
+    --err-muted: #666;
+    --err-faint: #95a5a6;
+    --err-border: #e1e8ed;
+    --err-primary: #d4af37;
+    --err-primary-hover: #b8860b;
+    --err-on-primary: #fff;
+    --err-danger: #DB4437;
+    --err-meta-bg: #f8f9fa;
+    --err-shadow: 0 10px 40px rgba(0, 0, 0, .08);
+}
+
+/* Явно выбранная светлая тема (cookie gh_theme=light) — чтобы системная
+   тёмная не перебила выбор пользователя. */
+.light-theme {
+    color-scheme: light;
+}
+
+.dark-theme {
+    color-scheme: dark;
+    --err-bg: #121212;
+    --err-card: #1e1e1e;
+    --err-text: #e0e0e0;
+    --err-muted: #aaa;
+    --err-faint: #666;
+    --err-border: #444;
+    --err-primary: #b8860b;
+    --err-primary-hover: #a0740a;
+    --err-on-primary: #e0e0e0;
+    --err-danger: #e57373;
+    --err-meta-bg: #2c2c2c;
+    --err-shadow: 0 10px 40px rgba(0, 0, 0, .4);
+}
+
+/* Cookie не выставлена — повторяем логику портала: системная тема.
+   Класс на <html> ставит SSI, поэтому :not() снимает правило, как только
+   выбор сделан явно. */
+@media (prefers-color-scheme: dark) {
+    html:not(.light-theme):not(.dark-theme) {
+        color-scheme: dark;
+        --err-bg: #121212;
+        --err-card: #1e1e1e;
+        --err-text: #e0e0e0;
+        --err-muted: #aaa;
+        --err-faint: #666;
+        --err-border: #444;
+        --err-primary: #b8860b;
+        --err-primary-hover: #a0740a;
+        --err-on-primary: #e0e0e0;
+        --err-danger: #e57373;
+        --err-meta-bg: #2c2c2c;
+        --err-shadow: 0 10px 40px rgba(0, 0, 0, .4);
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    /* Шрифты портала не подключаем: styles.css может быть недоступен. */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--err-bg);
+    color: var(--err-text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    line-height: 1.6;
+}
+
+.err-card {
+    width: 100%;
+    max-width: 620px;
+    background: var(--err-card);
+    border: 1px solid var(--err-border);
+    border-radius: 16px;
+    box-shadow: var(--err-shadow);
+    padding: 40px 36px 32px;
+    text-align: center;
+}
+
+.err-art {
+    color: var(--err-primary);
+    margin-bottom: 8px;
+}
+
+.err-art svg {
+    width: 88px;
+    height: 88px;
+    display: block;
+    margin: 0 auto;
+}
+
+.err-code {
+    margin: 0;
+    font-size: clamp(48px, 14vw, 76px);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -.02em;
+    color: var(--err-primary);
+}
+
+/* Прикольные коды — тем же фирменным цветом, но с подписью-пояснением:
+   выделять их красным нельзя, пользователь читает красное как поломку. */
+.err-badge {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 3px 10px;
+    border: 1px solid var(--err-border);
+    border-radius: 999px;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--err-muted);
+}
+
+.err-title {
+    margin: 14px 0 0;
+    font-size: clamp(20px, 5.5vw, 27px);
+    font-weight: 600;
+}
+
+.err-text {
+    margin: 14px 0 0;
+    font-size: 16px;
+    color: var(--err-muted);
+    text-align: left;
+}
+
+.err-hint {
+    margin: 12px 0 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--err-meta-bg);
+    border: 1px solid var(--err-border);
+    font-size: 15px;
+    text-align: left;
+    color: var(--err-text);
+}
+
+/* Технические подробности: код от сервиса, адрес, идентификатор запроса.
+   Свёрнуты по умолчанию — обычному пользователю они не нужны, а
+   администратору без них не найти запись в логах. */
+.err-details {
+    margin-top: 22px;
+    text-align: left;
+    border: 1px solid var(--err-border);
+    border-radius: 10px;
+    background: var(--err-meta-bg);
+    overflow: hidden;
+}
+
+.err-details > summary {
+    cursor: pointer;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--err-muted);
+    user-select: none;
+}
+
+.err-details > summary:hover {
+    color: var(--err-text);
+}
+
+.err-meta {
+    margin: 0;
+    padding: 0 14px 12px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 14px;
+    font-size: 13px;
+}
+
+.err-meta dt {
+    color: var(--err-faint);
+    white-space: nowrap;
+}
+
+.err-meta dd {
+    margin: 0;
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
+    /* Идентификатор запроса и адрес не переносятся по пробелам. */
+    overflow-wrap: anywhere;
+}
+
+.err-actions {
+    margin-top: 26px;
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.err-btn {
+    appearance: none;
+    border: 1px solid var(--err-primary);
+    background: var(--err-primary);
+    color: var(--err-on-primary);
+    font: inherit;
+    font-weight: 500;
+    padding: 12px 22px;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background .2s, transform .2s;
+}
+
+.err-btn:hover {
+    background: var(--err-primary-hover);
+    border-color: var(--err-primary-hover);
+    transform: translateY(-1px);
+}
+
+.err-btn--ghost {
+    background: transparent;
+    color: var(--err-text);
+    border-color: var(--err-border);
+}
+
+.err-btn--ghost:hover {
+    background: var(--err-meta-bg);
+    border-color: var(--err-muted);
+}
+
+.err-foot {
+    margin: 22px 0 0;
+    font-size: 12px;
+    color: var(--err-faint);
+}
+
+@media (max-width: 600px) {
+    .err-card {
+        padding: 28px 20px 24px;
+        border-radius: 14px;
+    }
+
+    .err-art svg {
+        width: 68px;
+        height: 68px;
+    }
+
+    .err-actions {
+        flex-direction: column;
+    }
+
+    .err-btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* Печать и режим высокой контрастности: тени и фон только мешают. */
+@media print {
+    body {
+        background: #fff;
+    }
+
+    .err-card {
+        box-shadow: none;
+    }
+
+    .err-actions {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .err-btn {
+        transition: none;
+    }
+
+    .err-btn:hover {
+        transform: none;
+    }
+}
+
+/* ===== Страница предпросмотра (/errors-preview/, только администратор) ===== */
+
+.err-preview {
+    display: block;
+    padding: 32px 20px 60px;
+}
+
+.err-preview .err-card {
+    max-width: 980px;
+    text-align: left;
+}
+
+.err-preview-grid {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.err-preview-grid a {
+    display: block;
+    padding: 10px 12px;
+    border: 1px solid var(--err-border);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--err-text);
+    background: var(--err-meta-bg);
+    font-size: 14px;
+}
+
+.err-preview-grid a:hover {
+    border-color: var(--err-primary);
+}
+
+.err-preview-grid b {
+    color: var(--err-primary);
+    font-family: ui-monospace, Consolas, monospace;
+    margin-right: 8px;
+}

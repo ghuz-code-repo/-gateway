@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru" class='<!--# if expr="$cookie_gh_theme = /^dark$/" -->dark-theme<!--# elif expr="$cookie_gh_theme = /^light$/" -->light-theme<!--# endif -->'>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Страницы ошибок · Golden House</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/_errors/errors.css">
+    <script>
+        (function () {
+            var root = document.documentElement;
+            if (root.className) { return; }
+            try {
+                var stored = localStorage.getItem('theme');
+                if (stored === 'dark' || stored === 'light') {
+                    root.className = stored + '-theme';
+                }
+            } catch (e) { /* приватный режим — остаётся системная тема */ }
+        })();
+    </script>
+</head>
+<body class="err-preview">
+    <main class="err-card">
+        <h1 class="err-title">Страницы ошибок шлюза</h1>
+        <p class="err-text">Ссылка возвращает настоящий статус-код, а не имитацию:
+            nginx отдаёт ровно то, что увидит пользователь. Раздел доступен только
+            администраторам.</p>
+        <p class="err-text"><b>401</b> и <b>403</b> в списке отсутствуют — они
+            обрабатываются редиректами на <code>/login</code> и
+            <code>/access-denied</code>.</p>
+        <div class="err-preview-grid">
+            <a href="/errors-preview/400"><b>400</b>Некорректный запрос</a>
+            <a href="/errors-preview/402"><b>402</b>Требуется оплата</a>
+            <a href="/errors-preview/404"><b>404</b>Страница не найдена</a>
+            <a href="/errors-preview/405"><b>405</b>Метод не поддерживается</a>
+            <a href="/errors-preview/406"><b>406</b>Неподходящий формат ответа</a>
+            <a href="/errors-preview/407"><b>407</b>Нужна авторизация на прокси</a>
+            <a href="/errors-preview/408"><b>408</b>Время ожидания истекло</a>
+            <a href="/errors-preview/409"><b>409</b>Конфликт данных</a>
+            <a href="/errors-preview/410"><b>410</b>Удалено навсегда</a>
+            <a href="/errors-preview/411"><b>411</b>Не указана длина запроса</a>
+            <a href="/errors-preview/412"><b>412</b>Условие не выполнено</a>
+            <a href="/errors-preview/413"><b>413</b>Файл слишком большой</a>
+            <a href="/errors-preview/414"><b>414</b>Адрес слишком длинный</a>
+            <a href="/errors-preview/415"><b>415</b>Неподдерживаемый тип файла</a>
+            <a href="/errors-preview/416"><b>416</b>Недостижимый диапазон</a>
+            <a href="/errors-preview/417"><b>417</b>Ожидания не оправдались</a>
+            <a href="/errors-preview/418"><b>418</b>Я — чайник</a>
+            <a href="/errors-preview/421"><b>421</b>Запрос пришёл не по адресу</a>
+            <a href="/errors-preview/422"><b>422</b>Данные не приняты</a>
+            <a href="/errors-preview/423"><b>423</b>Заблокировано</a>
+            <a href="/errors-preview/424"><b>424</b>Не выполнена зависимость</a>
+            <a href="/errors-preview/425"><b>425</b>Слишком рано</a>
+            <a href="/errors-preview/426"><b>426</b>Нужен другой протокол</a>
+            <a href="/errors-preview/428"><b>428</b>Нужно указать условие</a>
+            <a href="/errors-preview/429"><b>429</b>Слишком много запросов</a>
+            <a href="/errors-preview/431"><b>431</b>Заголовки слишком большие</a>
+            <a href="/errors-preview/451"><b>451</b>Недоступно по юридическим причинам</a>
+            <a href="/errors-preview/500"><b>500</b>Внутренняя ошибка</a>
+            <a href="/errors-preview/501"><b>501</b>Не реализовано</a>
+            <a href="/errors-preview/502"><b>502</b>Раздел не отвечает</a>
+            <a href="/errors-preview/503"><b>503</b>Сервис временно недоступен</a>
+            <a href="/errors-preview/504"><b>504</b>Раздел не ответил вовремя</a>
+            <a href="/errors-preview/505"><b>505</b>Версия HTTP не поддерживается</a>
+            <a href="/errors-preview/506"><b>506</b>Сервер спорит сам с собой</a>
+            <a href="/errors-preview/507"><b>507</b>Кончилось место</a>
+            <a href="/errors-preview/508"><b>508</b>Обнаружен цикл</a>
+            <a href="/errors-preview/510"><b>510</b>Не хватает расширения</a>
+            <a href="/errors-preview/511"><b>511</b>Требуется вход в сеть</a>
+        </div>
+    </main>
+</body>
+</html>

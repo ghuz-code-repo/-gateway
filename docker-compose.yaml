@@ -16,6 +16,12 @@ services:
       - ./nginx/conf/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/conf/gateway.inc:/etc/nginx/conf.d/gateway.inc:ro
       - ./nginx/conf/quiz.inc:/etc/nginx/conf.d/quiz.inc:ro
+      # Страницы ошибок: конфиг и сами страницы монтируются, чтобы
+      # правка текста применялась перезагрузкой, без пересборки образа
+      - ./nginx/conf/errors.inc:/etc/nginx/conf.d/errors.inc:ro
+      - ./nginx/conf/errors-pages.inc:/etc/nginx/conf.d/errors-pages.inc:ro
+      - ./nginx/conf/errors-preview.inc:/etc/nginx/conf.d/errors-preview.inc:ro
+      - ./nginx/html/errors:/usr/share/nginx/html/errors:ro
       # Mount dynamic configs (writable for service discovery)
       - nginx_dynamic_config:/etc/nginx/conf.d/dynamic
       # Mount certs
