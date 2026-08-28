@@ -110,13 +110,27 @@ def test_редиректы_401_и_403_на_месте():
 # Самодостаточность страниц
 # ---------------------------------------------------------------------------
 
-EXTERNAL = re.compile(r"""(?:src|href)\s*=\s*["'](?:https?:)?//""")
+# Загрузка ресурса — это src= у script/img и href= у <link>. Ссылка <a href>
+# ресурс не тянет: страница отрисуется и без доступа в интернет.
+EXTERNAL_SRC = re.compile(r"""src\s*=\s*["'](?:https?:)?//""")
+EXTERNAL_LINK = re.compile(r"""<link[^>]+href\s*=\s*["'](?:https?:)?//""")
 
 
 @pytest.mark.parametrize("code", ALL_CODES)
 def test_страница_без_внешних_загрузок(code):
-    """Прод в изолированной сети: любая внешняя ссылка — пустой квадрат."""
-    assert not EXTERNAL.search(page(code))
+    """Прод в изолированной сети: любая внешняя загрузка — пустой квадрат."""
+    body = page(code)
+    assert not EXTERNAL_SRC.search(body)
+    assert not EXTERNAL_LINK.search(body)
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_единственная_внешняя_ссылка_это_поддержка(code):
+    """Наружу ведёт только Telegram поддержки, и только по клику."""
+    # Директива SSI обрывает совпадение символом '<' — до неё остаётся ровно
+    # основа ссылки, а сам логин подставит nginx.
+    urls = re.findall(r'https?://[^\s"<]*', page(code))
+    assert urls == ["https://t.me/"]
 
 
 @pytest.mark.parametrize("code", ALL_CODES)
@@ -162,6 +176,77 @@ def test_ssi_не_отключает_экранирование(code):
 
 
 # ---------------------------------------------------------------------------
+# Фон с частицами
+# ---------------------------------------------------------------------------
+
+PARTICLES_SRC = "/_shared/js/particles.min.js"
+
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_страница_подключает_фон_с_частицами(code):
+    body = page(code)
+    assert '<div id="particles-js" aria-hidden="true"></div>' in body
+    assert '<script src="%s"></script>' % PARTICLES_SRC in body
+    # Скрипта может не оказаться — страница обязана пережить это молча.
+    assert "typeof particlesJS !== 'function'" in body
+    # Анимация на весь экран у людей с вестибулярными нарушениями вызывает
+    # тошноту; системная настройка это ровно про такой случай.
+    assert "prefers-reduced-motion" in body
+
+
+def test_particles_вендорен_локально():
+    """Скрипт отдаёт сам nginx: при мёртвом auth-service он всё равно есть."""
+    assert (NGINX_DIR / "html" / "_shared" / "js" / "particles.min.js").exists()
+
+
+def test_цвет_частиц_берётся_из_темы():
+    css = read(OUT_DIR / "errors.css")
+    # Светлая палитра, .dark-theme и системная тёмная.
+    assert css.count("--err-particles:") == 3
+    assert "'--err-particles'" in page(500)
+
+
+# ---------------------------------------------------------------------------
+# Контакт поддержки
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_ссылка_на_поддержку_под_условием(code):
+    """Переменная пуста — блока на странице нет вовсе, вёрстка не рвётся."""
+    body = page(code)
+    assert '<!--# if expr="$gw_support_telegram" -->' in body
+    assert 'href="https://t.me/<!--# echo var="gw_support_telegram" -->"' in body
+    assert 'rel="noopener noreferrer"' in body
+
+
+def test_переменная_поддержки_объявлена_и_подключена():
+    body = read(ERRORS_INC)
+    # Объявление до include: без него SSI спотыкается о неизвестное имя,
+    # когда errors-contact.inc не сгенерирован.
+    assert 'set $gw_support_telegram "";' in body
+    assert "include /etc/nginx/conf.d/errors-contact*.inc;" in body
+    assert body.index('set $gw_support_telegram "";') < body.index("errors-contact*.inc")
+
+
+def test_entrypoint_чистит_значение_из_окружения():
+    """Сырая переменная окружения в конфиге nginx — сломанный старт шлюза."""
+    body = (NGINX_DIR / "docker-entrypoint.sh").read_text(encoding="utf-8")
+    assert "SUPPORT_TELEGRAM" in body
+    assert "tr -cd 'A-Za-z0-9_'" in body
+    assert "> /etc/nginx/conf.d/errors-contact.inc" in body
+    # В heredoc знак $ экранирован: иначе оболочка подставила бы пустую
+    # строку вместо имени nginx-переменной.
+    assert r'set \$gw_support_telegram "${SUPPORT_TELEGRAM_CLEAN}";' in body
+
+
+def test_переменная_проброшена_в_контейнер():
+    compose = (NGINX_DIR.parent / "docker-compose.yaml").read_text(encoding="utf-8")
+    assert "SUPPORT_TELEGRAM=${SUPPORT_TELEGRAM:-}" in compose
+    example = (NGINX_DIR.parent / ".env.example").read_text(encoding="utf-8")
+    assert "SUPPORT_TELEGRAM=" in example
+
+
+# ---------------------------------------------------------------------------
 # Обвязка nginx
 # ---------------------------------------------------------------------------
 
@@ -176,6 +261,8 @@ def test_errors_inc_включает_перехват_и_страницы():
     # Собственные заголовки безопасности: add_header в location отменяет
     # наследование серверных.
     assert "add_header Content-Security-Policy" in body
+    # Фон с частицами — внешний файл, значит script-src 'self' обязателен.
+    assert "script-src 'self' 'unsafe-inline'" in body
     assert "add_header X-Frame-Options" in body
 
 

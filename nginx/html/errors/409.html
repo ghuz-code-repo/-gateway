@@ -22,6 +22,7 @@
     </script>
 </head>
 <body>
+    <div id="particles-js" aria-hidden="true"></div>
     <main class="err-card">
         <div class="err-art"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-hidden="true"><circle cx="32" cy="32" r="24"/><path d="M25 25a7 7 0 0 1 13 3c0 5-6 5-6 10"/><circle cx="32" cy="45" r="1.6" fill="currentColor"/></svg></div>
         <p class="err-code">409</p>
@@ -61,7 +62,15 @@
             <a class="err-btn" href="/menu">В меню портала</a>
             <button type="button" class="err-btn err-btn--ghost" id="err-back">Назад</button>
         </div>
-        <p class="err-foot">Идентификатор запроса помогает найти эту ошибку в логах —
+        <!--# if expr="$gw_support_telegram" -->
+        <p class="err-support">Ничего не помогло —
+            <a class="err-support-link" href="https://t.me/<!--# echo var="gw_support_telegram" -->"
+               rel="noopener noreferrer" target="_blank">
+                написать в Telegram
+            </a>
+        </p>
+<!--# endif -->
+<p class="err-foot">Идентификатор запроса помогает найти эту ошибку в логах —
             приложите его к обращению в поддержку.</p>
     </main>
     <script>
@@ -75,6 +84,39 @@
             } else {
                 back.remove();
             }
+        })();
+    </script>
+    <script src="/_shared/js/particles.min.js"></script>
+    <script>
+        (function () {
+            // Скрипта может не быть (вырезали из образа, режет расширение) —
+            // страница обязана остаться читаемой без него.
+            if (typeof particlesJS !== 'function') { return; }
+            var reduced = window.matchMedia
+                && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduced) { return; }
+            var root = document.documentElement;
+            var color = getComputedStyle(root)
+                .getPropertyValue('--err-particles').trim() || '#c4a668';
+            // На телефоне те же 120 частиц заметно греют батарею и подтормаживают.
+            var count = window.innerWidth < 700 ? 45 : 110;
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": { "value": count, "density": { "enable": true, "value_area": 800 } },
+                    "color": { "value": color },
+                    "shape": { "type": "polygon", "stroke": { "width": 1, "color": color }, "polygon": { "nb_sides": 6 } },
+                    "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+                    "size": { "value": 4, "random": true },
+                    "line_linked": { "enable": true, "distance": 180, "color": color, "opacity": 0.15, "width": 1 },
+                    "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": { "onhover": { "enable": true, "mode": "bubble" }, "onclick": { "enable": true, "mode": "push" } },
+                    "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+                },
+                "retina_detect": true
+            });
         })();
     </script>
 </body>

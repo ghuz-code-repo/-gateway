@@ -24,6 +24,15 @@
 
 proxy_intercept_errors on;
 
+# Контакт поддержки для страниц ошибок. Значение приходит из переменной
+# окружения SUPPORT_TELEGRAM: docker-entrypoint.sh пишет из неё
+# errors-contact.inc с директивой set. Здесь объявляется пустое значение —
+# чтобы переменная существовала даже без сгенерированного файла, а SSI не
+# спотыкался о неизвестное имя. Порядок важен: include идёт следом и
+# перекрывает пустую строку.
+set $gw_support_telegram "";
+include /etc/nginx/conf.d/errors-contact*.inc;
+
 # limit_req по умолчанию отвечает 503 «сервис недоступен», хотя причина
 # другая — превышен лимит частоты. 429 и точнее, и попадает на страницу
 # с понятным текстом «подождите минуту».
@@ -51,8 +60,10 @@ location ^~ /_errors/ {
 
     # add_header в location отменяет наследование серверных заголовков,
     # поэтому защиту приходится перечислить заново. Политика здесь строже
-    # общей: странице нужны только свой CSS и два инлайновых скрипта.
-    add_header Content-Security-Policy "default-src 'none'; style-src 'self'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
+    # общей: ни картинок со стороны, ни форм, ни фреймов.
+    # script-src 'self' нужен фону с частицами (/_shared/js/particles.min.js),
+    # 'unsafe-inline' — инлайновым скриптам темы, кнопки «Назад» и инициализации.
+    add_header Content-Security-Policy "default-src 'none'; style-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
     add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer" always;

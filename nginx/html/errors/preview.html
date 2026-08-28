@@ -21,6 +21,7 @@
     </script>
 </head>
 <body class="err-preview">
+    <div id="particles-js" aria-hidden="true"></div>
     <main class="err-card">
         <h1 class="err-title">Страницы ошибок шлюза</h1>
         <p class="err-text">Ссылка возвращает настоящий статус-код, а не имитацию:
@@ -70,5 +71,38 @@
             <a href="/errors-preview/511"><b>511</b>Требуется вход в сеть</a>
         </div>
     </main>
+    <script src="/_shared/js/particles.min.js"></script>
+    <script>
+        (function () {
+            // Скрипта может не быть (вырезали из образа, режет расширение) —
+            // страница обязана остаться читаемой без него.
+            if (typeof particlesJS !== 'function') { return; }
+            var reduced = window.matchMedia
+                && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduced) { return; }
+            var root = document.documentElement;
+            var color = getComputedStyle(root)
+                .getPropertyValue('--err-particles').trim() || '#c4a668';
+            // На телефоне те же 120 частиц заметно греют батарею и подтормаживают.
+            var count = window.innerWidth < 700 ? 45 : 110;
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": { "value": count, "density": { "enable": true, "value_area": 800 } },
+                    "color": { "value": color },
+                    "shape": { "type": "polygon", "stroke": { "width": 1, "color": color }, "polygon": { "nb_sides": 6 } },
+                    "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+                    "size": { "value": 4, "random": true },
+                    "line_linked": { "enable": true, "distance": 180, "color": color, "opacity": 0.15, "width": 1 },
+                    "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": { "onhover": { "enable": true, "mode": "bubble" }, "onclick": { "enable": true, "mode": "push" } },
+                    "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+                },
+                "retina_detect": true
+            });
+        })();
+    </script>
 </body>
 </html>

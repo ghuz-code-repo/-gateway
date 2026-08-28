@@ -19,3 +19,8 @@ mongo_data_new/
 
 # Generated documentation
 REGISTER_AUTH_SERVICE.md
+
+# Python bytecode (генератор страниц ошибок и его тесты)
+__pycache__/
+*.py[cod]
+.pytest_cache/

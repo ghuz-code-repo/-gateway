@@ -23,6 +23,8 @@
     --err-danger: #DB4437;
     --err-meta-bg: #f8f9fa;
     --err-shadow: 0 10px 40px rgba(0, 0, 0, .08);
+    /* Цвет частиц фона — тот же, что в --particles-color портала. */
+    --err-particles: #c4a668;
 }
 
 /* Явно выбранная светлая тема (cookie gh_theme=light) — чтобы системная
@@ -45,6 +47,7 @@
     --err-danger: #e57373;
     --err-meta-bg: #2c2c2c;
     --err-shadow: 0 10px 40px rgba(0, 0, 0, .4);
+    --err-particles: #b39150;
 }
 
 /* Cookie не выставлена — повторяем логику портала: системная тема.
@@ -65,6 +68,7 @@
         --err-danger: #e57373;
         --err-meta-bg: #2c2c2c;
         --err-shadow: 0 10px 40px rgba(0, 0, 0, .4);
+        --err-particles: #b39150;
     }
 }
 
@@ -87,7 +91,18 @@ body {
     line-height: 1.6;
 }
 
+/* Фон с частицами. Слой лежит под карточкой и не перехватывает клики по
+   ней; сам холст остаётся кликабельным — particles.js добавляет частицы
+   по клику, как и на остальных страницах портала. */
+#particles-js {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+}
+
 .err-card {
+    position: relative;
+    z-index: 1;
     width: 100%;
     max-width: 620px;
     background: var(--err-card);
@@ -241,6 +256,24 @@ body {
     border-color: var(--err-muted);
 }
 
+.err-support {
+    margin: 18px 0 0;
+    font-size: 14px;
+    color: var(--err-muted);
+}
+
+.err-support-link {
+    color: var(--err-primary);
+    font-weight: 500;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+}
+
+.err-support-link:hover {
+    color: var(--err-primary-hover);
+    border-bottom-color: currentColor;
+}
+
 .err-foot {
     margin: 22px 0 0;
     font-size: 12px;
@@ -278,7 +311,8 @@ body {
         box-shadow: none;
     }
 
-    .err-actions {
+    .err-actions,
+    #particles-js {
         display: none;
     }
 }

@@ -28,6 +28,9 @@ services:
       - ./nginx/certs:/etc/nginx/certs:ro
     environment:
       - TZ=Asia/Tashkent
+      # Логин Telegram (без @) для ссылки «написать в поддержку» на страницах
+      # ошибок. Пусто — ссылка не выводится.
+      - SUPPORT_TELEGRAM=${SUPPORT_TELEGRAM:-}
     security_opt:
       - no-new-privileges:true
     networks:

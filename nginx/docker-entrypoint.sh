@@ -26,6 +26,29 @@ EOF
     echo "✅ Initial services.conf created"
 fi
 
+# ---------------------------------------------------------------------------
+# Контакт поддержки для страниц ошибок
+# ---------------------------------------------------------------------------
+# nginx не умеет читать переменные окружения в конфиге, поэтому значение
+# SUPPORT_TELEGRAM превращается в директиву set здесь, на старте контейнера.
+#
+# Значение чистится до символов, допустимых в telegram-логине: подставлять
+# в конфиг сырую переменную окружения нельзя — кавычка или перевод строки
+# в ней сломали бы конфиг и не дали шлюзу подняться.
+SUPPORT_TELEGRAM_CLEAN=$(printf '%s' "${SUPPORT_TELEGRAM:-}" | tr -cd 'A-Za-z0-9_')
+
+cat > /etc/nginx/conf.d/errors-contact.inc <<EOF
+# АВТОГЕНЕРАЦИЯ docker-entrypoint.sh из SUPPORT_TELEGRAM — руками не править.
+# Пустое значение прячет ссылку на странице ошибки целиком.
+set \$gw_support_telegram "${SUPPORT_TELEGRAM_CLEAN}";
+EOF
+
+if [ -n "$SUPPORT_TELEGRAM_CLEAN" ]; then
+    echo "📨 Контакт поддержки на страницах ошибок: t.me/${SUPPORT_TELEGRAM_CLEAN}"
+else
+    echo "📨 SUPPORT_TELEGRAM не задан — ссылка на поддержку скрыта"
+fi
+
 # Test nginx configuration (optional - for logging only)
 echo "🔍 Testing nginx configuration..."
 nginx -t 2>&1 || echo "⚠️  Configuration has issues with unreachable upstreams - this is normal during startup"

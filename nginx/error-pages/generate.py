@@ -164,6 +164,60 @@ THEME_SCRIPT = """    <script>
         })();
     </script>"""
 
+# Фон с частицами — тот же, что на остальных страницах портала.
+# Скрипт вендорен в /_shared/ и отдаётся самим nginx, поэтому доступен и
+# тогда, когда лежит auth-service: страница ошибки не должна зависеть от
+# сервиса, о падении которого она сообщает.
+PARTICLES_LAYER = '    <div id="particles-js" aria-hidden="true"></div>'
+
+PARTICLES_SCRIPT = """    <script src="/_shared/js/particles.min.js"></script>
+    <script>
+        (function () {
+            // Скрипта может не быть (вырезали из образа, режет расширение) —
+            // страница обязана остаться читаемой без него.
+            if (typeof particlesJS !== 'function') { return; }
+            var reduced = window.matchMedia
+                && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduced) { return; }
+            var root = document.documentElement;
+            var color = getComputedStyle(root)
+                .getPropertyValue('--err-particles').trim() || '#c4a668';
+            // На телефоне те же 120 частиц заметно греют батарею и подтормаживают.
+            var count = window.innerWidth < 700 ? 45 : 110;
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": { "value": count, "density": { "enable": true, "value_area": 800 } },
+                    "color": { "value": color },
+                    "shape": { "type": "polygon", "stroke": { "width": 1, "color": color }, "polygon": { "nb_sides": 6 } },
+                    "opacity": { "value": 0.2, "random": true, "anim": { "enable": true, "speed": 0.5, "opacity_min": 0.05, "sync": false } },
+                    "size": { "value": 4, "random": true },
+                    "line_linked": { "enable": true, "distance": 180, "color": color, "opacity": 0.15, "width": 1 },
+                    "move": { "enable": true, "speed": 0.8, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": { "onhover": { "enable": true, "mode": "bubble" }, "onclick": { "enable": true, "mode": "push" } },
+                    "modes": { "bubble": { "distance": 200, "size": 6, "duration": 2, "opacity": 0.6 } }
+                },
+                "retina_detect": true
+            });
+        })();
+    </script>"""
+
+# Контакт поддержки. Значение приходит из переменной окружения
+# SUPPORT_TELEGRAM: docker-entrypoint.sh пишет из неё
+# conf.d/errors-contact.inc с директивой set. Переменная пуста — блок
+# целиком не выводится, вёрстка не разъезжается.
+SUPPORT = """<!--# if expr="$gw_support_telegram" -->
+        <p class="err-support">Ничего не помогло —
+            <a class="err-support-link" href="https://t.me/<!--# echo var="gw_support_telegram" -->"
+               rel="noopener noreferrer" target="_blank">
+                написать в Telegram
+            </a>
+        </p>
+<!--# endif -->
+"""
+
 # Технические поля. Каждое показывается, только если nginx его заполнил:
 # при ошибке самого шлюза upstream'а нет, и пустые строки лишь мешают.
 DETAILS = """        <dl class="err-meta">
@@ -208,6 +262,7 @@ PAGE = """<!DOCTYPE html>
 {theme_script}
 </head>
 <body>
+{particles_layer}
     <main class="err-card">
         <div class="err-art">{art}</div>
         <p class="err-code">{code}</p>
@@ -221,7 +276,7 @@ PAGE = """<!DOCTYPE html>
             <a class="err-btn" href="/menu">В меню портала</a>
             <button type="button" class="err-btn err-btn--ghost" id="err-back">Назад</button>
         </div>
-        <p class="err-foot">Идентификатор запроса помогает найти эту ошибку в логах —
+        {support}<p class="err-foot">Идентификатор запроса помогает найти эту ошибку в логах —
             приложите его к обращению в поддержку.</p>
     </main>
     <script>
@@ -237,11 +292,12 @@ PAGE = """<!DOCTYPE html>
             }}
         }})();
     </script>
+{particles_script}
 </body>
 </html>
 """
 
-BADGE = '        <p class="err-badge">{label}</p>\n'
+BADGE ='        <p class="err-badge">{label}</p>\n'
 HINT = '        <p class="err-hint">{hint}</p>\n'
 
 
@@ -268,6 +324,9 @@ def render(code, spec):
         theme_class=THEME_CLASS,
         theme_script=THEME_SCRIPT,
         details=DETAILS,
+        support=SUPPORT,
+        particles_layer=PARTICLES_LAYER,
+        particles_script=PARTICLES_SCRIPT,
     )
 
 
@@ -287,6 +346,7 @@ PREVIEW = """<!DOCTYPE html>
 {theme_script}
 </head>
 <body class="err-preview">
+{particles_layer}
     <main class="err-card">
         <h1 class="err-title">Страницы ошибок шлюза</h1>
         <p class="err-text">Ссылка возвращает настоящий статус-код, а не имитацию:
@@ -299,6 +359,7 @@ PREVIEW = """<!DOCTYPE html>
 {items}
         </div>
     </main>
+{particles_script}
 </body>
 </html>
 """
@@ -348,6 +409,8 @@ def build_preview_page():
         items=items,
         theme_class=THEME_CLASS,
         theme_script=THEME_SCRIPT,
+        particles_layer=PARTICLES_LAYER,
+        particles_script=PARTICLES_SCRIPT,
     )
 
 
