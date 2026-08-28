@@ -14,6 +14,7 @@
 
 error_page 400 /_errors/400.html;
 error_page 402 /_errors/402.html;
+error_page 403 /_errors/403.html;
 error_page 404 /_errors/404.html;
 error_page 405 /_errors/405.html;
 error_page 406 /_errors/406.html;

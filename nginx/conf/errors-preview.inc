@@ -7,8 +7,8 @@
 # подменяет ответ настоящей страницей ошибки. Так вёрстку проверяют на живом
 # шлюзе, не роняя сервисы.
 #
-# Доступ закрыт auth_request /verify-admin: неадминистратор получит 401 или
-# 403 и уйдёт по обычным редиректам на /login и /access-denied.
+# Доступ закрыт auth_request /verify-admin: неадминистратор получит 401 и
+# уйдёт на /login либо 403 и увидит обычную страницу отказа.
 # ===================================================================
 
 location = /errors-preview {
@@ -31,6 +31,11 @@ location = /errors-preview/400 {
 location = /errors-preview/402 {
     auth_request /verify-admin;
     return 402;
+}
+
+location = /errors-preview/403 {
+    auth_request /verify-admin;
+    return 403;
 }
 
 location = /errors-preview/404 {

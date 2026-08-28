@@ -27,12 +27,12 @@
         <p class="err-text">Ссылка возвращает настоящий статус-код, а не имитацию:
             nginx отдаёт ровно то, что увидит пользователь. Раздел доступен только
             администраторам.</p>
-        <p class="err-text"><b>401</b> и <b>403</b> в списке отсутствуют — они
-            обрабатываются редиректами на <code>/login</code> и
-            <code>/access-denied</code>.</p>
+        <p class="err-text"><b>401</b> в списке отсутствует: это не отказ,
+            а переход к входу — шлюз редиректит на <code>/login</code>.</p>
         <div class="err-preview-grid">
             <a href="/errors-preview/400"><b>400</b>Некорректный запрос</a>
             <a href="/errors-preview/402"><b>402</b>Требуется оплата</a>
+            <a href="/errors-preview/403"><b>403</b>Доступ запрещён</a>
             <a href="/errors-preview/404"><b>404</b>Страница не найдена</a>
             <a href="/errors-preview/405"><b>405</b>Метод не поддерживается</a>
             <a href="/errors-preview/406"><b>406</b>Неподходящий формат ответа</a>

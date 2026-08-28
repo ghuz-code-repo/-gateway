@@ -13,7 +13,8 @@
     errors-pages.inc   — директивы error_page: код -> файл страницы;
     errors-preview.inc — location-блоки, отдающие каждый код по запросу.
 
-Страницы генерируются, а не пишутся руками, по трём причинам: их 38, каждая
+Страницы генерируются, а не пишутся руками, по трём причинам: их четыре
+десятка, каждая
 обязана быть самодостаточной (прод в изолированной сети, CDN нет), и текст
 должен лежать в одном месте — в codes.py, а не быть размазанным по HTML.
 
@@ -275,7 +276,7 @@ PAGE = """<!DOCTYPE html>
         <div class="err-actions">
             <a class="err-btn" href="/menu">В меню портала</a>
             <button type="button" class="err-btn err-btn--ghost" id="err-back">Назад</button>
-        </div>
+{action}        </div>
         {support}<p class="err-foot">Идентификатор запроса помогает найти эту ошибку в логах —
             приложите его к обращению в поддержку.</p>
     </main>
@@ -297,7 +298,10 @@ PAGE = """<!DOCTYPE html>
 </html>
 """
 
-BADGE ='        <p class="err-badge">{label}</p>\n'
+# Дополнительное действие: у 403 это выход, чтобы войти другим логином.
+ACTION = '            <a class="err-btn err-btn--ghost" href="{href}">{label}</a>\n'
+
+BADGE = '        <p class="err-badge">{label}</p>\n'
 HINT = '        <p class="err-hint">{hint}</p>\n'
 
 
@@ -314,6 +318,10 @@ def render(code, spec):
     if spec.get("hint"):
         hint = HINT.format(hint=spec["hint"])
 
+    action = ""
+    if spec.get("action"):
+        action = ACTION.format(**spec["action"])
+
     return PAGE.format(
         code=code,
         title=spec["title"],
@@ -321,6 +329,7 @@ def render(code, spec):
         art=_SVG_OPEN + ART[art_key] + "</svg>",
         badge=badge,
         hint=hint,
+        action=action,
         theme_class=THEME_CLASS,
         theme_script=THEME_SCRIPT,
         details=DETAILS,
@@ -352,9 +361,8 @@ PREVIEW = """<!DOCTYPE html>
         <p class="err-text">Ссылка возвращает настоящий статус-код, а не имитацию:
             nginx отдаёт ровно то, что увидит пользователь. Раздел доступен только
             администраторам.</p>
-        <p class="err-text"><b>401</b> и <b>403</b> в списке отсутствуют — они
-            обрабатываются редиректами на <code>/login</code> и
-            <code>/access-denied</code>.</p>
+        <p class="err-text"><b>401</b> в списке отсутствует: это не отказ,
+            а переход к входу — шлюз редиректит на <code>/login</code>.</p>
         <div class="err-preview-grid">
 {items}
         </div>
@@ -375,8 +383,8 @@ PREVIEW_CONF_HEAD = """# =======================================================
 # подменяет ответ настоящей страницей ошибки. Так вёрстку проверяют на живом
 # шлюзе, не роняя сервисы.
 #
-# Доступ закрыт auth_request /verify-admin: неадминистратор получит 401 или
-# 403 и уйдёт по обычным редиректам на /login и /access-denied.
+# Доступ закрыт auth_request /verify-admin: неадминистратор получит 401 и
+# уйдёт на /login либо 403 и увидит обычную страницу отказа.
 # ===================================================================
 
 location = /errors-preview {

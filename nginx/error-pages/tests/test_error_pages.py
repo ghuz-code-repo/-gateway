@@ -98,12 +98,28 @@ def test_редиректные_коды_не_получили_страницу(
     assert "error_page %d " % code not in read(PAGES_INC)
 
 
-def test_редиректы_401_и_403_на_месте():
+def test_единственный_редирект_это_401_на_вход():
+    """403 рисуется страницей на месте, а не уводит на /access-denied.
+
+    Редирект на /access-denied в паре с proxy_intercept_errors давал цикл:
+    та страница сама отдаёт 403, шлюз снова слал 302 на неё же.
+    """
     body = read(GATEWAY_INC)
     assert "error_page 401 = @error401;" in body
     assert "return 302 /login?redirect=$request_uri;" in body
-    assert "error_page 403 = @error403;" in body
-    assert "return 302 /access-denied?service=$request_uri;" in body
+    assert "error_page 403 = @error403;" not in body
+    assert "location @error403 {" not in body
+    assert "return 302 /access-denied" not in body
+    # Ровно один редирект на весь шлюз плюс два «уведём назад» для логов.
+    assert body.count("return 302 ") == 3
+
+
+def test_403_рисуется_страницей():
+    assert 403 in CODES
+    assert (OUT_DIR / "403.html").exists()
+    assert "error_page 403 /_errors/403.html;" in read(PAGES_INC)
+    # Кнопка выхода: частая причина отказа — вход не под тем логином.
+    assert 'href="/logout"' in page(403)
 
 
 # ---------------------------------------------------------------------------
@@ -272,36 +288,59 @@ def test_gateway_inc_подключает_страницы_ошибок():
     assert "/404.html" not in body, "остался старый обработчик 404"
 
 
-def test_шлюз_не_перехватывает_ответы_портала():
-    """Страницы портала отдают 401 и 403 как контент, а не как аварию.
-
-    Форма логина с «неверный пароль» (auth_handlers.go), error.html админки
-    (middleware.go) и access-denied.html (routes.go) возвращаются со своими
-    кодами. Перехват превращал бы их в редиректы, а для /access-denied —
-    в бесконечный цикл: страница отдаёт 403, шлюз шлёт 302 на неё же.
-    """
-    assert "proxy_intercept_errors off;" in read(ERRORS_INC)
-    assert "proxy_intercept_errors on;" not in read(ERRORS_INC)
-    # Точечных включений в gateway.inc быть не должно — иначе решение
-    # расползётся по файлу и следующий такой цикл никто не заметит.
-    assert "proxy_intercept_errors" not in read(GATEWAY_INC)
+def test_перехват_включён_на_весь_шлюз():
+    """Все страницы ошибок на портале — наши, а не gin-овские."""
+    assert "proxy_intercept_errors on;" in read(ERRORS_INC)
 
 
-def test_редирект_на_страницу_ошибки_не_длиннее_одного():
-    """У браузера ровно один переход, дальше цепочка обязана заканчиваться.
+# Ответы, которые подменять нельзя: код там — часть содержимого либо
+# служебный сигнал, а не сообщение человеку.
+NO_INTERCEPT = (
+    # формы: код приходит вместе с текстом для пользователя
+    "http://auth-service:80/login;",
+    "http://auth-service:80/forgot-password;",
+    "http://auth-service:80/reset-password;",
+    # JSON для JS
+    "http://auth-service:80/api/;",
+    "http://auth-service:80/check-user-exists;",
+    # ассеты
+    "http://auth-service:80/vite.svg;",
+    "http://auth-service:80/static/;",
+    "http://auth-service:80/data/;",
+    "http://auth-service:80/avatar/;",
+    # подзапросы auth_request
+    "http://auth-service:80/verify;",
+    "http://auth-service:80/verify-admin;",
+    "http://auth-service:80/verify-logs-access?service=$logs_referer_service;",
+    "http://auth-service:80/verify-logs-access?service=$service_key;",
+    # вебсокеты Dozzle
+    "proxy_pass $dozzle_upstream;",
+    "proxy_pass $dozzle_service_url;",
+)
 
-    401 -> /login и 403 -> /access-denied. Обе цели проксируются в
-    auth-service без перехвата, поэтому их собственные коды ответа новый
-    редирект уже не порождают.
-    """
+
+@pytest.mark.parametrize("anchor", NO_INTERCEPT)
+def test_перехват_снят_там_где_он_ломает(anchor):
     body = read(GATEWAY_INC)
-    targets = re.findall(r"return 30[12] (/[^?;\s]*)", body)
-    for target in set(targets):
-        # Цель редиректа обслуживается локально и не перехватывается —
-        # значит второго перехода не будет.
-        assert not target.startswith("/_errors/"), target
-    assert "return 302 /login?redirect=$request_uri;" in body
-    assert "return 302 /access-denied?service=$request_uri;" in body
+    at = body.find(anchor)
+    assert at != -1, "исчез proxy_pass %s" % anchor
+    # Отключение стоит сразу после proxy_pass, в том же блоке.
+    tail = body[at:at + 400]
+    assert "proxy_intercept_errors off;" in tail, anchor
+
+
+def test_цикл_на_access_denied_невозможен():
+    """Ключевая регрессия: error_page 403 обязан вести на файл, не на 302.
+
+    Внутренний редирект на статику терминален. Редирект же возвращался
+    клиенту, тот шёл на /access-denied, страница снова отдавала 403 —
+    и так до отказа браузера.
+    """
+    assert "error_page 403 /_errors/403.html;" in read(PAGES_INC)
+    body = read(GATEWAY_INC)
+    for target in set(re.findall(r"error_page 403 = (@\w+);", body)):
+        # Допустимы только уводящие на рабочие страницы обработчики логов.
+        assert target in ("@error403_logs", "@error403_service_logs"), target
 
 
 def test_заблокированные_ассеты_отдают_пустое_тело():
@@ -310,6 +349,32 @@ def test_заблокированные_ассеты_отдают_пустое_�
     assert "return 404;" not in body
     assert "error_page 404 = @asset_not_found;" in body
     assert "location @asset_not_found {" in read(ERRORS_INC)
+
+
+# Путей с такими префиксами в auth-service нет: управление ролями лежит
+# в routes/role_management.go.disabled, импорт-экспорт переехал на /services/.
+DEAD_ROUTES = ("/admin-menu", "/roles", "/permissions", "/service/")
+
+
+@pytest.mark.parametrize("path", DEAD_ROUTES)
+def test_мёртвые_маршруты_не_проксируются(path):
+    """Проксирование несуществующего роута отдавало голый gin-овый 404.
+
+    Без location запрос не совпадает ни с чем, nginx отдаёт свой 404,
+    и error_page подставляет стилизованную страницу.
+    """
+    body = read(GATEWAY_INC)
+    assert "location %s {" % path not in body
+    assert "location %s/ {" % path.rstrip("/") not in body
+    assert "proxy_pass http://auth-service:80%s" % path not in body
+
+
+def test_живые_маршруты_портала_на_месте():
+    """Страховка от переусердствовавшей чистки."""
+    body = read(GATEWAY_INC)
+    for path in ("/login", "/logout", "/menu", "/profile", "/settings",
+                 "/services", "/users", "/access-denied", "/static/"):
+        assert "location %s {" % path in body, path
 
 
 def test_nginx_conf_определяет_раздел_по_пути():
@@ -334,16 +399,8 @@ def test_шаблон_конфига_сервиса_передаёт_ключ():
     assert set_at < rewrite_at, "rewrite ... break обрывает фазу rewrite: set не выполнится"
 
 
-def test_перехват_включён_только_у_конечных_сервисов():
-    """Единственное место, где ошибки подменяются страницей шлюза.
-
-    Блок должен быть один и именно основной: {prefix}/static/ и health
-    остаются без перехвата, там нужен код ответа, а не страница.
-    """
+def test_ассеты_и_health_сервиса_не_перехватываются():
+    """Перехват — умолчание шлюза, у сервиса из-под него выведены двое."""
     tmpl = service_template()
-    assert tmpl.count("proxy_intercept_errors on;") == 1
-    assert "proxy_intercept_errors off;" not in tmpl
-    intercept_at = tmpl.index("proxy_intercept_errors on;")
-    main_at = tmpl.index("location {{.ExternalPrefix}}/ {")
-    health_at = tmpl.index("location = {{.ExternalPrefix}}{{.HealthCheckPath}} {")
-    assert main_at < intercept_at < health_at
+    assert tmpl.count("proxy_intercept_errors off;") == 2
+    assert "proxy_intercept_errors on;" not in tmpl

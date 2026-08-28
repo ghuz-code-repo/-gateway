@@ -90,6 +90,8 @@ server {
     # Main favicon endpoints - proxy to auth-service
     location = /vite.svg {
         proxy_pass http://auth-service:80/vite.svg;
+        # Ассету нужен код ответа, а не страница на несколько килобайт.
+        proxy_intercept_errors off;
         add_header Content-Type "image/x-icon" always;
         add_header Cache-Control "public, max-age=3600" always;
         expires 1h;
@@ -140,6 +142,9 @@ server {
     location /login {
         limit_req zone=auth_login burst=10 nodelay;
         proxy_pass http://auth-service:80/login;
+        # Не-2xx здесь — это контент, а не авария: страница возвращает
+        # код вместе с сообщением для пользователя. Перехват стёр бы текст.
+        proxy_intercept_errors off;
     }
     
     location /logout {
@@ -152,11 +157,17 @@ server {
     location /forgot-password {
         limit_req zone=auth_recovery burst=5 nodelay;
         proxy_pass http://auth-service:80/forgot-password;
+        # Не-2xx здесь — это контент, а не авария: страница возвращает
+        # код вместе с сообщением для пользователя. Перехват стёр бы текст.
+        proxy_intercept_errors off;
     }
     
     location /reset-password {
         limit_req zone=auth_login burst=5 nodelay;
         proxy_pass http://auth-service:80/reset-password;
+        # Не-2xx здесь — это контент, а не авария: страница возвращает
+        # код вместе с сообщением для пользователя. Перехват стёр бы текст.
+        proxy_intercept_errors off;
     }
     
     location /access-denied {
@@ -170,11 +181,6 @@ server {
     # Menu endpoint (accessible to all authenticated users)
     location /menu {
         proxy_pass http://auth-service:80/menu;
-    }
-    
-    # Admin menu
-    location /admin-menu {
-        proxy_pass http://auth-service:80/admin-menu;
     }
     
     # User profile
@@ -196,11 +202,19 @@ server {
         proxy_pass http://auth-service:80/services;
     }
     
-    # Service-specific Excel import/export endpoints (HIGH PRIORITY)
-    location /service/ {
-        proxy_pass http://auth-service:80;
-    }
-    
+    # ================================================================
+    # УДАЛЁННЫЕ МАРШРУТЫ
+    # ================================================================
+    # /admin-menu, /roles, /permissions и /service/ отсюда убраны: роутов
+    # с такими путями в auth-service нет (управление ролями живёт в
+    # routes/role_management.go.disabled, а импорт-экспорт переехал на
+    # /services/). Проксирование отдавало голый gin-овый «404 page not
+    # found» вместо стилизованной страницы.
+    #
+    # Теперь эти пути не совпадают ни с одним location, nginx отдаёт свой
+    # 404, и error_page подставляет обычную страницу ошибки. Возвращать
+    # блоки обратно можно только вместе с работающими обработчиками.
+
     # User management
     location /users {
         proxy_pass http://auth-service:80/users;
@@ -225,6 +239,8 @@ server {
         # Use variable so nginx resolves at runtime, not at config load
         set $dozzle_upstream http://gateway-dozzle:8080;
         proxy_pass $dozzle_upstream;
+        # Вебсокеты Dozzle: подмена ответа рвёт соединение.
+        proxy_intercept_errors off;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -258,6 +274,8 @@ server {
     location = /verify-logs-auth {
         internal;
         proxy_pass http://auth-service:80/verify-logs-access?service=$logs_referer_service;
+        # Подзапрос auth_request сам решает, что делать с 401 и 403.
+        proxy_intercept_errors off;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -289,6 +307,8 @@ server {
         
         # Dozzle web UI with WebSocket support
         proxy_pass $dozzle_service_url;
+        # Вебсокеты Dozzle: подмена ответа рвёт соединение.
+        proxy_intercept_errors off;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -321,6 +341,8 @@ server {
     location = /verify-service-logs-auth {
         internal;
         proxy_pass http://auth-service:80/verify-logs-access?service=$service_key;
+        # Подзапрос auth_request сам решает, что делать с 401 и 403.
+        proxy_intercept_errors off;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -343,16 +365,9 @@ server {
     # User existence check
     location /check-user-exists {
         proxy_pass http://auth-service:80/check-user-exists;
-    }
-    
-    # Role management
-    location /roles {
-        proxy_pass http://auth-service:80/roles;
-    }
-    
-    # Permission management
-    location /permissions {
-        proxy_pass http://auth-service:80/permissions;
+        # JSON читает JS, а не человек: HTML вместо тела ломает парсер,
+        # а 401 в виде редиректа fetch проглотит молча.
+        proxy_intercept_errors off;
     }
     
     # Notification settings
@@ -382,6 +397,9 @@ server {
     # General API endpoints (high priority prefix)
     location ^~ /api/ {
         proxy_pass http://auth-service:80/api/;
+        # JSON читает JS, а не человек: HTML вместо тела ломает парсер,
+        # а 401 в виде редиректа fetch проглотит молча.
+        proxy_intercept_errors off;
     }
 
     # ================================================================
@@ -391,11 +409,15 @@ server {
     # Data files from auth-service
     location /data/ {
         proxy_pass http://auth-service:80/data/;
+        # Ассету нужен код ответа, а не страница на несколько килобайт.
+        proxy_intercept_errors off;
     }
     
     # Avatar endpoint (no caching for fresh images)
     location /avatar/ {
         proxy_pass http://auth-service:80/avatar/;
+        # Ассету нужен код ответа, а не страница на несколько килобайт.
+        proxy_intercept_errors off;
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
         add_header Pragma "no-cache" always;
         add_header Expires "0" always;
@@ -404,6 +426,8 @@ server {
     # Static CSS/JS files with caching
     location /static/ {
         proxy_pass http://auth-service:80/static/;
+        # Ассету нужен код ответа, а не страница на несколько килобайт.
+        proxy_intercept_errors off;
         proxy_cache_valid 200 1h;
         proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
         add_header Cache-Control "public, max-age=3600" always;
@@ -418,6 +442,8 @@ server {
     location = /verify {
         internal;
         proxy_pass http://auth-service:80/verify;
+        # Подзапрос auth_request сам решает, что делать с 401 и 403.
+        proxy_intercept_errors off;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -430,6 +456,8 @@ server {
     location = /verify-admin {
         internal;
         proxy_pass http://auth-service:80/verify-admin;
+        # Подзапрос auth_request сам решает, что делать с 401 и 403.
+        proxy_intercept_errors off;
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header X-Original-URI $request_uri;
@@ -442,16 +470,15 @@ server {
     # ERROR HANDLING
     # ================================================================
     
-    # Redirect to auth service for login if not authenticated
+    # Единственный редирект на весь шлюз. 401 — не отказ, а «представьтесь»:
+    # показывать вместо входа страницу ошибки было бы тупиком.
+    #
+    # 403 здесь намеренно нет: он рисуется страницей на месте, из
+    # errors-pages.inc. Редирект на /access-denied в паре с
+    # proxy_intercept_errors давал цикл — та страница сама отдаёт 403.
     error_page 401 = @error401;
     location @error401 {
         return 302 /login?redirect=$request_uri;
-    }
-    
-    # Handle forbidden errors
-    error_page 403 = @error403;
-    location @error403 {
-        return 302 /access-denied?service=$request_uri;
     }
     
     # Остальные коды — стилизованные страницы шлюза. Перехват ответов
